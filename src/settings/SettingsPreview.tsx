@@ -1,5 +1,5 @@
 import { createSignal, For, Show } from 'solid-js'
-import { Battery, Clock3, CloudSun, FolderUp, Music2, Sparkles } from 'lucide-solid'
+import { Battery, Clock3, CloudSun, Music2, Sparkles } from 'lucide-solid'
 import { settings } from '../state/settings'
 import { COMPACT_ITEMS } from '../lib/compactConfig'
 
@@ -35,7 +35,6 @@ export default function SettingsPreview() {
                 </span>
               </Show>
             </Show>
-            <span class="appearance-preview__beam" role="img" aria-label="Beam quick action" title="Beam quick action"><FolderUp size={13} strokeWidth={1.8} /><span>Beam</span></span>
           </div>
           <Show when={expanded()}><div class="appearance-preview__expanded" aria-hidden="true"><span>Expanded notch</span></div></Show>
         </div>

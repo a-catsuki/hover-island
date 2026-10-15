@@ -11,6 +11,7 @@ mod nearby;
 mod notes;
 mod notifications;
 mod placement;
+mod paired_devices;
 mod erp;
 mod quick_controls;
 mod recycle;
@@ -530,6 +531,9 @@ pub fn run() {
             transfer::transfer_start,
             transfer::transfer_stage_dropped_paths,
             transfer::transfer_stop,
+            transfer::transfer_pairing_status,
+            transfer::transfer_pairing_decide,
+            transfer::transfer_pairing_remove,
             transfer::transfer_open_folder,
             recycle::recycle_dropped_paths,
             media::media_control,

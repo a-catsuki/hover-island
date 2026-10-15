@@ -414,7 +414,7 @@ pub fn collapsed_rect(
     }
     if mode == "notch" && (edge == "left" || edge == "right") {
         let width = (56.0 * scale).round() as i32;
-        let height = (200.0 * scale).round() as i32;
+        let height = (144.0 * scale).round() as i32;
         let x = if edge == "right" {
             host_x + host_width - width
         } else {
@@ -616,11 +616,11 @@ mod tests {
     fn collapsed_hit_rect_tracks_the_selected_edge_and_dpi() {
         assert_eq!(
             collapsed_rect(100, 50, 1600, 900, 2.0, 320.0, 38.0, "left", "notch"),
-            (100, 300, 112, 400)
+            (100, 356, 112, 288)
         );
         assert_eq!(
             collapsed_rect(100, 50, 1600, 900, 2.0, 320.0, 38.0, "right", "notch"),
-            (1588, 300, 112, 400)
+            (1588, 356, 112, 288)
         );
         assert_eq!(
             collapsed_rect(100, 50, 1600, 900, 1.0, 320.0, 38.0, "bottom", "notch"),
@@ -638,7 +638,7 @@ mod tests {
 
     #[test]
     fn magnetic_pull_is_bounded_and_fades_before_the_hit_target() {
-        let bounds = (100, 100, 56, 168);
+        let bounds = (100, 100, 56, 144);
         let offset = magnetic_offset(140, 52, bounds, 1.0).unwrap();
         assert!(offset.0.abs() < 0.01);
         assert!(offset.1 < 0.0 && offset.1.abs() <= 6.0);

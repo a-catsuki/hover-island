@@ -28,7 +28,9 @@ export function subscribedCalendar(text:string,sourceId:string,now=Date.now()):{
   let skipped=0,iterations=0
   const from=now-31*86400000,until=now+370*86400000,started=performance.now()
   for(const component of components){
-    if(events.length>=1000||iterations>20000||performance.now()-started>200){skipped++;break}
+    // Allow a small ordinary calendar through even when Intl's cold timezone
+    // initialization consumes the time budget under heavy system load.
+    if(events.length>=1000||iterations>20000||((events.length>=32||iterations>=32)&&performance.now()-started>200)){skipped++;break}
     if(component.hasProperty('recurrence-id')||component.getFirstPropertyValue('status')==='CANCELLED')continue
     try {
       const uid=component.getFirstPropertyValue('uid')

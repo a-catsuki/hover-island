@@ -148,7 +148,8 @@ export interface Settings {
   theme: string
   sizePreset: 'small' | 'medium' | 'large'
   background: 'aurora' | 'reactive' | 'artwork' | 'ember' | 'plain' | 'contours' | 'dots' | 'grid' | 'waves'
-  panels: { today: string; desk: string; activity: string }
+  panels: Record<string, string>
+  panelOrder: string[]
   widgets: WidgetConfig[]
   connections: AppConnection[]
   dnd: boolean
@@ -217,6 +218,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sizePreset: 'medium',
   background: 'plain',
   panels: { today: 'Today', desk: 'Desk', activity: 'Activity' },
+  panelOrder: ['today', 'desk', 'activity'],
   widgets: [
     { id: 'w-media', kind: 'media', enabled: true, order: 0 },
     { id: 'w-weather', kind: 'weather', enabled: true, order: 1 },
@@ -342,6 +344,9 @@ export const cmd = {
   transferStart: () => invoke<TransferStatus>('transfer_start'),
   transferStageDroppedPaths: (paths: string[]) => invoke<TransferStatus>('transfer_stage_dropped_paths', { paths }),
   transferStop: () => invoke<void>('transfer_stop'),
+  transferPairingStatus: () => invoke<PhonePairingStatus>('transfer_pairing_status'),
+  transferPairingDecide: (pairId: string, allow: boolean) => invoke<void>('transfer_pairing_decide', { pairId, allow }),
+  transferPairingRemove: (deviceId: string) => invoke<boolean>('transfer_pairing_remove', { deviceId }),
   transferOpenFolder: () => invoke<void>('transfer_open_folder'),
   recycleDroppedPaths: (paths: string[]) => invoke<RecycleDroppedPathsResult>('recycle_dropped_paths', { paths }),
 
@@ -463,7 +468,7 @@ export interface WidgetConfig {
   kind: WidgetKind
   enabled: boolean
   order: number
-  panel?: 'today' | 'desk' | 'activity'
+  panel?: string
   clockStyle?: 'analog' | 'digital'
 }
 
@@ -495,7 +500,7 @@ export interface WeatherSnapshot {
   stale?: boolean | null
 }
 
-export interface ResetAnnouncement { id: string; kind: 'global' | 'banked'; title: string; publishedAt: number; sourceUrl: string; reportedBy: string; upcoming?: boolean }
+export interface ResetAnnouncement { id: string; kind: 'global' | 'banked'; title: string; publishedAt: number; sourceUrl: string; reportedBy: string; status: 'landed' | 'announced' | 'expected' | 'awaiting_confirmation'; landingAt?: number | null; upcoming?: boolean }
 export interface DeviceSnapshot { bluetooth: string[]; charging: boolean | null; error?: string | null }
 export interface ResetWatchSnapshot { events: ResetAnnouncement[]; lastCheckedAt: number; sourceUpdatedAt?: number | null; source: string; stale: boolean; error?: string | null }
 
@@ -588,6 +593,8 @@ export interface TransferStatus {
   active:boolean
   phoneUrl:string | null
   desktopUrl:string | null
+  bookmarkUrl:string | null
+  stableBookmark:boolean
   qrDataUrl:string | null
   expiresAt:number | null
   files:TransferFile[]
@@ -596,3 +603,6 @@ export interface TransferStatus {
   maxBucketBytes:number
   error?:string | null
 }
+export interface PairedPhone { id:string; name:string; lastSeen:number | null; online:boolean }
+export interface PendingPhonePair { id:string; name:string; code:string; expiresAt:number }
+export interface PhonePairingStatus { devices:PairedPhone[]; pending:PendingPhonePair[] }

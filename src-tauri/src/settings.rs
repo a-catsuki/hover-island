@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
@@ -187,6 +188,8 @@ pub struct Settings {
     pub size_preset: String,
     pub background: String,
     pub panels: PanelNames,
+    #[serde(default = "default_panel_order")]
+    pub panel_order: Vec<String>,
     pub widgets: Vec<WidgetConfig>,
     pub connections: Vec<AppConnection>,
     pub dnd: bool,
@@ -216,21 +219,27 @@ fn legacy_onboarding_version() -> u8 {
     1
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct PanelNames {
-    pub today: String,
-    pub desk: String,
-    pub activity: String,
+pub type PanelNames = BTreeMap<String, String>;
+
+fn default_panel_names() -> PanelNames {
+    BTreeMap::from([
+        ("today".into(), "Today".into()),
+        ("desk".into(), "Desk".into()),
+        ("activity".into(), "Activity".into()),
+    ])
 }
-impl Default for PanelNames {
-    fn default() -> Self {
-        Self {
-            today: "Today".into(),
-            desk: "Desk".into(),
-            activity: "Activity".into(),
-        }
-    }
+
+fn default_panel_order() -> Vec<String> {
+    vec!["today".into(), "desk".into(), "activity".into()]
+}
+
+fn valid_panel_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+        && id.as_bytes()[0].is_ascii_alphanumeric()
 }
 fn clean_panel_title(value: &str, fallback: &str) -> String {
     let title: String = value
@@ -253,6 +262,54 @@ fn default_panel(kind: &str) -> &'static str {
     }
 }
 
+const MAX_PANEL_COUNT: usize = 128;
+
+/// Split enabled widgets into pages that fit the narrowest one-column grid.
+/// `calendar`, like the other full-height widgets, owns both available rows.
+fn flat_panel_groups(widgets: &[WidgetConfig]) -> Vec<Vec<String>> {
+    let mut groups = Vec::new();
+    let mut group = Vec::new();
+    let mut rows_used = 0usize;
+    for widget in widgets
+        .iter()
+        .filter(|widget| widget.enabled && widget.kind != "airdrop")
+    {
+        let full = matches!(
+            widget.kind.as_str(),
+            "nearby" | "controls" | "usage" | "web-alerts" | "clock" | "calendar"
+        );
+        let rows = if full { 2 } else { 1 };
+        if (full && rows_used > 0) || rows_used + rows > 2 {
+            if !group.is_empty() {
+                groups.push(std::mem::take(&mut group));
+            }
+            rows_used = 0;
+        }
+        group.push(widget.id.clone());
+        rows_used += rows;
+        if rows_used == 2 {
+            groups.push(std::mem::take(&mut group));
+            rows_used = 0;
+        }
+    }
+    if !group.is_empty() {
+        groups.push(group);
+    }
+    groups
+}
+
+fn generated_overflow_id(base: &str, suffix: usize, panels: &PanelNames) -> String {
+    let base: String = base.chars().take(48).collect();
+    let stem = format!("overflow-{base}-{suffix}");
+    let mut id = stem.clone();
+    let mut serial = 2;
+    while panels.contains_key(&id) {
+        id = format!("{stem}-{serial}");
+        serial += 1;
+    }
+    id
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -269,7 +326,8 @@ impl Default for Settings {
             theme: "midnight".into(),
             size_preset: "medium".into(),
             background: "plain".into(),
-            panels: PanelNames::default(),
+            panels: default_panel_names(),
+            panel_order: default_panel_order(),
             widgets: default_widgets(),
             connections: Vec::new(),
             dnd: false,
@@ -370,9 +428,41 @@ impl Settings {
         ) {
             self.background = defaults.background;
         }
-        self.panels.today = clean_panel_title(&self.panels.today, "Today");
-        self.panels.desk = clean_panel_title(&self.panels.desk, "Desk");
-        self.panels.activity = clean_panel_title(&self.panels.activity, "Activity");
+        self.panels.retain(|id, _| valid_panel_id(id));
+        if self.panels.len() > MAX_PANEL_COUNT {
+            let mut ordered = Vec::new();
+            for id in &self.panel_order {
+                if self.panels.contains_key(id) && !ordered.contains(id) {
+                    ordered.push(id.clone());
+                }
+            }
+            for id in self.panels.keys() {
+                if !ordered.contains(id) {
+                    ordered.push(id.clone());
+                }
+            }
+            let keep: std::collections::HashSet<_> =
+                ordered.into_iter().take(MAX_PANEL_COUNT).collect();
+            self.panels.retain(|id, _| keep.contains(id));
+        }
+        for (id, title) in &mut self.panels {
+            *title = clean_panel_title(title, id);
+        }
+        if self.panels.is_empty() {
+            self.panels.insert("today".into(), "Today".into());
+        }
+        let mut order = Vec::new();
+        for id in self.panel_order.drain(..) {
+            if self.panels.contains_key(&id) && !order.contains(&id) {
+                order.push(id);
+            }
+        }
+        for id in self.panels.keys() {
+            if !order.contains(id) {
+                order.push(id.clone());
+            }
+        }
+        self.panel_order = order;
         self.collapsed = self
             .collapsed
             .validated(defaults.collapsed, 200.0, 420.0, 32.0, 96.0);
@@ -403,10 +493,13 @@ impl Settings {
         ) {
             self.placement.edge = defaults.placement.edge;
         }
-        if self.placement.mode == "bar" && matches!(self.placement.edge.as_str(), "left" | "right") {
+        if self.placement.mode == "bar" && matches!(self.placement.edge.as_str(), "left" | "right")
+        {
             self.placement.edge = "top".into();
         }
-        if self.placement.mode == "sidebar" && matches!(self.placement.edge.as_str(), "top" | "bottom") {
+        if self.placement.mode == "sidebar"
+            && matches!(self.placement.edge.as_str(), "top" | "bottom")
+        {
             self.placement.edge = "left".into();
         }
         self.placement.monitor = self.placement.monitor.take().and_then(|monitor| {
@@ -420,8 +513,12 @@ impl Settings {
         if !matches!(self.compact_clock_style.as_str(), "digital" | "analog") {
             self.compact_clock_style = defaults.compact_clock_style.clone();
         }
-        if !matches!(self.clock_typography.as_str(), "rounded"|"serif"|"mono") {self.clock_typography="rounded".into();}
-        if !matches!(self.clock_hour_cycle.as_str(), "12"|"24") {self.clock_hour_cycle="12".into();}
+        if !matches!(self.clock_typography.as_str(), "rounded" | "serif" | "mono") {
+            self.clock_typography = "rounded".into();
+        }
+        if !matches!(self.clock_hour_cycle.as_str(), "12" | "24") {
+            self.clock_hour_cycle = "12".into();
+        }
         self.onboarding_version = self.onboarding_version.min(1);
         let compact_limit = match self.size_preset.as_str() {
             "small" => 2,
@@ -483,8 +580,31 @@ impl Settings {
         self.widgets
             .retain(|widget| supported_widget_kind(&widget.kind));
         for widget in &mut self.widgets {
-            if !matches!(widget.panel.as_deref(), Some("today" | "desk" | "activity")) {
-                widget.panel = Some(default_panel(&widget.kind).into());
+            let panel = widget
+                .panel
+                .as_deref()
+                .filter(|id| valid_panel_id(id))
+                .map(str::to_owned);
+            match panel {
+                Some(id) if self.panels.contains_key(&id) => widget.panel = Some(id),
+                Some(id) if self.panels.len() < MAX_PANEL_COUNT => {
+                    self.panels
+                        .insert(id.clone(), format!("Recovered {}", self.panels.len() + 1));
+                    self.panel_order.push(id.clone());
+                    widget.panel = Some(id);
+                }
+                _ => {
+                    let preferred = default_panel(&widget.kind);
+                    let fallback = if self.panels.contains_key(preferred) {
+                        preferred.to_string()
+                    } else {
+                        self.panel_order
+                            .first()
+                            .cloned()
+                            .unwrap_or_else(|| "today".into())
+                    };
+                    widget.panel = Some(fallback);
+                }
             }
             widget.clock_style = if widget.kind == "clock"
                 && matches!(widget.clock_style.as_deref(), Some("analog" | "digital"))
@@ -493,6 +613,48 @@ impl Settings {
             } else {
                 None
             };
+        }
+        // Convert overflow from legacy paginated panels into ordinary named panels.
+        // Disabled widgets stay assigned to their visible panel and are never discarded.
+        let roots = self.panel_order.clone();
+        for root in roots {
+            let mut members: Vec<_> = self
+                .widgets
+                .iter()
+                .filter(|widget| widget.panel.as_deref() == Some(root.as_str()))
+                .cloned()
+                .collect();
+            members.sort_by_key(|widget| widget.order);
+            let groups = flat_panel_groups(&members);
+            for (page, ids) in groups.into_iter().enumerate().skip(1) {
+                if self.panels.len() >= MAX_PANEL_COUNT {
+                    break;
+                }
+                let id = generated_overflow_id(&root, page + 1, &self.panels);
+                let title = format!(
+                    "{} {}",
+                    self.panels
+                        .get(&root)
+                        .map(String::as_str)
+                        .unwrap_or("Panel"),
+                    page + 1
+                );
+                self.panels
+                    .insert(id.clone(), clean_panel_title(&title, "Panel"));
+                let insert_at = self
+                    .panel_order
+                    .iter()
+                    .position(|entry| entry == &root)
+                    .map(|index| index + page)
+                    .unwrap_or(self.panel_order.len());
+                self.panel_order
+                    .insert(insert_at.min(self.panel_order.len()), id.clone());
+                for widget in &mut self.widgets {
+                    if ids.contains(&widget.id) {
+                        widget.panel = Some(id.clone());
+                    }
+                }
+            }
         }
         for connection in &mut self.connections {
             let mut sources = Vec::new();
@@ -575,7 +737,14 @@ fn deep_merge(base: &mut Value, patch: Value) {
 /// Merge a partial JSON patch into the current Settings, returning the new value.
 pub fn merge_patch(current: &Settings, patch: Value) -> Settings {
     let mut base = serde_json::to_value(current).unwrap_or(Value::Object(Default::default()));
+    let mut patch = patch;
+    let replacement_panels = patch
+        .as_object_mut()
+        .and_then(|object| object.remove("panels"));
     deep_merge(&mut base, patch);
+    if let (Some(base), Some(panels)) = (base.as_object_mut(), replacement_panels) {
+        base.insert("panels".into(), panels);
+    }
     serde_json::from_value(base)
         .unwrap_or_else(|_| current.clone())
         .validated()
@@ -632,6 +801,90 @@ mod tests {
         assert!(!s.dnd);
         assert!(s.hide_behind_windows);
         assert_eq!(s.weather_lat, None);
+    }
+
+    #[test]
+    fn legacy_panel_names_and_order_survive_dynamic_layout_migration() {
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        value.as_object_mut().unwrap().remove("panelOrder");
+        value["panels"] = serde_json::json!({
+            "today": "My day",
+            "work-notes": "Work notes",
+        });
+        value["widgets"] = serde_json::json!([
+            { "id": "note", "kind": "notes", "enabled": true, "order": 0, "panel": "work-notes" }
+        ]);
+
+        let settings: Settings = serde_json::from_value(value).unwrap();
+        let settings = settings.validated();
+        assert_eq!(
+            settings.panels.get("today").map(String::as_str),
+            Some("My day")
+        );
+        assert_eq!(
+            settings.panels.get("work-notes").map(String::as_str),
+            Some("Work notes")
+        );
+        assert!(settings.panel_order.contains(&"today".to_string()));
+        assert!(settings.panel_order.contains(&"work-notes".to_string()));
+        assert_eq!(settings.widgets[0].panel.as_deref(), Some("work-notes"));
+    }
+
+    #[test]
+    fn panel_map_patch_replaces_deleted_panels_without_recreating_them() {
+        let mut current = Settings::default();
+        current.widgets.clear();
+        let merged = merge_patch(
+            &current,
+            serde_json::json!({ "panels": { "studio": "Studio" }, "panelOrder": ["studio"] }),
+        );
+        assert_eq!(
+            merged.panels,
+            BTreeMap::from([("studio".into(), "Studio".into())])
+        );
+        assert_eq!(merged.panel_order, vec!["studio".to_string()]);
+    }
+
+    #[test]
+    fn flat_panel_migration_keeps_every_widget_and_limits_each_panel_to_one_page() {
+        let widgets: Vec<_> = (0..7)
+            .map(|order| WidgetConfig {
+                id: format!("ai-{order}"),
+                kind: "ai".into(),
+                enabled: true,
+                order,
+                panel: Some("today".into()),
+                clock_style: None,
+            })
+            .collect();
+        let settings = Settings {
+            panels: BTreeMap::from([("today".into(), "Today".into())]),
+            panel_order: vec!["today".into()],
+            widgets,
+            ..Settings::default()
+        }
+        .validated();
+
+        assert_eq!(settings.widgets.len(), 7);
+        assert!(settings.panel_order.len() >= 4);
+        for panel in &settings.panel_order {
+            let members: Vec<_> = settings
+                .widgets
+                .iter()
+                .filter(|widget| widget.enabled && widget.panel.as_deref() == Some(panel.as_str()))
+                .cloned()
+                .collect();
+            assert!(
+                flat_panel_groups(&members).len() <= 1,
+                "{panel} still needs nested pages"
+            );
+        }
+        let ids: std::collections::HashSet<_> = settings
+            .widgets
+            .iter()
+            .map(|widget| widget.id.as_str())
+            .collect();
+        assert_eq!(ids.len(), 7);
     }
 
     #[test]
@@ -757,13 +1010,19 @@ mod tests {
     #[test]
     fn legacy_visualizer_aliases_are_migrated() {
         let orb = Settings {
-            visualizer: VisualizerCfg { style: "orb".into(), ..VisualizerCfg::default() },
+            visualizer: VisualizerCfg {
+                style: "orb".into(),
+                ..VisualizerCfg::default()
+            },
             ..Settings::default()
         }
         .validated();
         assert_eq!(orb.visualizer.style, "bloom");
         let rings = Settings {
-            visualizer: VisualizerCfg { style: "rings".into(), ..VisualizerCfg::default() },
+            visualizer: VisualizerCfg {
+                style: "rings".into(),
+                ..VisualizerCfg::default()
+            },
             ..Settings::default()
         }
         .validated();

@@ -4,6 +4,7 @@ import { cmd, DEFAULT_SETTINGS, onSettingsChanged, type DockItem, type Settings 
 import { applyTemplate } from '../lib/themes'
 import { applyAccent } from './ui'
 import { reportError } from './feedback'
+import { fitPanelLayout } from '../lib/panels'
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 const [settings, setSettings] = createStore<Settings>(clone(DEFAULT_SETTINGS))
@@ -19,14 +20,15 @@ let writeFailureRevision = 0
 let lastWriteFailure: unknown
 
 function merge(current: Settings, patch: Partial<Settings>): Settings {
-  return { ...current, ...patch,
+  const merged: Settings = { ...current, ...patch,
     collapsed: { ...current.collapsed, ...patch.collapsed },
     expanded: { ...current.expanded, ...patch.expanded },
     modules: { ...current.modules, ...patch.modules },
     visualizer: { ...current.visualizer, ...patch.visualizer },
     notifications: { ...current.notifications, ...patch.notifications },
     interaction: { ...current.interaction, ...patch.interaction },
-    panels: { ...current.panels, ...patch.panels },
+    panels: patch.panels ?? current.panels,
+    panelOrder: Array.isArray(patch.panelOrder) ? patch.panelOrder : current.panelOrder,
     placement: { ...current.placement, ...patch.placement },
     usage: { ...current.usage, ...patch.usage,
       manualConfig: { ...current.usage.manualConfig, ...patch.usage?.manualConfig } },
@@ -38,6 +40,8 @@ function merge(current: Settings, patch: Partial<Settings>): Settings {
     weatherCity: patch.weatherCity !== undefined ? patch.weatherCity : current.weatherCity,
     dock: patch.dock ?? current.dock,
   }
+  const layout = fitPanelLayout(merged.panels, merged.panelOrder, merged.widgets)
+  return { ...merged, ...layout }
 }
 function mergePending(older: Partial<Settings>, newer: Partial<Settings>): Partial<Settings> {
   const combined = { ...older, ...newer }

@@ -1,15 +1,19 @@
 //! Temporary, token-authenticated LAN file bucket for phones and this PC.
 //!
-//! The server listens only while the user starts a session. The random URL is
-//! a bearer credential; traffic is plain HTTP on the local network, so the
-//! session should be stopped when sharing is done. Files are saved without
-//! overwriting into Downloads/Hover Island.
+//! The server listens only while the user starts a session. The random QR URL
+//! can request pairing; a phone receives bucket access only after PC approval
+//! and then uses an HttpOnly cookie whose hash is stored locally. Traffic is
+//! plain HTTP on the local network, so stop the session when sharing is done.
+//! Files are saved without overwriting into Downloads/Hover Island.
 
+use crate::paired_devices::{
+    new_cookie, storage_path as paired_storage_path, PairedDeviceStore, PairingStatus, PendingPairs,
+};
 use axum::body::{Body, Bytes};
 use axum::extract::{ConnectInfo, Path, Query, State as AxumState};
 use axum::http::{header, HeaderMap, HeaderValue, Request, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures_util::StreamExt;
 use qrcode::render::svg;
@@ -23,7 +27,7 @@ use std::sync::{
     Arc, Mutex, OnceLock,
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -38,6 +42,8 @@ const MAX_FILENAME_BYTES: usize = 180;
 const IDLE_CHUNK_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_UPLOAD_DURATION: Duration = Duration::from_secs(10 * 60);
 const CHUNK_BYTES: usize = 64 * 1024;
+const PREFERRED_LAN_PORT: u16 = 47_692;
+const DEVICE_COOKIE: &str = "hover_island_device";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,6 +60,8 @@ pub struct TransferStatus {
     pub active: bool,
     pub phone_url: Option<String>,
     pub desktop_url: Option<String>,
+    pub bookmark_url: Option<String>,
+    pub stable_bookmark: bool,
     pub qr_data_url: Option<String>,
     pub expires_at: Option<u64>,
     pub files: Vec<TransferFile>,
@@ -61,6 +69,16 @@ pub struct TransferStatus {
     pub max_file_bytes: u64,
     pub max_bucket_bytes: u64,
     pub error: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct PairRequestBody {
+    name: String,
+}
+
+#[derive(Serialize)]
+struct PairRequestStateBody {
+    state: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -97,6 +115,7 @@ struct Session {
     token: String,
     port: u16,
     lan_ip: Ipv4Addr,
+    stable_bookmark: bool,
     save_dir: PathBuf,
     expires: Instant,
     expires_at: u64,
@@ -104,8 +123,15 @@ struct Session {
     app: Option<AppHandle>,
     closed: AtomicBool,
     bucket: Mutex<Bucket>,
+    paired_devices: Mutex<PairedDeviceStore>,
+    pending_pairs: Mutex<PendingPairs>,
     upload_slots: Arc<Semaphore>,
     zip_download_active: AtomicBool,
+    // Browser smoke uses loopback networking but must still exercise phone pairing.
+    // This field and its checks are compiled only into tests; production continues
+    // to trust local loopback access for the desktop's own browser.
+    #[cfg(test)]
+    require_pairing_on_loopback: AtomicBool,
 }
 
 impl Session {
@@ -115,6 +141,10 @@ impl Session {
 
     fn desktop_base(&self) -> String {
         format!("http://127.0.0.1:{}/s/{}", self.port, self.token)
+    }
+
+    fn bookmark_url(&self) -> String {
+        format!("http://{}:{}/device", self.lan_ip, self.port)
     }
 
     fn is_expired(&self) -> bool {
@@ -180,9 +210,17 @@ pub async fn transfer_start(app: AppHandle) -> Result<TransferStatus, String> {
     let save_dir = download_folder()?;
     std::fs::create_dir_all(&save_dir)
         .map_err(|e| format!("Could not create the download folder: {e}"))?;
-    let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0))
-        .await
-        .map_err(|e| format!("Could not start the local phone bucket: {e}"))?;
+    let preferred =
+        TcpListener::bind(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, PREFERRED_LAN_PORT)).await;
+    let (listener, stable_bookmark) = match preferred {
+        Ok(listener) => (listener, true),
+        Err(_) => (
+            TcpListener::bind(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0))
+                .await
+                .map_err(|e| format!("Could not start the local phone bucket: {e}"))?,
+            false,
+        ),
+    };
     let port = listener
         .local_addr()
         .map_err(|e| format!("Could not read the local server address: {e}"))?
@@ -200,11 +238,17 @@ pub async fn transfer_start(app: AppHandle) -> Result<TransferStatus, String> {
         )
     );
     let expires_at = now_ms().saturating_add(SESSION_TTL.as_millis() as u64);
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Could not locate saved phone storage: {error}"))?;
+    let paired_devices = PairedDeviceStore::load(paired_storage_path(&app_data))?;
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let session = Arc::new(Session {
         token,
         port,
         lan_ip,
+        stable_bookmark,
         save_dir,
         expires: Instant::now() + SESSION_TTL,
         expires_at,
@@ -212,8 +256,12 @@ pub async fn transfer_start(app: AppHandle) -> Result<TransferStatus, String> {
         app: Some(app),
         closed: AtomicBool::new(false),
         bucket: Mutex::new(Bucket::default()),
+        paired_devices: Mutex::new(paired_devices),
+        pending_pairs: Mutex::new(PendingPairs::default()),
         upload_slots: Arc::new(Semaphore::new(MAX_CONCURRENT_UPLOADS)),
         zip_download_active: AtomicBool::new(false),
+        #[cfg(test)]
+        require_pairing_on_loopback: AtomicBool::new(false),
     });
     let router = router(session.clone());
     let expiry = session.expires;
@@ -248,6 +296,96 @@ pub async fn transfer_stop() {
     if let Some(current) = active().lock().await.take() {
         close_session(current);
     }
+}
+
+#[tauri::command]
+pub async fn transfer_pairing_status(app: AppHandle) -> Result<PairingStatus, String> {
+    let session = {
+        let mut active = active().lock().await;
+        if active
+            .as_ref()
+            .is_some_and(|entry| entry.session.is_expired())
+        {
+            if let Some(expired) = active.take() {
+                close_session(expired);
+            }
+        }
+        active.as_ref().map(|entry| entry.session.clone())
+    };
+    let pending = if let Some(session) = &session {
+        session
+            .pending_pairs
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .views(Instant::now())
+    } else {
+        Vec::new()
+    };
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Could not locate saved phone storage: {error}"))?;
+    let mut devices = if let Some(session) = &session {
+        session
+            .paired_devices
+            .lock()
+            .map_err(|_| "Saved phone list is busy.".to_string())?
+            .views(now_ms())
+    } else {
+        PairedDeviceStore::load(paired_storage_path(&app_data))?.views(now_ms())
+    };
+    if let Some(session) = &session {
+        let started_at = session
+            .expires_at
+            .saturating_sub(SESSION_TTL.as_millis() as u64);
+        for device in &mut devices {
+            device.online &= device.last_seen.is_some_and(|seen| seen >= started_at);
+        }
+    } else {
+        for device in &mut devices {
+            device.online = false;
+        }
+    }
+    Ok(PairingStatus { devices, pending })
+}
+
+#[tauri::command]
+pub async fn transfer_pairing_decide(pair_id: String, allow: bool) -> Result<(), String> {
+    let active = active().lock().await;
+    let session = active
+        .as_ref()
+        .map(|entry| entry.session.clone())
+        .ok_or_else(|| "Start the phone bucket before approving a phone.".to_string())?;
+    if session.is_expired() {
+        return Err("The phone bucket session has expired.".into());
+    }
+    let result = session
+        .pending_pairs
+        .lock()
+        .map_err(|_| "Phone pairing is busy.".to_string())?
+        .decide(&pair_id, allow, Instant::now());
+    result
+}
+
+#[tauri::command]
+pub async fn transfer_pairing_remove(app: AppHandle, device_id: String) -> Result<bool, String> {
+    let session = active()
+        .lock()
+        .await
+        .as_ref()
+        .map(|entry| entry.session.clone());
+    if let Some(session) = session {
+        return session
+            .paired_devices
+            .lock()
+            .map_err(|_| "Saved phone list is busy.".to_string())?
+            .remove(&device_id);
+    }
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Could not locate saved phone storage: {error}"))?;
+    PairedDeviceStore::load(paired_storage_path(&app_data))?.remove(&device_id)
 }
 
 struct DroppedMember {
@@ -633,7 +771,11 @@ pub fn transfer_open_folder(app: AppHandle) -> Result<(), String> {
 
 fn router(session: Arc<Session>) -> Router {
     Router::new()
+        .route("/device", get(device_bookmark))
         .route("/s/:token", get(phone_page))
+        .route("/s/:token/api/pair/request", post(pair_request))
+        .route("/s/:token/api/pair/status/:id", get(pair_request_status))
+        .route("/s/:token/api/pair/claim/:id", post(pair_claim))
         .route(
             "/s/:token/api/files",
             get(list_files).put(upload_file).options(preflight),
@@ -649,14 +791,185 @@ async fn phone_page(
     ConnectInfo(remote): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
 ) -> Response {
-    if let Err((status, message)) = authorize(&session, &token, remote, &headers, false) {
+    if let Err((status, message)) = authorize_base(&session, &token, remote, &headers, false) {
         return (status, message).into_response();
     }
-    let mut response = (
-        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
-        MOBILE_PAGE,
+    let paired = match authenticated_device_id(&session, &headers) {
+        Some(id) => {
+            touch_device(&session, &id);
+            true
+        }
+        None => loopback_bypass_allowed(&session, remote),
+    };
+    if !paired {
+        return secure_html_response(PAIRING_PAGE.to_string());
+    }
+    let bookmark_note = if session.stable_bookmark {
+        "The preferred address is available whenever this PC's bucket is running."
+    } else {
+        "The port changed for this session. Scan a fresh QR code next time."
+    };
+    let html = MOBILE_PAGE
+        .replace("__DEVICE_BOOKMARK__", &session.bookmark_url())
+        .replace("__BOOKMARK_NOTE__", bookmark_note);
+    secure_html_response(html)
+}
+
+async fn device_bookmark(
+    AxumState(session): AxumState<Arc<Session>>,
+    ConnectInfo(remote): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Response {
+    if session.is_expired() {
+        return (StatusCode::GONE, "Start the phone bucket on your PC first.").into_response();
+    }
+    let expected_host = format!("{}:{}", session.lan_ip, session.port);
+    if !is_local_address(remote.ip())
+        || headers
+            .get(header::HOST)
+            .and_then(|value| value.to_str().ok())
+            != Some(expected_host.as_str())
+    {
+        return (
+            StatusCode::FORBIDDEN,
+            "This bookmark is available only from the paired local network.",
+        )
+            .into_response();
+    }
+    let Some(id) = authenticated_device_id(&session, &headers) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            "Remember this phone with a fresh QR code first.",
+        )
+            .into_response();
+    };
+    touch_device(&session, &id);
+    let mut response = StatusCode::SEE_OTHER.into_response();
+    match HeaderValue::from_str(&session.phone_base()) {
+        Ok(location) => {
+            response.headers_mut().insert(header::LOCATION, location);
+        }
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Could not open the phone bucket.",
+            )
+                .into_response()
+        }
+    }
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+}
+
+async fn pair_request(
+    Path(token): Path<String>,
+    AxumState(session): AxumState<Arc<Session>>,
+    ConnectInfo(remote): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(body): Json<PairRequestBody>,
+) -> Response {
+    if let Err((status, message)) = authorize_base(&session, &token, remote, &headers, true) {
+        return (status, message).into_response();
+    }
+    let mut pending = session
+        .pending_pairs
+        .lock()
+        .unwrap_or_else(|p| p.into_inner());
+    match pending.request(
+        &body.name,
+        new_cookie(),
+        remote.ip(),
+        Instant::now(),
+        now_ms(),
+    ) {
+        Ok(request) => Json(request).into_response(),
+        Err(error) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": error})),
+        )
+            .into_response(),
+    }
+}
+
+async fn pair_request_status(
+    Path((token, id)): Path<(String, String)>,
+    AxumState(session): AxumState<Arc<Session>>,
+    ConnectInfo(remote): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err((status, message)) = authorize_base(&session, &token, remote, &headers, false) {
+        return (status, message).into_response();
+    }
+    let state = session
+        .pending_pairs
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .state(&id, remote.ip(), Instant::now());
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(PairRequestStateBody { state }),
     )
-        .into_response();
+        .into_response()
+}
+
+async fn pair_claim(
+    Path((token, id)): Path<(String, String)>,
+    AxumState(session): AxumState<Arc<Session>>,
+    ConnectInfo(remote): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err((status, message)) = authorize_base(&session, &token, remote, &headers, true) {
+        return (status, message).into_response();
+    }
+    let claim = session
+        .pending_pairs
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .claim(&id, remote.ip(), Instant::now());
+    let (request, cookie) = match claim {
+        Ok(claim) => claim,
+        Err(error) => {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(serde_json::json!({"error": error})),
+            )
+                .into_response()
+        }
+    };
+    if let Err(error) = session
+        .paired_devices
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .remember(request.id, request.name, &cookie)
+    {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": error})),
+        )
+            .into_response();
+    }
+    let cookie =
+        format!("{DEVICE_COOKIE}={cookie}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Strict");
+    let mut response = StatusCode::NO_CONTENT.into_response();
+    if let Ok(value) = HeaderValue::from_str(&cookie) {
+        response.headers_mut().insert(header::SET_COOKIE, value);
+    } else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Could not finish phone pairing.",
+        )
+            .into_response();
+    }
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+}
+
+fn secure_html_response(body: String) -> Response {
+    let mut response = ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], body).into_response();
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
@@ -1479,6 +1792,35 @@ fn authorize(
     headers: &HeaderMap,
     require_origin: bool,
 ) -> Result<(), (StatusCode, &'static str)> {
+    authorize_base(session, token, remote, headers, require_origin)?;
+    if !loopback_bypass_allowed(session, remote) {
+        let id = authenticated_device_id(session, headers).ok_or((
+            StatusCode::UNAUTHORIZED,
+            "Remember this phone before using the bucket",
+        ))?;
+        touch_device(session, &id);
+    }
+    Ok(())
+}
+
+fn loopback_bypass_allowed(session: &Session, remote: SocketAddr) -> bool {
+    if !remote.ip().is_loopback() {
+        return false;
+    }
+    #[cfg(test)]
+    if session.require_pairing_on_loopback.load(Ordering::Acquire) {
+        return false;
+    }
+    true
+}
+
+fn authorize_base(
+    session: &Session,
+    token: &str,
+    remote: SocketAddr,
+    headers: &HeaderMap,
+    require_origin: bool,
+) -> Result<(), (StatusCode, &'static str)> {
     if session.is_expired() {
         return Err((StatusCode::GONE, "This phone bucket session has expired"));
     }
@@ -1502,6 +1844,22 @@ fn authorize(
         ));
     }
     Ok(())
+}
+
+fn authenticated_device_id(session: &Session, headers: &HeaderMap) -> Option<String> {
+    let cookie = headers.get(header::COOKIE)?.to_str().ok()?;
+    let prefix = format!("{DEVICE_COOKIE}=");
+    let value = cookie
+        .split(';')
+        .map(str::trim)
+        .find_map(|part| part.strip_prefix(prefix.as_str()))?;
+    session.paired_devices.lock().ok()?.authenticated_id(value)
+}
+
+fn touch_device(session: &Session, id: &str) {
+    if let Ok(mut devices) = session.paired_devices.lock() {
+        let _ = devices.touch(id, now_ms());
+    }
 }
 
 fn allowed_origin(
@@ -1726,6 +2084,8 @@ fn status_for(session: &Session) -> TransferStatus {
         active: !session.is_expired(),
         phone_url: Some(session.phone_base()),
         desktop_url: Some(session.desktop_base()),
+        bookmark_url: Some(session.bookmark_url()),
+        stable_bookmark: session.stable_bookmark,
         qr_data_url: Some(session.qr_data_url.clone()),
         expires_at: Some(session.expires_at),
         files: session.list(),
@@ -1741,6 +2101,8 @@ fn inactive_status() -> TransferStatus {
         active: false,
         phone_url: None,
         desktop_url: None,
+        bookmark_url: None,
+        stable_bookmark: false,
         qr_data_url: None,
         expires_at: None,
         files: Vec::new(),
@@ -1830,6 +2192,7 @@ fn percent_encode(bytes: &[u8]) -> String {
 }
 
 const MOBILE_PAGE: &str = include_str!("phone-bucket.html");
+const PAIRING_PAGE: &str = include_str!("phone-pairing.html");
 
 #[cfg(test)]
 fn discover_lan_ip_for_session_test() -> Ipv4Addr {
@@ -2017,6 +2380,184 @@ mod tests {
         )
         .await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn qr_pairing_is_origin_checked_approved_before_cookie_and_revocable() {
+        let mut session = test_session_at(
+            47692,
+            Ipv4Addr::new(192, 168, 1, 10),
+            Duration::from_secs(60),
+        );
+        let save_dir = session.save_dir.clone();
+        Arc::get_mut(&mut session).unwrap().paired_devices =
+            Mutex::new(PairedDeviceStore::load(save_dir.join("paired-phones.json")).unwrap());
+        let remote: SocketAddr = "192.168.1.42:51234".parse().unwrap();
+        let good_origin = format!("http://{}:{}", session.lan_ip, session.port);
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::HOST,
+            HeaderValue::from_str(&format!("{}:{}", session.lan_ip, session.port)).unwrap(),
+        );
+        headers.insert(header::ORIGIN, HeaderValue::from_str(&good_origin).unwrap());
+
+        let unpaired_page = phone_page(
+            Path(session.token.clone()),
+            AxumState(session.clone()),
+            ConnectInfo(remote),
+            headers.clone(),
+        )
+        .await;
+        assert_eq!(unpaired_page.status(), StatusCode::OK);
+        let page = axum::body::to_bytes(unpaired_page.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let page = String::from_utf8(page.to_vec()).unwrap();
+        assert!(page.contains("Request pairing"));
+        assert!(!page.contains("Ready to download"));
+        let blocked_files = list_files(
+            Path(session.token.clone()),
+            AxumState(session.clone()),
+            ConnectInfo(remote),
+            headers.clone(),
+        )
+        .await;
+        assert_eq!(blocked_files.status(), StatusCode::UNAUTHORIZED);
+
+        let denied = pair_request(
+            Path(session.token.clone()),
+            AxumState(session.clone()),
+            ConnectInfo(remote),
+            HeaderMap::from_iter([
+                (
+                    header::HOST,
+                    HeaderValue::from_str(&format!("{}:{}", session.lan_ip, session.port)).unwrap(),
+                ),
+                (
+                    header::ORIGIN,
+                    HeaderValue::from_static("http://attacker.example"),
+                ),
+            ]),
+            Json(PairRequestBody {
+                name: "Untrusted".into(),
+            }),
+        )
+        .await;
+        assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+        assert!(session
+            .pending_pairs
+            .lock()
+            .unwrap()
+            .views(Instant::now())
+            .is_empty());
+
+        let response = pair_request(
+            Path(session.token.clone()),
+            AxumState(session.clone()),
+            ConnectInfo(remote),
+            headers.clone(),
+            Json(PairRequestBody {
+                name: "My phone".into(),
+            }),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        let request: crate::paired_devices::PairRequestCreated =
+            serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(request.name, "My phone");
+        assert_eq!(request.code.len(), 6);
+
+        assert!(session
+            .pending_pairs
+            .lock()
+            .unwrap()
+            .claim(&request.id, "192.168.1.99".parse().unwrap(), Instant::now())
+            .is_err());
+        session
+            .pending_pairs
+            .lock()
+            .unwrap()
+            .decide(&request.id, true, Instant::now())
+            .unwrap();
+        let claimed = pair_claim(
+            Path((session.token.clone(), request.id.clone())),
+            AxumState(session.clone()),
+            ConnectInfo(remote),
+            headers.clone(),
+        )
+        .await;
+        assert_eq!(claimed.status(), StatusCode::NO_CONTENT);
+        let set_cookie = claimed
+            .headers()
+            .get(header::SET_COOKIE)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        assert!(set_cookie.contains("HttpOnly"));
+        assert!(set_cookie.contains("SameSite=Strict"));
+        let cookie = set_cookie.split(';').next().unwrap().to_string();
+        let raw = cookie.split_once('=').unwrap().1;
+        assert_eq!(
+            session.paired_devices.lock().unwrap().authenticated_id(raw),
+            Some(request.id.clone())
+        );
+        assert!(!session.paired_devices.lock().unwrap().views(now_ms())[0].online);
+        let saved = std::fs::read_to_string(save_dir.join("paired-phones.json")).unwrap();
+        assert!(
+            !saved.contains(raw),
+            "the cookie itself must not be persisted"
+        );
+
+        let mut authenticated = HeaderMap::new();
+        authenticated.insert(
+            header::HOST,
+            HeaderValue::from_str(&format!("{}:{}", session.lan_ip, session.port)).unwrap(),
+        );
+        authenticated.insert(header::COOKIE, HeaderValue::from_str(&cookie).unwrap());
+        let bookmark = device_bookmark(
+            AxumState(session.clone()),
+            ConnectInfo(remote),
+            authenticated.clone(),
+        )
+        .await;
+        assert_eq!(bookmark.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            bookmark
+                .headers()
+                .get(header::LOCATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            session.phone_base()
+        );
+        let listing = list_files(
+            Path(session.token.clone()),
+            AxumState(session.clone()),
+            ConnectInfo(remote),
+            authenticated.clone(),
+        )
+        .await;
+        assert_eq!(listing.status(), StatusCode::OK);
+        assert!(session.paired_devices.lock().unwrap().views(now_ms())[0].online);
+        assert!(session
+            .paired_devices
+            .lock()
+            .unwrap()
+            .remove(&request.id)
+            .unwrap());
+        let revoked = list_files(
+            Path(session.token.clone()),
+            AxumState(session.clone()),
+            ConnectInfo(remote),
+            authenticated,
+        )
+        .await;
+        assert_eq!(revoked.status(), StatusCode::UNAUTHORIZED);
+        let _ = std::fs::remove_dir_all(save_dir);
     }
 
     #[tokio::test]
@@ -2272,27 +2813,96 @@ mod tests {
     async fn phone_browser_fixture() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
-        let session = test_session_at(
+        let mut session = test_session_at(
             address.port(),
             Ipv4Addr::LOCALHOST,
             Duration::from_secs(120),
         );
         tokio::fs::create_dir_all(&session.save_dir).await.unwrap();
+        let source_dir = session.save_dir.join("smoke-owned-source");
+        tokio::fs::create_dir_all(&source_dir).await.unwrap();
+        let seed_path = source_dir.join("smoke-seed.txt");
+        tokio::fs::write(&seed_path, b"owned phone browser smoke seed\n")
+            .await
+            .unwrap();
+        stage_native_file(session.clone(), &seed_path, "smoke-seed.txt")
+            .await
+            .unwrap();
+        tokio::fs::remove_dir_all(&source_dir).await.unwrap();
+
+        let save_dir = session.save_dir.clone();
+        let session_mut = Arc::get_mut(&mut session).expect("fixture session is uniquely owned");
+        session_mut.paired_devices =
+            Mutex::new(PairedDeviceStore::load(save_dir.join("paired-phones.json")).unwrap());
+        session_mut
+            .require_pairing_on_loopback
+            .store(true, Ordering::Release);
+
         let phone_url = session.phone_base();
         let app = router(session.clone());
+        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
         let server = tokio::spawn(async move {
             axum::serve(
                 listener,
                 app.into_make_service_with_connect_info::<SocketAddr>(),
             )
+            .with_graceful_shutdown(async {
+                let _ = shutdown_rx.await;
+            })
             .await
             .unwrap();
         });
+
+        // This approval loop is deliberately confined to this ignored test fixture.
+        // Production pairing always requires the user to approve on the PC.
+        let approval_session = session.clone();
+        let approval = tokio::spawn(async move {
+            let deadline = Instant::now() + Duration::from_secs(110);
+            while Instant::now() < deadline {
+                let requests = approval_session
+                    .pending_pairs
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .views(Instant::now());
+                for request in requests {
+                    if request.name == "Browser smoke phone" {
+                        let _ = approval_session
+                            .pending_pairs
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .decide(&request.id, true, Instant::now());
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        });
+
         println!("PHONE_BUCKET_URL={phone_url}");
-        tokio::time::sleep(Duration::from_secs(120)).await;
+        let marker_deadline = Instant::now() + Duration::from_secs(115);
+        let marker_uploaded = loop {
+            let marker_uploaded = session
+                .list()
+                .iter()
+                .any(|file| file.name == "phone-pairing-smoke-complete.txt");
+            if marker_uploaded {
+                break true;
+            }
+            if Instant::now() >= marker_deadline {
+                break false;
+            }
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        };
+
         session.closed.store(true, Ordering::Release);
-        server.abort();
-        let _ = tokio::fs::remove_dir_all(&session.save_dir).await;
+        let _ = shutdown_tx.send(());
+        let _ = tokio::time::timeout(Duration::from_secs(3), server).await;
+        approval.abort();
+        let _ = approval.await;
+        let _ = tokio::fs::remove_dir_all(&save_dir).await;
+        assert!(
+            marker_uploaded,
+            "browser smoke did not upload its completion marker within 115 seconds"
+        );
     }
 
     fn test_session() -> Arc<Session> {
@@ -2379,6 +2989,7 @@ mod tests {
             token,
             port,
             lan_ip,
+            stable_bookmark: false,
             save_dir: std::env::temp_dir().join(format!(
                 "hover-island-transfer-test-{}",
                 uuid::Uuid::new_v4()
@@ -2389,8 +3000,12 @@ mod tests {
             app: None,
             closed: AtomicBool::new(false),
             bucket: Mutex::new(Bucket::default()),
+            paired_devices: Mutex::new(PairedDeviceStore::default()),
+            pending_pairs: Mutex::new(PendingPairs::default()),
             upload_slots: Arc::new(Semaphore::new(MAX_CONCURRENT_UPLOADS)),
             zip_download_active: AtomicBool::new(false),
+            #[cfg(test)]
+            require_pairing_on_loopback: AtomicBool::new(false),
         })
     }
 }

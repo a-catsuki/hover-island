@@ -1,6 +1,6 @@
 import { createSignal, For, onCleanup, onMount, Show, Switch, Match } from 'solid-js'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { Bell, Blocks, Cable, Check, ChevronDown, Info, Palette, Puzzle, RefreshCw, SlidersHorizontal, Sparkles } from 'lucide-solid'
+import { Bell, Blocks, Cable, Check, ChevronDown, Info, Palette, Plus, Puzzle, RefreshCw, SlidersHorizontal, Sparkles, Trash2 } from 'lucide-solid'
 import { browserPreview, cmd, type Settings } from '../lib/ipc'
 import { SCENE_PRESETS, TEMPLATES } from '../lib/themes'
 import { loadSettings, settings, patchSettings, resetSettings, savingSettings, flushSettings } from '../state/settings'
@@ -8,7 +8,7 @@ import { dismissFeedback, feedback, reportError } from '../state/feedback'
 import { Field, Group, Slider, Toggle } from './controls'
 import WidgetManager from './WidgetManager'
 import ConnectionsPanel from './ConnectionsPanel'
-import { PANELS, SIZE_PRESETS } from '../lib/panels'
+import { createPanelLayout, MAX_PANEL_COUNT, removePanelLayout, renamePanelLayout, SIZE_PRESETS } from '../lib/panels'
 import { COMPACT_ITEMS, compactItemLimit, normalizeCompactItems, toggleCompactItem } from '../lib/compactConfig'
 import { VISUALIZER_STYLES, normalizeVisualizerStyle } from '../lib/visualizerStyles'
 import WebsiteConnectionsPanel from '../components/settings/WebsiteConnectionsPanel'
@@ -196,7 +196,15 @@ export default function SettingsApp() {
             </Match>
 
             <Match when={section() === 'widgets'}>
-              <Group title="Your panels" description="Give each space a name. Drag widgets inside the island, or choose a panel below."><For each={PANELS}>{panel => <Field label={panel.charAt(0).toUpperCase()+panel.slice(1)}><input aria-label={`${panel} panel name`} maxlength={24} value={settings.panels[panel]} onInput={event => set({ panels: { ...settings.panels, [panel]: event.currentTarget.value } })}/></Field>}</For></Group>
+              <Group title="Your panels" description="Each panel is a single dashboard surface. Add as many spaces as you need; overflow widgets move into extra panels automatically.">
+                <For each={settings.panelOrder}>{(panel, index) => <Field label={`Panel ${index() + 1}`} hint={`${settings.panels[panel]}`}>
+                  <div style={{ display: 'flex', gap: '7px', 'align-items': 'center', 'min-width': '0' }}>
+                    <input aria-label={`${settings.panels[panel]} panel name`} maxlength={24} value={settings.panels[panel]} onChange={event => patchSettings(renamePanelLayout(settings, panel, event.currentTarget.value))}/>
+                    <button type="button" class="icon-button" aria-label={`Remove panel ${settings.panels[panel]}`} title="Remove panel" disabled={settings.panelOrder.length <= 1} onClick={() => patchSettings(removePanelLayout(settings, panel))}><Trash2 size={14}/></button>
+                  </div>
+                </Field>}</For>
+                <button type="button" class="button button--secondary" disabled={settings.panelOrder.length >= MAX_PANEL_COUNT} onClick={() => patchSettings(createPanelLayout(settings))}><Plus size={14}/>Add panel</button>
+              </Group>
               <Group title="Notch widgets" description="Shown in the expanded panel, top to bottom.">
                 <WidgetManager />
               </Group>

@@ -713,3 +713,185 @@ button.quick-settings__tile:disabled {
     background: var(--surface-2, #1d1d20);
   }
 }
+
+/* --------------------------------------------------------- Control Center */
+.quick-settings {
+  --control-blue: #80b8ff;
+  --control-amber: #f0bf6a;
+  --control-violet: #c0c5d1;
+  --control-green: #86c99c;
+}
+.quick-settings .quick-settings__overview {
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 2px 2px 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2, #ffffff20) transparent;
+}
+.quick-settings .quick-settings__sliders {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.quick-settings .quick-settings__slider-section { gap: 5px; }
+.quick-settings .quick-settings__slider-row { gap: 9px; }
+.quick-settings .quick-settings__slider-row.is-disabled { opacity: .68; }
+.quick-settings .quick-settings__slider-body { gap: 6px; }
+.quick-settings .quick-settings__slider-head { font-size: 12px; }
+.quick-settings .quick-settings__slider-head > span:first-child { color: var(--text-2); font-weight: var(--fw-medium, 500); }
+.quick-settings .quick-settings__value { color: var(--text-1); font-size: 11px; font-weight: var(--fw-semibold, 600); }
+.quick-settings .quick-settings__icon {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+}
+.quick-settings .quick-settings__icon--volume { color: var(--text-2); }
+.quick-settings .quick-settings__icon--brightness { color: var(--control-blue); }
+.quick-settings .quick-settings__icon--bluetooth { color: var(--control-blue); }
+.quick-settings .quick-settings__icon--warmth { color: var(--control-amber); }
+.quick-settings .quick-settings__icon--focus { color: var(--control-violet); }
+.quick-settings .quick-settings__icon--power { color: var(--control-green); }
+.quick-settings .quick-settings__icon--battery { color: var(--control-green); }
+.quick-settings .quick-settings__icon--memory { color: var(--control-blue); }
+.quick-settings .quick-settings__range {
+  height: 5px;
+  background: linear-gradient(90deg,
+    var(--control-fill, var(--accent, #718aff)) var(--pct, 0%),
+    var(--surface-active, #ffffff24) var(--pct, 0%));
+}
+.quick-settings__slider-section:first-child { --control-fill: var(--text-2, #b6bbc8); }
+.quick-settings__slider-section:nth-child(2) { --control-fill: var(--control-blue); }
+.quick-settings .quick-settings__tiles {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+.quick-settings .quick-settings__tile {
+  min-height: 46px;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-1, #ffffff16);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-2, #202126) 66%, transparent);
+  box-shadow: none;
+}
+.quick-settings .quick-settings__tile:not(:disabled):hover {
+  border-color: var(--line-2, #ffffff25);
+  background: var(--surface-hover, #ffffff0d);
+}
+.quick-settings .quick-settings__tile.is-active[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--control-blue) 11%, var(--surface-2, #202126));
+  border-color: color-mix(in srgb, var(--control-blue) 28%, var(--line-1, #ffffff16));
+}
+.quick-settings .quick-settings__tile:nth-child(2).is-active[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--control-amber) 10%, var(--surface-2, #202126));
+  border-color: color-mix(in srgb, var(--control-amber) 27%, var(--line-1, #ffffff16));
+}
+.quick-settings .quick-settings__tile:nth-child(3).is-active[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--control-violet) 9%, var(--surface-2, #202126));
+  border-color: color-mix(in srgb, var(--control-violet) 24%, var(--line-1, #ffffff16));
+}
+.quick-settings .quick-settings__tile .quick-settings__icon {
+  flex-basis: 26px;
+  width: 26px;
+  height: 26px;
+}
+.quick-settings .quick-settings__tile .quick-settings__text { gap: 1px; }
+.quick-settings .quick-settings__tile strong { font-size: 11px; }
+.quick-settings .quick-settings__tile small { font-size: 9px; }
+.quick-settings .quick-settings__switch { flex-basis: 26px; width: 26px; height: 16px; }
+.quick-settings .quick-settings__switch i { width: 12px; height: 12px; }
+.quick-settings .quick-settings__switch.is-on i { transform: translateX(10px); }
+.quick-settings .quick-settings__status {
+  min-height: 28px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+}
+.quick-settings .quick-settings__status-row { gap: 6px; }
+.quick-settings .quick-settings__status .quick-settings__icon { flex-basis: 21px; width: 21px; height: 21px; }
+.quick-settings .quick-settings__status .quick-settings__text { display: flex; align-items: baseline; gap: 6px; }
+.quick-settings .quick-settings__status strong { color: var(--text-3); font-size: 10px; font-weight: var(--fw-medium, 500); }
+.quick-settings .quick-settings__status small { color: var(--text-2); font-size: 10px; }
+.quick-settings .quick-settings__devices { max-width: 56%; gap: 4px; }
+.quick-settings .quick-settings__devices > span { padding: 3px 7px; font-size: 9px; }
+.quick-settings .quick-settings__links {
+  display: flex;
+  flex: none;
+  flex-direction: row;
+  gap: 12px;
+  padding: 0 2px;
+}
+.quick-settings .quick-settings__link {
+  width: auto;
+  min-height: 23px;
+  gap: 5px;
+  padding: 0;
+  color: var(--text-3);
+  font-size: 10px;
+}
+.quick-settings .quick-settings__link > span { color: var(--text-2); font-weight: var(--fw-medium, 500); }
+.quick-settings .quick-settings__link > svg:first-child { color: var(--text-3); }
+.quick-settings .quick-settings__link > svg:last-child { display: none; }
+.quick-settings .quick-settings__link:hover,
+.quick-settings .quick-settings__link:hover > span { color: var(--text-1); }
+.quick-settings .quick-settings__memory-head {
+  min-height: 38px;
+  gap: 7px;
+  padding: 4px 2px 2px;
+  border: 0;
+  border-top: 1px solid var(--line-2, #ffffff10);
+  border-radius: 0;
+  background: none;
+}
+.quick-settings .quick-settings__memory-head:hover {
+  border-color: var(--line-2, #ffffff25);
+  background: none;
+}
+.quick-settings .quick-settings__memory-head .quick-settings__icon { flex-basis: 24px; width: 24px; height: 24px; }
+.quick-settings .quick-settings__memory-head strong { font-size: 11px; }
+.quick-settings .quick-settings__memory-head small { font-size: 9px; }
+.quick-settings .quick-settings__inline-error { font-size: 10px; }
+.quick-settings .quick-settings__error { padding: 4px 7px; border-radius: 7px; background: color-mix(in srgb, var(--danger, #f87171) 9%, transparent); }
+
+@container controls (max-width: 460px) {
+  .quick-settings .quick-settings__sliders { grid-template-columns: 1fr; gap: 10px; }
+  .quick-settings .quick-settings__slider-row { gap: 7px; }
+  .quick-settings .quick-settings__slider-body { gap: 4px; }
+}
+@container controls (min-width: 620px) {
+  .quick-settings .quick-settings__tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container controls (max-height: 340px) {
+  .quick-settings .quick-settings__overview { gap: 8px; }
+  .quick-settings .quick-settings__head { min-height: 24px; }
+  .quick-settings .quick-settings__eyebrow { display: none; }
+  .quick-settings .quick-settings__sliders { gap: 10px; }
+  .quick-settings .quick-settings__tile { min-height: 38px; padding: 5px 7px; }
+  .quick-settings .quick-settings__status { min-height: 22px; }
+  .quick-settings .quick-settings__memory-head { min-height: 32px; }
+}
+@container controls (max-height: 270px) {
+  .quick-settings .quick-settings__sliders { grid-template-columns: 1fr; gap: 7px; }
+  .quick-settings .quick-settings__tiles { gap: 5px; }
+  .quick-settings .quick-settings__tile { min-height: 34px; }
+  .quick-settings .quick-settings__tile small { display: none; }
+}
+@media (prefers-contrast: more) {
+  .quick-settings .quick-settings__tile { border-color: var(--text-2, #b6bbc8); background: var(--surface-2, #1d1d20); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .quick-settings .quick-settings__tile { background: var(--surface-2, #1d1d20); }
+}

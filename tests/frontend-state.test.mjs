@@ -12,6 +12,10 @@ function signal(initial) {
 }
 
 async function importTs(relativePath, mocks, globals = {}) {
+  if (relativePath === 'src/state/settings.ts' && !Object.hasOwn(mocks, '../lib/panels')) {
+    const widgetPages = await importTs('src/lib/widgetPages.ts', {})
+    mocks = { ...mocks, '../lib/panels': await importTs('src/lib/panels.ts', { './widgetPages': widgetPages }) }
+  }
   const source = await readFile(new URL(relativePath, root), 'utf8')
   const js = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -499,6 +503,7 @@ test('media track changes are silent at startup and only announce a new playing 
 })
 
 const defaults = {
+  panels: { today: 'Today', desk: 'Desk', activity: 'Activity' }, panelOrder: ['today', 'desk', 'activity'], widgets: [],
   version: 1, hotkey: 'Alt+Space', launchAtLogin: false,
   collapsed: { w: 320, h: 42 }, expanded: { w: 700, h: 500 },
   opacity: 0.9, accent: '#6e8bff', theme: 'default',

@@ -52,8 +52,8 @@
 }
 
 .island--mode-bar .island__bar {
-  padding-right: 34px;
-  padding-left: 34px
+  padding-right: 14px;
+  padding-left: 14px
 }
 
 .island--mode-bar .pill {
@@ -80,10 +80,6 @@
 
 .island--mode-sidebar .island__expanded {
   width: min(100%,420px)
-}
-
-.island--mode-sidebar .island__move-handle {
-  top: 50%
 }
 
 .island--mode-sidebar:not(.island--open) {
@@ -221,38 +217,19 @@
   transform: translateY(-50%)
 }
 
-.island__move-handle {
-  position: absolute;
-  z-index: 4;
-  top: 50%;
-  right: 5px;
-  display: grid;
-  width: 24px;
-  height: 28px;
-  place-items: center;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  color: #ffffff80;
-  opacity: .5;
-  transform: translateY(-50%);
+.island .island__bar {
   cursor: grab;
   touch-action: none;
-  transition: opacity .14s ease,background .14s ease,color .14s ease,border-color .14s ease,transform .14s var(--spring, ease)
+  user-select: none
 }
 
-.island__move-handle:hover {
-  transform: translateY(-50%) scale(1.08)
+.island.island--dragging .island__bar,
+.island.island--dragging .panel__head {
+  cursor: grabbing
 }
 
-.island .island__bar {
-  padding-right: 40px
-}
-
-.island.island--edge-right .island__bar {
-  padding-right: 14px;
-  padding-left: 40px
+.island.island--open:not(.island--dragging) .panel__head {
+  cursor: grab
 }
 
 .island.island--mode-sidebar:not(.island--open).island--edge-right .island__bar {
@@ -260,44 +237,8 @@
   padding-left: 5px
 }
 
-.island--hover .island__move-handle,.island__move-handle:hover,.island__move-handle:focus-visible {
-  opacity: 1;
-  color: #fff;
-  background: #ffffff14;
-  border-color: #ffffff1f
-}
-
-.island--dragging .island__move-handle {
-  cursor: grabbing;
-  opacity: 1;
-  color: #fff;
-  background: var(--accent-soft, #ffffff18);
-  border-color: var(--accent, #ffffff44)
-}
-
 .island--dragging .island__collapsed {
   filter: drop-shadow(0 10px 22px rgba(0,0,0,.5))
-}
-
-.island--edge-left .island__move-handle {
-  right: 5px;
-  left: auto
-}
-
-.island--edge-right .island__move-handle {
-  right: auto;
-  left: 5px
-}
-
-.island--edge-bottom .island__move-handle {
-  top: 50%
-}
-
-@media(prefers-reduced-motion:reduce) {
-
-.island__move-handle {
-  transition: none
-}
 }
 
 body:has(.preview-label) .island-stage:has(.island--mode-bar) {
@@ -381,7 +322,7 @@ body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-sid
   top: 50%;
   bottom: auto;
   width: 56px;
-  height: 200px
+  height: 144px
 }
 
 .island.island--notch-side.island--edge-left:not(.island--open) .island__collapsed {
@@ -398,7 +339,7 @@ body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-sid
 
 .island.island--notch-side:not(.island--open) .island__bar {
   justify-content: center;
-  padding: 8px 4px 34px
+  padding: 8px 4px
 }
 
 .island.island--notch-side:not(.island--open) .pill {
@@ -447,24 +388,6 @@ body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-sid
   display: none
 }
 
-.island.island--notch-side:not(.island--open) .pill__beam {
-  display: grid;
-  width: 25px;
-  height: 25px;
-  flex: none;
-  margin: 1px auto;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--line-1);
-  border-radius: 8px;
-  background: var(--surface-2);
-  color: var(--text-1)
-}
-
-.island.island--notch-side:not(.island--open) .island__move-handle {
-  inset: auto auto 3px 50%;
-  transform: translate(-50%)
-}
 
 .island.island--mode-notch.island--edge-top:not(.island--notch-side) .island__collapsed,.island.island--mode-notch.island--edge-bottom:not(.island--notch-side) .island__collapsed {
   transform: translate(calc(-50% + var(--magnet-x, 0px)),var(--magnet-y, 0px))

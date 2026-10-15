@@ -163,6 +163,35 @@
 .phone-bucket__group-title { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 7px; padding: 8px 10px 5px; color: var(--text-3); font-size: 9px; font-weight: var(--fw-semibold); letter-spacing: .09em; text-transform: uppercase; background: color-mix(in srgb, var(--surface-1) 94%, transparent); backdrop-filter: blur(6px); }
 .phone-bucket__group-count { margin-left: auto; color: var(--text-3); font-weight: var(--fw-regular); letter-spacing: 0; font-variant-numeric: tabular-nums; }
 
+/* ------------------------------------------------------------ trusted phones */
+.phone-bucket__connection { width: 100%; color: var(--text-3); font-size: 10px; text-align: left; }
+.phone-bucket__connection summary,.phone-bucket__security summary { width: fit-content; color: var(--text-3); font-size: 10px; cursor: pointer; }
+.phone-bucket__connection > span,.phone-bucket__connection code,.phone-bucket__connection small { display: block; margin-top: 5px; overflow-wrap: anywhere; }
+.phone-bucket__connection code { padding: 6px 8px; border: 1px solid var(--line-1); border-radius: 9px; background: #0002; color: var(--text-2); font-size: 9px; }
+.phone-bucket__connection small { color: var(--text-3); line-height: var(--lh-normal); }
+.phone-bucket__phones { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--line-1); border-radius: 15px; background: color-mix(in srgb, var(--surface-1) 75%, transparent); }
+.phone-bucket__phones-head { display: flex; justify-content: space-between; color: var(--text-2); font-size: 11px; }
+.phone-bucket__phones-head strong { font-weight: var(--fw-semibold); }
+.phone-bucket__phones-head span { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.phone-bucket__requests,.phone-bucket__device-strip { display: flex; flex-wrap: wrap; gap: 6px; }
+.phone-bucket__request { min-width: 0; flex: 1 1 260px; display: flex; align-items: center; gap: 6px; padding: 8px; border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--line-1)); border-radius: 12px; background: color-mix(in srgb, var(--accent) 8%, var(--surface-1)); }
+.phone-bucket__request > div { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.phone-bucket__request > div strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-1); font-size: 11px; }
+.phone-bucket__request > div span { color: var(--text-3); font-size: 9px; }
+.phone-bucket__request b { color: var(--text-1); font-size: 11px; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.phone-bucket__allow,.phone-bucket__deny,.phone-bucket__device button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: none; height: 27px; padding: 0 8px; border: 1px solid var(--line-1); border-radius: var(--r-pill); background: #ffffff08; color: var(--text-2); font-size: 10px; cursor: pointer; }
+.phone-bucket__allow { border-color: color-mix(in srgb, var(--ok) 40%, transparent); color: var(--ok); }
+.phone-bucket__deny,.phone-bucket__device button { width: 27px; padding: 0; }
+.phone-bucket__allow:disabled,.phone-bucket__deny:disabled,.phone-bucket__device button:disabled { opacity: .45; cursor: wait; }
+.phone-bucket__device { min-width: 0; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 6px 4px 9px; border: 1px solid var(--line-1); border-radius: var(--r-pill); background: #ffffff05; }
+.phone-bucket__device strong { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); font-size: 10px; font-weight: var(--fw-medium); }
+.phone-bucket__device > span:nth-of-type(2) { color: var(--text-3); font-size: 9px; }
+.phone-bucket__device-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--text-3); }
+.phone-bucket__device--online .phone-bucket__device-dot { background: var(--ok); box-shadow: 0 0 8px color-mix(in srgb, var(--ok) 70%, transparent); }
+.phone-bucket__device--online > span:nth-of-type(2) { color: var(--ok); }
+.phone-bucket__security { display: flex; flex-direction: column; gap: 5px; color: var(--text-3); font-size: 10px; line-height: var(--lh-normal); }
+.phone-bucket__security > span { padding-left: 2px; }
+
 @keyframes pb-spin { to { transform: rotate(360deg); } }
 @keyframes pb-scan { 0% { top: -40%; } 55% { top: 110%; } 100% { top: 110%; } }
 @keyframes pb-stage-in { from { opacity: 0; transform: translateY(4px) scale(0.99); } to { opacity: 1; transform: none; } }

@@ -31,18 +31,28 @@ page.setDefaultTimeout(30000)
 page.on('pageerror', error => records.push({ type: 'pageerror', message: error.message }))
 
 const screenshot = async (locator, file) => locator.screenshot({ path: join(here, file) })
+const panelTabs = () => page.locator('.panel-tabs [role="tab"]')
+const assertFlatPanel = async label => {
+  assert.equal(await page.locator('.panel-pager, .widget-grid--detail').count(), 0, `${label} has no nested pager or detail layer`)
+  assert.equal(await page.getByRole('button', { name: 'Back to panel', exact: true }).count(), 0, `${label} has no back-layer control`)
+  const scroll = await page.locator('.panel__body').evaluate(node => ({ client: node.clientHeight, content: node.scrollHeight }))
+  assert.ok(scroll.content <= scroll.client + 2, `${label} has no outer panel scroll`)
+  const controlsScroll = await page.locator('.quick-settings__tiles').evaluateAll(nodes => nodes.map(node => ({ client: node.clientHeight, content: node.scrollHeight })))
+  assert.ok(controlsScroll.every(item => item.content <= item.client + 2), `${label} has no inner Quick Controls scroll`)
+}
 const findWidget = async kind => {
-  const back = page.getByRole('button', { name: 'Back to panel', exact: true })
-  if (await back.count()) await back.click()
-  const previous = page.getByRole('button', { name: 'Previous widget page', exact: true })
-  while (await previous.count() && await previous.isEnabled()) await previous.click()
-  for (let index = 0; index < 30; index++) {
-    if (await page.locator(`[data-widget-kind="${kind}"]`).count()) return page.locator(`[data-widget-kind="${kind}"]`).first()
-    const next = page.getByRole('button', { name: 'Next widget page', exact: true })
-    if (!await next.count() || await next.isDisabled()) break
-    await next.click()
+  const tabs = panelTabs()
+  for (let index = 0; index < await tabs.count(); index++) {
+    const tab = tabs.nth(index)
+    await tab.scrollIntoViewIfNeeded()
+    await tab.click()
+    await page.waitForTimeout(50)
+    if (await page.locator(`[data-widget-kind="${kind}"]`).count()) {
+      await assertFlatPanel(kind)
+      return page.locator(`[data-widget-kind="${kind}"]`).first()
+    }
   }
-  throw new Error(`Widget not reachable: ${kind}`)
+  throw new Error(`Widget not reachable in any panel: ${kind}`)
 }
 const selectSize = async ({ preset, w, h }) => {
   await page.evaluate(({ preset, w, h }) => {
@@ -116,16 +126,22 @@ try {
   await menu.getByRole('menuitemcheckbox', { name: /Keep island open/ }).click()
   await page.getByText('Pinned open', { exact: true }).waitFor()
 
-  // Add the real PC controls widget once; size snapshots below are then UI-only.
-  await page.getByRole('button', { name: 'More actions', exact: true }).click()
-  menu = page.getByRole('menu', { name: 'More island actions', exact: true })
-  await menu.getByRole('menuitem', { name: 'PC controls', exact: true }).click()
+  assert.equal(await page.locator('.pill__beam,.pill__move-handle').count(), 0, 'collapsed surface has no Beam button or extra move handle')
+  await page.getByRole('button', { name: 'Open file beam', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Open quick controls', exact: true }).waitFor()
+  const firstTab = panelTabs().first()
+  await firstTab.click()
+  assert.ok(await page.locator('[data-widget-kind="media"]').count(), 'default panel contains media')
+  assert.ok(await page.locator('[data-widget-kind="weather"]').count(), 'default panel contains weather beside media')
+  await assertFlatPanel('default panel')
+
+  // Quick Controls is a direct toolbar action and owns a flat panel.
+  await page.getByRole('button', { name: 'Open quick controls', exact: true }).click()
   await page.locator('[data-widget-kind="controls"]').waitFor()
   await page.waitForTimeout(250)
 
   for (const [label, size] of Object.entries(sizes)) {
     await selectSize(size)
-    await page.getByRole('tab', { name: 'Today panel', exact: true }).click()
     const calendar = await findWidget('calendar')
     await page.locator('.cal__cell').first().waitFor()
     assert.equal(await page.locator('.cal__cell').count(), 42, `${label} calendar has six complete weeks`)
@@ -137,21 +153,22 @@ try {
     await screenshot(calendar, `widget-gallery-calendar-${label.toLowerCase()}.png`)
     records.push({ widget: 'calendar', size: label, ...calendarInfo, dayFontPx: calendarInfo.coreFontPx, grid: calendarGrid, finalWeek: lastDay })
 
-    await page.getByRole('tab', { name: 'Activity panel', exact: true }).click()
     const reset = await findWidget('reset-watch')
-    await reset.locator('.reset-watch__quota-value').waitFor()
-    await reset.getByRole('button', { name: 'See announcements', exact: true }).waitFor()
-    const resetInfo = await metrics('reset-watch', '.reset-watch__latest-title', ['Refresh reset status', 'See announcements'])
+    await reset.locator('.reset-watch__latest-title').waitFor()
+    assert.equal(await reset.locator('.reset-watch__quota-value,.reset-watch__counts').count(),0)
+    const resetInfo = await metrics('reset-watch', '.reset-watch__latest-title', ['Refresh reset announcements'])
     assert.ok(resetInfo.coreFontPx >= 10, `${label} latest announcement remains readable`)
     await screenshot(reset, `widget-gallery-reset-${label.toLowerCase()}.png`)
     records.push({ widget: 'reset-watch', size: label, ...resetInfo })
 
     const controls = await findWidget('controls')
     await controls.locator('.quick-settings__tiles').waitFor()
-    for (const text of ['Adjust sound in Windows', 'Adjust display in Windows', 'Open Windows settings', 'Adjust in Windows']) {
+    for (const text of ['Open Sound settings', 'Open Display settings', 'Open Windows settings']) {
       assert.ok(await controls.getByText(text, { exact: true }).count(), `${label} preview exposes a Windows fallback for ${text}`)
     }
     const controlsInfo = await metrics('controls', '.quick-settings__tile strong', ['Refresh quick settings', 'Optimize memory'])
+    const tileScroll = await controls.locator('.quick-settings__tiles').evaluate(node => ({ client: node.clientHeight, content: node.scrollHeight }))
+    assert.ok(tileScroll.content <= tileScroll.client + 2, `${label} Quick Controls actions fit without inner scrolling`)
     assert.ok(controlsInfo.coreFontPx >= 10, `${label} PC controls labels remain readable`)
     await screenshot(controls, `widget-gallery-controls-${label.toLowerCase()}.png`)
     records.push({ widget: 'controls', size: label, ...controlsInfo })
@@ -170,6 +187,21 @@ try {
     main: (() => { const node = document.querySelector('.settings__main'); return { clientWidth: node.clientWidth, scrollWidth: node.scrollWidth, clientHeight: node.clientHeight, scrollHeight: node.scrollHeight } })(),
   }))
   assert.ok(appearance.preview.width > 0 && appearance.preview.bottom <= 700, 'Appearance preview fits the 960×700 settings viewport')
+  const widgetSection = settingsPage.getByRole('button', { name: 'Widgets', exact: true })
+  await widgetSection.click()
+  await settingsPage.getByRole('list', { name: 'Widget panels' }).waitFor()
+  const previews = settingsPage.locator('.wmp__device')
+  assert.ok(await previews.count() > 0, 'Settings exposes editable panel previews')
+  for (let index = 0; index < await previews.count(); index++) {
+    const preview = previews.nth(index)
+    await preview.scrollIntoViewIfNeeded()
+    const grid = preview.locator('.wmp__grid')
+    const gridScroll = await grid.evaluate(node => ({ client: node.clientHeight, content: node.scrollHeight }))
+    assert.ok(gridScroll.content <= gridScroll.client + 2, `Settings panel preview ${index + 1} has no inner scroll`)
+    const box = await preview.boundingBox()
+    assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= 960 + 1 && box.y + box.height <= 700 + 1, `Settings panel preview ${index + 1} fits the viewport`)
+  }
+  await screenshot(settingsPage.locator('.wmp'), 'widget-gallery-settings-panels-960x700.png')
   await screenshot(settingsPage.locator('body'), 'widget-gallery-settings-appearance-960x700.png')
   records.push({ widget: 'settings-appearance', ...appearance })
 
@@ -185,3 +217,5 @@ try {
 } finally {
   await browser.close()
 }
+
+

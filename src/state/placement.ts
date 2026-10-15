@@ -2,15 +2,25 @@ import { createSignal } from 'solid-js'
 import { browserPreview, cmd } from '../lib/ipc'
 import { reportError } from './feedback'
 import { flushSettings, patchSettings } from './settings'
+import { crossedIslandPlacementThreshold, type PlacementPointerPoint } from '../lib/placementPointerDrag'
 
 type ActiveDrag = {
   pointerId: number
   target: HTMLElement
   ready: Promise<void>
 }
+type PendingDrag = {
+  pointerId: number
+  target: HTMLElement
+  start: PlacementPointerPoint
+}
 
 const [placementDragging, setPlacementDragging] = createSignal(false)
+const [placementGesturePending, setPlacementGesturePending] = createSignal(false)
 let active: ActiveDrag | undefined
+let pending: PendingDrag | undefined
+let suppressNextClick = false
+let suppressClickTimer: ReturnType<typeof setTimeout> | undefined
 let animationFrame: number | undefined
 let movePending = false
 let moveInFlight: Promise<void> | undefined
@@ -52,16 +62,27 @@ export function isPlacementDragging(): boolean {
   return placementDragging()
 }
 
-export function beginIslandPlacementDrag(event: PointerEvent): boolean {
-  if (browserPreview || active || event.button !== 0) return false
-  const target = event.currentTarget
-  if (!(target instanceof HTMLElement)) return false
-  event.preventDefault()
-  target.setPointerCapture(event.pointerId)
+export function isPlacementGesturePending(): boolean {
+  return placementGesturePending()
+}
+
+export function beginIslandPlacementDrag(event: PointerEvent, captureTarget: HTMLElement): boolean {
+  if (browserPreview || active || pending || event.button !== 0 || !event.isPrimary) return false
+  try { captureTarget.setPointerCapture(event.pointerId) } catch { return false }
+  pending = {
+    pointerId: event.pointerId,
+    target: captureTarget,
+    start: { x: event.clientX, y: event.clientY },
+  }
+  setPlacementGesturePending(true)
+  return true
+}
+
+function startNativePlacementDrag(pointerId: number, target: HTMLElement): ActiveDrag {
   setPlacementDragging(true)
   moveFailure = undefined
   const drag: ActiveDrag = {
-    pointerId: event.pointerId,
+    pointerId,
     target,
     ready: cmd.placementBeginDrag().catch(error => {
       reportError('Could not start moving Hover Island', error)
@@ -73,13 +94,21 @@ export function beginIslandPlacementDrag(event: PointerEvent): boolean {
     if (active === drag) {
       active = undefined
       setPlacementDragging(false)
-      try { target.releasePointerCapture(event.pointerId) } catch { /* Capture may already be gone. */ }
+      try { target.releasePointerCapture(pointerId) } catch { /* Capture may already be gone. */ }
     }
   })
-  return true
+  return drag
 }
 
 export function moveIslandPlacementDrag(event: PointerEvent): void {
+  if (!active) {
+    const wait = pending
+    if (!wait || wait.pointerId !== event.pointerId || !crossedIslandPlacementThreshold(wait.start, { x: event.clientX, y: event.clientY })) return
+    event.preventDefault()
+    pending = undefined
+    setPlacementGesturePending(false)
+    startNativePlacementDrag(wait.pointerId, wait.target)
+  }
   if (!active || active.pointerId !== event.pointerId) return
   event.preventDefault()
   if (animationFrame !== undefined) return
@@ -95,8 +124,16 @@ export function moveIslandPlacementDrag(event: PointerEvent): void {
 }
 
 export async function finishIslandPlacementDrag(event: PointerEvent): Promise<boolean> {
+  const waiting = pending
+  if (waiting?.pointerId === event.pointerId) {
+    pending = undefined
+    setPlacementGesturePending(false)
+    try { waiting.target.releasePointerCapture(event.pointerId) } catch { /* Capture may already be gone. */ }
+    return false
+  }
   const drag = active
   if (!drag || drag.pointerId !== event.pointerId) return false
+  suppressPlacementClick()
   event.preventDefault()
   try {
     await drag.ready
@@ -125,8 +162,16 @@ export async function finishIslandPlacementDrag(event: PointerEvent): Promise<bo
 }
 
 export async function cancelIslandPlacementDrag(pointerId: number): Promise<void> {
+  const waiting = pending
+  if (waiting?.pointerId === pointerId) {
+    pending = undefined
+    setPlacementGesturePending(false)
+    try { waiting.target.releasePointerCapture(pointerId) } catch { /* Capture may already be gone. */ }
+    return
+  }
   const drag = active
   if (!drag || drag.pointerId !== pointerId) return
+  suppressPlacementClick()
   if (animationFrame !== undefined) {
     cancelAnimationFrame(animationFrame)
     animationFrame = undefined
@@ -138,4 +183,19 @@ export async function cancelIslandPlacementDrag(pointerId: number): Promise<void
   if (active === drag) active = undefined
   setPlacementDragging(false)
   try { drag.target.releasePointerCapture(pointerId) } catch { /* Pointer capture may already be gone. */ }
+}
+
+function suppressPlacementClick(): void {
+  suppressNextClick = true
+  clearTimeout(suppressClickTimer)
+  suppressClickTimer = setTimeout(() => { suppressNextClick = false }, 500)
+}
+
+/** Consume the synthetic click that browsers can emit after a completed drag. */
+export function consumePlacementClick(): boolean {
+  if (!suppressNextClick) return false
+  suppressNextClick = false
+  clearTimeout(suppressClickTimer)
+  suppressClickTimer = undefined
+  return true
 }

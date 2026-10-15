@@ -1,9 +1,10 @@
 import { createEffect, createSignal, Show } from 'solid-js'
-import { ArrowDown, ArrowUp, Check, ExternalLink, FolderOpen, Moon, Sun, Volume2, X } from 'lucide-solid'
+import { ArrowDown, ArrowUp, Check, CircleAlert, ExternalLink, FolderOpen, Moon, Sun, Volume2 } from 'lucide-solid'
 import { peek, dismissPeek, acknowledgePendingAlert } from '../../state/peek'
 import { cmd } from '../../lib/ipc'
 import { showFileBucket } from '../../state/panel'
 import { reportError } from '../../state/feedback'
+import { expandIsland } from '../../state/ui'
 import BrandIcon from '../BrandIcon'
 import './EventPeek.css'
 
@@ -48,12 +49,13 @@ export default function EventPeek() {
     acknowledgePendingAlert(item.id)
     if (transfer()) {
       if (item.phase==='complete' || item.title==='File received') void cmd.transferOpenFolder().catch(error=>reportError('Could not open received files',error))
-      else showFileBucket()
+      else { expandIsland(false); showFileBucket() }
     } else if (item.url) void cmd.appsOpenUrl(item.url).catch(error=>reportError('Could not open alert',error))
+    dismissPeek()
   }
 
-  /* Body taps and upward flicks remain quick dismissal gestures. The close
-     button provides a clear keyboard and pointer alternative. */
+  /* Activities own the notch surface. Tap/flick or Escape dismisses without
+     adding a separate close control to the compact material. */
   const [dragY, setDragY] = createSignal(0)
   const [dragging, setDragging] = createSignal(false)
   const [suppressEnter, setSuppressEnter] = createSignal(false)
@@ -115,9 +117,10 @@ export default function EventPeek() {
     setDragging(false); setDragY(0)
   }
 
-  return <Show when={peek()}>{item=><div class="peek" classList={{'peek--transfer':transfer(),'peek--failed':failed(),'peek--mute':mute(),'peek--ai':ai(),'peek--ai-complete':aiComplete(),'peek--ai-input':aiInput(),'peek--system':systemControl(),'peek--system-muted':controlMuted(),'peek--dragging':dragging()}} role="status" aria-live="polite"
+  return <Show when={peek()}>{item=><div class="peek" classList={{'peek--transfer':transfer(),'peek--failed':failed(),'peek--mute':mute(),'peek--ai':ai(),'peek--ai-complete':aiComplete(),'peek--ai-input':aiInput(),'peek--system':systemControl(),'peek--system-muted':controlMuted(),'peek--dragging':dragging()}} role="status" aria-live="polite" tabIndex={0} aria-label={`${item().app}: ${item().title}. Press Escape to dismiss.`}
     style={{'animation':suppressEnter()?'none':'','transform':suppressEnter()?`translateY(${dragging()?dragY():0}px)`:'','transition':suppressEnter()&&!dragging()?'transform 300ms var(--spring)':''}}
-    onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
+    onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}
+    onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); dismissCurrent() } }}>
     <Show when={transfer()} fallback={<Show when={ai()} fallback={<Show when={systemControl()} fallback={<>
       <span class="peek__dot"><Show when={!mute()} fallback={<Moon size={16}/>}><Show when={item().icon} fallback={<BrandIcon name={item().app} size={24}/>}>{src=><img src={src()!} alt="" draggable={false}/>}</Show></Show></span>
       <div class="peek__body"><div class="peek__app">{item().app}<Show when={item().priority==='urgent'}><span class="peek__priority">Urgent</span></Show></div><div class="peek__title">{item().title}</div><Show when={item().body}><div class="peek__text">{item().body}</div></Show>
@@ -131,19 +134,7 @@ export default function EventPeek() {
         <div class="peek-system__track" aria-hidden="true"><span style={{width:`${controlLevel()}%`}}/></div>
       </div>
     </Show>}>
-      <div class="peek-bot" classList={{'peek-bot--complete':aiComplete(),'peek-bot--input':aiInput()}} aria-hidden="true">
-        <svg viewBox="0 0 44 44" class="peek-bot__svg">
-          <circle class="peek-bot__spark peek-bot__spark--1" cx="7.5" cy="9.5" r="1.5"/>
-          <circle class="peek-bot__spark peek-bot__spark--2" cx="37" cy="7.5" r="1.2"/>
-          <circle class="peek-bot__spark peek-bot__spark--3" cx="36.5" cy="35" r="1.6"/>
-          <line class="peek-bot__stalk" x1="22" y1="10.6" x2="22" y2="15"/>
-          <circle class="peek-bot__signal" cx="22" cy="8" r="2.5"/>
-          <rect class="peek-bot__head" x="9" y="14.5" width="26" height="21" rx="8.5"/>
-          <rect class="peek-bot__visor" x="13.5" y="19.5" width="17" height="11" rx="5.5"/>
-          <circle class="peek-bot__eye" cx="18.3" cy="25" r="1.9"/>
-          <circle class="peek-bot__eye" cx="25.7" cy="25" r="1.9"/>
-        </svg>
-      </div>
+      <div class="peek-ai-icon" classList={{'peek-ai-icon--input':aiInput()}} aria-hidden="true"><BrandIcon name={item().app} size={28}/><span/></div>
       <div class="peek__body peek__body--ai">
         <div class="peek__app peek__app--ai">{item().app}<span class="peek-ai__badge" classList={{'peek-ai__badge--input':aiInput()}}>{aiInput()?'Needs input':'Task complete'}</span></div>
         <div class="peek__title">{item().title}</div>
@@ -155,7 +146,7 @@ export default function EventPeek() {
           <circle class="peek-transfer-icon__track" cx="24" cy="24" r="21"/>
           <circle class="peek-transfer-icon__progress" cx="24" cy="24" r="21" style={{'stroke-dashoffset':running()?`${132*(1-progress()/100)}`:'0'}}/>
         </svg>
-        <span class="peek-transfer-icon__glyph"><Show when={!failed()} fallback={<X size={30} strokeWidth={2.2}/>}><Show when={running()} fallback={<Check size={30} strokeWidth={2.2}/>}><Show when={sending()} fallback={<ArrowDown size={30} strokeWidth={2.2}/>}><ArrowUp size={30} strokeWidth={2.2}/></Show></Show></Show></span>
+        <span class="peek-transfer-icon__glyph"><Show when={!failed()} fallback={<CircleAlert size={28} strokeWidth={1.8}/>}><Show when={running()} fallback={<Check size={30} strokeWidth={2.2}/>}><Show when={sending()} fallback={<ArrowDown size={30} strokeWidth={2.2}/>}><ArrowUp size={30} strokeWidth={2.2}/></Show></Show></Show></span>
       </div>
       <div class="peek__body peek__body--transfer">
         <div class="peek-transfer__meta">
@@ -170,6 +161,5 @@ export default function EventPeek() {
         <button class="peek-transfer__action" onClick={act}><FolderOpen size={13}/>{actionLabel()}</button>
       </div>
     </Show>
-    <button type="button" class="peek__dismiss" aria-label="Dismiss notification" title="Dismiss notification" onClick={dismissCurrent}><X size={14} aria-hidden="true" /></button>
   </div>}</Show>
 }

@@ -4,7 +4,7 @@ import type { WidgetConfig, WidgetKind } from '../lib/ipc'
 import { settings, patchSettings } from '../state/settings'
 import { WIDGETS, WIDGET_KINDS } from '../components/widgets/registry'
 import { moveWidgetAfter, moveWidgetBefore, moveWidgetWithin } from './widgetOrder'
-import { PANELS, widgetPanel, moveToPanel, type PanelId } from '../lib/panels'
+import { defaultPanelForKind, widgetPanel, moveToPanel, type PanelId } from '../lib/panels'
 import { widgetPages, type WidgetSlot } from '../lib/widgetPages'
 import './WidgetManager.css'
 
@@ -27,21 +27,20 @@ export default function WidgetManager() {
   const [selectedId, setSelectedId] = createSignal<string | null>(null)
   const [drag, setDrag] = createSignal<DragState | null>(null)
   const [drop, setDrop] = createSignal<{ panel: PanelId; overId: string | null; side: DropSide | null } | null>(null)
-  const [pageByPanel, setPageByPanel] = createSignal<Record<PanelId, number>>({ today: 0, desk: 0, activity: 0 })
   const [announce, setAnnounce] = createSignal('')
   let trayEl: HTMLDivElement | undefined
   let suppressClickUntil = 0
 
   const reduced = () =>
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  const samePanel = (a: WidgetConfig, b: WidgetConfig) => widgetPanel(a) === widgetPanel(b)
+  const samePanel = (a: WidgetConfig, b: WidgetConfig) => widgetPanel(a, settings.panelOrder) === widgetPanel(b, settings.panelOrder)
   const labelOf = (widget: WidgetConfig) => WIDGETS[widget.kind]?.label ?? widget.kind
 
   const allOrdered = () => [...settings.widgets].sort((a, b) => a.order - b.order)
   const ordered = () => allOrdered().filter((widget) => widget.kind !== 'airdrop')
-  const panelWidgets = (panel: PanelId) => ordered().filter((widget) => widgetPanel(widget) === panel)
+  const panelWidgets = (panel: PanelId) => ordered().filter((widget) => widgetPanel(widget, settings.panelOrder) === panel)
   const enabledPanelWidgets = (panel: PanelId) => panelWidgets(panel).filter((widget) => widget.enabled)
-  const pagesFor = (panel: PanelId) => widgetPages(enabledPanelWidgets(panel), 2)
+  const gridFor = (panel: PanelId) => widgetPages(enabledPanelWidgets(panel), 2)[0] ?? []
 
   const commit = (list: WidgetConfig[]) => {
     const passive = settings.widgets.filter((widget) => widget.kind === 'airdrop')
@@ -80,7 +79,7 @@ export default function WidgetManager() {
       kind,
       enabled: true,
       order: ordered().length,
-      panel: widgetPanel({ id: '', kind, enabled: true, order: 0 }),
+      panel: defaultPanelForKind(kind, settings.panelOrder),
     }
     commit([...ordered(), widget])
     setSelectedId(widget.id)
@@ -94,7 +93,7 @@ export default function WidgetManager() {
     if (!id) return null
     const widget = ordered().find((item) => item.id === id)
     if (!widget) return null
-    const panel = widgetPanel(widget)
+    const panel = widgetPanel(widget, settings.panelOrder)
     const list = panelWidgets(panel)
     return {
       widget,
@@ -108,9 +107,8 @@ export default function WidgetManager() {
   const refocus = (id: string) => {
     const widget = ordered().find(item => item.id === id)
     if (widget) {
-      const panel = widgetPanel(widget)
-      const page = pagesFor(panel).findIndex(slots => slots.some(slot => slot.widget.id === id))
-      if (page >= 0) setPageByPanel(current => ({...current,[panel]:page}))
+      const panel = widgetPanel(widget, settings.panelOrder)
+      if (!settings.panelOrder.includes(panel)) return
     }
     requestAnimationFrame(() => {
       const card=trayEl?.querySelector<HTMLElement>(`[data-widget-id="${CSS.escape(id)}"]`)
@@ -358,19 +356,16 @@ export default function WidgetManager() {
   return (
     <div class="wmp">
       <p class="wmp__lead">
-        Each card is a panel in the notch. Drag a widget between pages to rearrange them, or select one and use the
-        arrow keys.
+        Each card is one dashboard panel. Drag widgets between panels to arrange them, or select one and use the arrow
+        keys.
       </p>
 
       <div class="wmp__tray" ref={trayEl} role="list" aria-label="Widget panels">
-        <For each={PANELS}>
+        <For each={settings.panelOrder}>
           {(panel) => {
-            const pages = createMemo(() => pagesFor(panel))
-            const current = () => Math.min(pageByPanel()[panel] ?? 0, pages().length - 1)
-            const slots = () => pages()[Math.max(0, current())] ?? []
+            const slots = createMemo(() => gridFor(panel))
             const ghosts = () => panelWidgets(panel).filter((widget) => !widget.enabled)
             const enabledCount = () => enabledPanelWidgets(panel).length
-            const setPage = (value: number) => setPageByPanel({ ...pageByPanel(), [panel]: value })
             return (
               <section
                 class="wmp__device"
@@ -380,15 +375,7 @@ export default function WidgetManager() {
                 aria-label={`${settings.panels[panel]} panel preview`}
               >
                 <header class="wmp__head">
-                  <input
-                    class="wmp__title"
-                    aria-label={`${panel} panel name`}
-                    maxLength={24}
-                    value={settings.panels[panel]}
-                    onInput={(event) =>
-                      patchSettings({ panels: { ...settings.panels, [panel]: event.currentTarget.value } })
-                    }
-                  />
+                  <strong class="wmp__title">{settings.panels[panel]}</strong>
                   <span class="wmp__count" aria-label={`${enabledCount()} widgets enabled`}>
                     {enabledCount()}
                   </span>
@@ -399,33 +386,6 @@ export default function WidgetManager() {
                     <For each={slots()}>{(slot) => <MiniCard widget={slot.widget} panel={panel} slot={slot} />}</For>
                   </Show>
                 </div>
-
-                <Show when={pages().length > 1}>
-                  <nav class="wmp__pager" aria-label={`${settings.panels[panel]} pages`}>
-                    <button
-                      type="button"
-                      aria-label="Previous page"
-                      disabled={current() === 0}
-                      onClick={() => setPage(current() - 1)}
-                    >
-                      <ArrowLeft size={12} />
-                    </button>
-                    <span>{`${Math.max(1, current() + 1)} / ${pages().length}`}</span>
-                    <span class="wmp__dots" aria-hidden="true">
-                      <For each={pages()}>
-                        {(_, i) => <span class="wmp__dot" classList={{ 'wmp__dot--on': i() === current() }} />}
-                      </For>
-                    </span>
-                    <button
-                      type="button"
-                      aria-label="Next page"
-                      disabled={current() >= pages().length - 1}
-                      onClick={() => setPage(current() + 1)}
-                    >
-                      <ArrowRight size={12} />
-                    </button>
-                  </nav>
-                </Show>
 
                 <Show when={ghosts().length}>
                   <div class="wmp__ghosts">
@@ -444,7 +404,7 @@ export default function WidgetManager() {
           const state = () => sel()
           const widget = () => state().widget
           const def = () => state().def
-          const otherPanels = () => PANELS.filter((panel) => panel !== state().panel)
+          const otherPanels = () => settings.panelOrder.filter((panel) => panel !== state().panel)
           const atEdge = (delta: number) => {
             const next = state().index + delta
             return next < 0 || next >= state().count

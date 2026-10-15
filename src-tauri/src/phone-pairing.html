@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#08090c">
+  <title>Remember this phone</title>
+  <style>
+    :root{color-scheme:dark;--bg:#08090c;--card:#15171c;--line:#ffffff14;--text:#f5f6f8;--muted:#a4a9b2;--blue:#63a7ff;--green:#49d879;--danger:#ff958e}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;padding:calc(24px + env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));display:grid;place-items:center;background:radial-gradient(110% 70% at 50% 0,#1c2a43,var(--bg) 70%);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(100%,440px);padding:26px;border:1px solid var(--line);border-radius:26px;background:var(--card);box-shadow:0 20px 60px #0006;text-align:center}
+    .icon{width:54px;height:54px;margin:0 auto 16px;display:grid;place-items:center;border-radius:18px;background:#63a7ff18;color:var(--blue)}svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .eyebrow{color:var(--blue);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}h1{margin:7px 0;font-size:27px;letter-spacing:-.7px}p{margin:0 auto 22px;max-width:340px;color:var(--muted);font-size:14px}
+    label{display:block;margin-bottom:7px;text-align:left;color:var(--muted);font-size:12px;font-weight:600}input{width:100%;height:48px;padding:0 14px;border:1px solid var(--line);border-radius:13px;outline:none;background:#0e1014;color:var(--text);font:inherit}input:focus{border-color:var(--blue);box-shadow:0 0 0 3px #63a7ff1e}
+    button{width:100%;height:50px;margin-top:12px;border:0;border-radius:14px;background:linear-gradient(180deg,#77b4ff,#3f8cec);color:#07111e;font:inherit;font-weight:700;cursor:pointer}button:disabled{opacity:.55;cursor:wait}
+    .status{min-height:26px;margin-top:15px;color:var(--muted);font-size:13px}.status.error{color:var(--danger)}.code{display:none;margin:18px 0 4px;padding:15px;border:1px solid #63a7ff48;border-radius:15px;background:#63a7ff10}.code.show{display:block}.code small{display:block;color:var(--muted);font-size:11px}.code strong{display:block;margin-top:4px;color:var(--text);font-size:30px;letter-spacing:.2em;font-variant-numeric:tabular-nums}
+    .note{margin-top:22px;padding-top:15px;border-top:1px solid var(--line);color:#858b95;font-size:11px;line-height:1.5}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="14" rx="2"/><path d="M8 21h8M12 17v4M8 10l2.5 2.5L16 7"/></svg></div>
+    <div class="eyebrow">Hover Island</div>
+    <h1>Remember this phone</h1>
+    <p>Choose a name, then compare the code with the one on your PC. Your files stay unavailable until you approve this phone there.</p>
+    <label for="name">Phone name</label>
+    <input id="name" maxlength="30" autocomplete="nickname" value="My phone">
+    <button id="remember" type="button">Request pairing</button>
+    <div id="code" class="code"><small>Approve this same code on your PC</small><strong></strong></div>
+    <div id="status" class="status" role="status" aria-live="polite">Only a pairing request is allowed from this link.</div>
+    <div class="note">This local Wi‑Fi link uses HTTP. Pair only when you are on your trusted home or office network.</div>
+  </main>
+  <script>
+    (()=>{
+      const base=location.pathname.replace(/\/$/,''),button=document.getElementById('remember'),name=document.getElementById('name'),status=document.getElementById('status'),code=document.getElementById('code');
+      let stopped=false;
+      function message(text,error=false){status.textContent=text;status.classList.toggle('error',error)}
+      async function poll(id){
+        while(!stopped){
+          try{
+            const response=await fetch(base+'/api/pair/status/'+encodeURIComponent(id),{cache:'no-store'});
+            if(!response.ok)throw Error('This request expired. Scan a fresh code from your PC.');
+            const result=await response.json();
+            if(result.state==='approved'){
+              message('Approved. Saving this phone…');
+              const claim=await fetch(base+'/api/pair/claim/'+encodeURIComponent(id),{method:'POST',credentials:'same-origin'});
+              if(!claim.ok)throw Error('Could not finish pairing. Scan a fresh code from your PC.');
+              location.replace(base);return;
+            }
+            if(result.state==='denied')throw Error('The PC declined this request.');
+            if(result.state==='expired')throw Error('This request expired. Scan a fresh code from your PC.');
+          }catch(error){message(error.message||'Connection lost. Try the QR code again.',true);button.disabled=false;name.disabled=false;return}
+          await new Promise(resolve=>setTimeout(resolve,1400));
+        }
+      }
+      button.addEventListener('click',async()=>{
+        if(button.disabled)return;
+        button.disabled=true;name.disabled=true;message('Sending pairing request…');
+        try{
+          const response=await fetch(base+'/api/pair/request',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.value})});
+          const result=await response.json();if(!response.ok)throw Error(result.error||'Could not request pairing.');
+          code.querySelector('strong').textContent=result.code;code.classList.add('show');
+          message('Compare this code with the request on your PC.');void poll(result.id);
+        }catch(error){message(error.message||'Could not request pairing.',true);button.disabled=false;name.disabled=false}
+      });
+      addEventListener('pagehide',()=>{stopped=true});
+    })();
+  </script>
+</body>
+</html>

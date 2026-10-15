@@ -18,7 +18,7 @@ fn main() {
         // The Windows bindings can exceed MSVC's PDB type-table limit in the
         // native test harness. Symbols are optional for these local builds.
         if std::env::var("PROFILE").as_deref() == Ok("debug") {
-            println!("cargo:rustc-link-arg=/PDB:NONE");
+            println!("cargo:rustc-link-arg=/DEBUG:NONE");
         }
     }
 }

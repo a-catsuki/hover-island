@@ -425,7 +425,9 @@ fn local_activity(provider: &str, label: &str, root: Option<PathBuf>) -> UsageSn
 fn codex() -> Vec<UsageSnapshot> {
     let root = dirs::home_dir().map(|h| h.join(".codex").join("sessions"));
     let (local, limits) = local_activity_with_limits("codex", "Codex", root);
-    let mut out = vec![local];
+    // An empty/unsupported local log is not a usage report. Only surface it
+    // when actual token activity was parsed; provider quota rows remain valid.
+    let mut out = if local.status == "ok" { vec![local] } else { Vec::new() };
     out.extend(limits.into_iter().map(|limit| UsageSnapshot {
         provider: "codex".into(),
         label: limit.label,
@@ -446,17 +448,6 @@ fn codex() -> Vec<UsageSnapshot> {
 fn claude_code() -> UsageSnapshot {
     let root = dirs::home_dir().map(|h| h.join(".claude").join("projects"));
     local_activity("claude-code", "Claude Code", root)
-}
-
-fn cursor() -> UsageSnapshot {
-    let Some(home) = dirs::home_dir() else {
-        return unknown("cursor", "Cursor", "home directory not found");
-    };
-    if home.join(".cursor").exists() {
-        unknown("cursor", "Cursor", "Cursor does not expose local usage")
-    } else {
-        unknown("cursor", "Cursor", "Cursor not detected")
-    }
 }
 
 fn manual(cfg: &ManualUsage) -> UsageSnapshot {
@@ -501,10 +492,8 @@ pub fn refresh(settings: &Settings) -> Vec<UsageSnapshot> {
         out.extend(codex());
     }
     if settings.usage.claude_code {
-        out.push(claude_code());
-    }
-    if settings.usage.cursor {
-        out.push(cursor());
+        let snapshot = claude_code();
+        if snapshot.status == "ok" { out.push(snapshot); }
     }
     if settings.usage.manual {
         out.push(manual(&settings.usage.manual_config));

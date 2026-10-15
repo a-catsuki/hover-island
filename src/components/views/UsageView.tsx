@@ -77,7 +77,13 @@ function snapshotOrder(a: Snapshot, b: Snapshot): number {
     || a.label.localeCompare(b.label)
 }
 
+function hasUsageEvidence(snapshot: Snapshot): boolean {
+  return snapshot.status === 'ok'
+    && (snapshot.source === 'official-rate-limit' || snapshot.source === 'local-logs' || snapshot.source === 'manual')
+}
+
 function shownSnapshots(all: Snapshot[], compact: boolean): Snapshot[] {
+  all = all.filter(hasUsageEvidence)
   const codex = all.filter((s) => s.provider === 'codex' && isOfficial(s)).sort(snapshotOrder)
   if (!compact) return [...all].sort(snapshotOrder)
   // Keep Codex's two provider-reported windows together. Secondary sources are intentionally omitted
@@ -145,7 +151,7 @@ export default function UsageView(props: { compact?: boolean }) {
           <RefreshCw class={`icon icon--sm${pending() ? ' usage__refresh-icon--spin' : ''}`} strokeWidth={1.75} />
         </button>
       </header>
-      <Show when={ordered().length > 0} fallback={<div class="widget__empty">No provider quota report available.</div>}>
+      <Show when={ordered().length > 0} fallback={<div class="widget__empty">No provider usage report available.</div>}>
         <div class="usage-mini"><For each={ordered()}>{(snapshot) => <SnapshotCard snapshot={snapshot} />}</For></div>
       </Show>
       <Show when={refreshError()}><p class="inline-error" role="status">{refreshError()}</p></Show>
@@ -155,14 +161,14 @@ export default function UsageView(props: { compact?: boolean }) {
   return (
     <div class="usage">
       <div class="usage__head">
-        <div class="usage__head-left"><span class="usage__head-title">Usage</span><span class="usage__head-sub">{usage().length} {usage().length === 1 ? 'report' : 'reports'}</span></div>
+        <div class="usage__head-left"><span class="usage__head-title">Usage</span><span class="usage__head-sub">{ordered().length} {ordered().length === 1 ? 'report' : 'reports'}</span></div>
         <button type="button" class="button usage__refresh" onClick={() => void refresh()} disabled={pending()}>
           <RefreshCw class={`icon icon--sm usage__refresh-icon${pending() ? ' usage__refresh-icon--spin' : ''}`} strokeWidth={1.75} />
           <span>{pending() ? 'Refreshing' : 'Refresh'}</span>
         </button>
       </div>
       <Show when={refreshError()}>{(error) => <div class="inline-error usage__error" role="status">{error()}</div>}</Show>
-      <Show when={ordered().length > 0} fallback={<div class="usage__empty"><span class="usage__empty-glyph"><Gauge class="icon" strokeWidth={1.75} /></span><span class="usage__empty-title">No usage sources enabled</span><span class="usage__empty-hint">Enable a provider in Settings, then refresh for available reports.</span></div>}>
+      <Show when={ordered().length > 0} fallback={<div class="usage__empty"><span class="usage__empty-glyph"><Gauge class="icon" strokeWidth={1.75} /></span><span class="usage__empty-title">No usage reports available</span><span class="usage__empty-hint">Only provider-reported quota and parsed recent local activity appear here.</span></div>}>
         <div class="usage__grid"><For each={ordered()}>{(snapshot) => <SnapshotCard snapshot={snapshot} />}</For></div>
       </Show>
     </div>

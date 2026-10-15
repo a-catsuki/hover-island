@@ -66,9 +66,15 @@ try {
   await page.waitForFunction(sourceId => document.querySelector('.widget-grid .widget[data-widget-id]')?.getAttribute('data-widget-id') === sourceId, sourceId)
   assert.deepEqual(errors, [], 'pointer reorder does not produce uncaught errors')
 
-  const panelTab = page.getByRole('tab', { name: 'Desk panel', exact: true })
+  const currentPanelId = await page.locator('.panel-tabs [role="tab"][aria-selected="true"]').getAttribute('data-panel-id')
+  const panelTab = page.locator(`.panel-tabs [role="tab"]:not([data-panel-id="${currentPanelId}"])`).first()
+  await panelTab.scrollIntoViewIfNeeded()
+  const targetPanelId = await panelTab.getAttribute('data-panel-id')
+  const targetPanelName = await panelTab.getAttribute('aria-label')
+  assert.ok(targetPanelId && targetPanelName, 'a second dynamic panel is available as a drop target')
   const panelBox = await panelTab.boundingBox()
   const newSource = page.locator('.widget-grid .widget[data-widget-id]').first()
+  await page.locator('.widget-grid .widget[data-widget-id]').evaluateAll(nodes => nodes.forEach(node => { node.draggable = false }))
   const newSourceBox = await newSource.boundingBox()
   const movedId = await newSource.getAttribute('data-widget-id')
   await page.mouse.move(newSourceBox.x + newSourceBox.width / 2, newSourceBox.y + newSourceBox.height / 2)
@@ -77,7 +83,8 @@ try {
   await page.mouse.move(panelBox.x + panelBox.width / 2, panelBox.y + panelBox.height / 2, { steps: 8 })
   await page.waitForFunction(() => document.querySelector('.panel-tabs__drop'))
   await page.mouse.up()
-  await page.waitForFunction(() => document.querySelector('[data-panel-id="desk"]')?.getAttribute('aria-selected') === 'true')
+  console.log('After panel release',await page.locator('.panel-tabs [role=tab]').evaluateAll(nodes=>nodes.map(n=>({id:n.dataset.panelId,selected:n.getAttribute('aria-selected')}))),await page.locator('.widget-grid .widget').evaluateAll(nodes=>nodes.map(n=>n.dataset.widgetId)))
+  await page.waitForFunction(id => document.querySelector(`[data-panel-id="${CSS.escape(id)}"]`)?.getAttribute('aria-selected') === 'true', targetPanelId)
   assert.ok(await page.locator(`.widget-grid .widget[data-widget-id="${movedId}"]`).count(), 'dropping on a panel tab moves the widget to that panel')
   assert.deepEqual(errors, [], 'panel transfer does not produce uncaught errors')
 
@@ -85,10 +92,12 @@ try {
     url: process.env.UI_URL ?? 'http://127.0.0.1:1420/',
     interaction: 'Playwright mouse pointer events with capture; browser-preview draggable attributes are disabled during this smoke run.',
     widgetReorder: `${sourceId} moved before ${firstId} only after pointer release.`,
-    panelTransfer: `${movedId} moved to Desk after release on the Desk tab.`,
+    panelTransfer: `${movedId} moved to ${targetPanelName} after release on its tab (${targetPanelId}).`,
     nativeBoundary: 'This smoke verifies renderer pointer handling, not Windows Tauri OS file drag delivery.',
     pageErrors: errors,
   }, null, 2))
 } finally {
   await browser.close()
 }
+
+

@@ -1,6 +1,6 @@
 import { For, onCleanup, onMount, Show, createMemo, createSignal } from 'solid-js'
 import { ArrowDown, ArrowUp, Check, CheckCheck, Clock, Copy, FileArchive, FileText, Film, FolderOpen, Image, LoaderCircle, Monitor, Music, Power, Radio, RefreshCw, Send, Smartphone, Upload, X } from 'lucide-solid'
-import { cmd, type NearbyPeer, type NearbyTransfer, type TransferFile } from '../../lib/ipc'
+import { cmd, type NearbyPeer, type NearbyTransfer, type PhonePairingStatus, type TransferFile } from '../../lib/ipc'
 import {
   nearby,
   refreshNearby,
@@ -83,6 +83,8 @@ export default function NearbyView(props: { compact?: boolean }) {
   const [notice, setNotice] = createSignal<string | null>(null)
   const [bucketNotice, setBucketNotice] = createSignal<string | null>(null)
   const [busy, setBusy] = createSignal(false)
+  const [pairing, setPairing] = createSignal<PhonePairingStatus>({ devices: [], pending: [] })
+  const [pairingBusy, setPairingBusy] = createSignal<string | null>(null)
   const [now, setNow] = createSignal(Date.now())
 
   const peers = (): NearbyPeer[] => nearby().peers ?? []
@@ -145,10 +147,35 @@ export default function NearbyView(props: { compact?: boolean }) {
     if (!url) return
     try {
       await navigator.clipboard.writeText(url)
-      setBucketNotice('Phone link copied. Open it on a device on the same Wi-Fi.')
+      setBucketNotice('Phone link copied. Open it on the same Wi‑Fi and approve its pairing code here.')
     } catch {
       setBucketNotice(`Copy this link on your phone: ${url}`)
     }
+  }
+
+  async function refreshPairing(): Promise<void> {
+    try { setPairing(await cmd.transferPairingStatus()) } catch { /* unavailable during shutdown */ }
+  }
+
+  async function decidePairing(pairId: string, allow: boolean): Promise<void> {
+    setPairingBusy(pairId)
+    setBucketNotice(null)
+    try {
+      await cmd.transferPairingDecide(pairId, allow)
+      await refreshPairing()
+    } catch (error) { setBucketNotice(String(error)) }
+    finally { setPairingBusy(null) }
+  }
+
+  async function removePhone(deviceId: string): Promise<void> {
+    setPairingBusy(deviceId)
+    setBucketNotice(null)
+    try {
+      const removed = await cmd.transferPairingRemove(deviceId)
+      if (!removed) setBucketNotice('That saved phone was already removed.')
+      await refreshPairing()
+    } catch (error) { setBucketNotice(String(error)) }
+    finally { setPairingBusy(null) }
   }
 
   onMount(() => {
@@ -160,12 +187,15 @@ export default function NearbyView(props: { compact?: boolean }) {
       else unsubscribe = fn
     })
     void refreshTransfer()
+    void refreshPairing()
     const refreshTimer = window.setInterval(() => void refreshTransfer(), 2500)
+    const pairingTimer = window.setInterval(() => void refreshPairing(), 2500)
     const clockTimer = window.setInterval(() => setNow(Date.now()), 1000)
 
     onCleanup(() => {
       disposed = true
       window.clearInterval(refreshTimer)
+      window.clearInterval(pairingTimer)
       window.clearInterval(clockTimer)
       unsubscribe?.()
     })
@@ -213,7 +243,7 @@ export default function NearbyView(props: { compact?: boolean }) {
         <div>
           <div class="phone-bucket__eyebrow"><Smartphone size={14} strokeWidth={1.8} /> PHONE ↔ PC</div>
           <h2>Nearby</h2>
-          <p>Drop files on the notch — they land in the bucket, then scan to beam them to your phone.</p>
+          <p>Drop files on the notch, then send them to a phone you trust.</p>
         </div>
         <div class="phone-bucket__actions">
         <Show when={bucket().active && bucket().files.length > 0}>
@@ -294,7 +324,7 @@ export default function NearbyView(props: { compact?: boolean }) {
               </Show>
               <span class="phone-bucket__qr-scan" aria-hidden="true" />
             </div>
-            <span class="phone-bucket__qr-caption">Scan with your phone camera</span>
+            <span class="phone-bucket__qr-caption">Scan to remember this phone</span>
             <button type="button" class="phone-bucket__link" onClick={() => void copyPhoneLink()} data-no-drag>
               <Copy size={13} /> Copy link
             </button>
@@ -305,7 +335,7 @@ export default function NearbyView(props: { compact?: boolean }) {
                 <div class="phone-bucket__countdown-fill" classList={{ 'phone-bucket__countdown-fill--low': countdownFraction() <= 0.2 }} style={{ width: `${countdownFraction() * 100}%` }} />
               </div>
             </div>
-            <span class="phone-bucket__url" title={bucket().phoneUrl ?? ''}>{bucket().phoneUrl}</span>
+            <details class="phone-bucket__connection"><summary>Connection details</summary><Show when={bucket().phoneUrl}><span>Session link</span><code>{bucket().phoneUrl}</code></Show><Show when={bucket().bookmarkUrl}><span>Phone bookmark</span><code>{bucket().bookmarkUrl}</code><small>{bucket().stableBookmark ? 'This address stays the same while the bucket is running.' : 'The port changed for this session, so scan the QR again next time.'}</small></Show></details>
           </div>
           <div class="phone-bucket__work">
             <div class="phone-bucket__state" classList={{ 'phone-bucket__state--ready': bucketReady(), 'phone-bucket__state--busy': bucketUploading() }} role="status" aria-live="polite">
@@ -373,11 +403,6 @@ export default function NearbyView(props: { compact?: boolean }) {
               </label>
             </div>
 
-            <div class="phone-bucket__limits">
-              Expires in {countdown()} · up to {formatBytes(bucket().maxFileBytes)} per file · {formatBytes(bucket().maxBucketBytes)} total
-              <span>Folder drops are zipped with their relative paths (500 files / 95 MB max).</span>
-              <span>{bucket().saveFolder}</span>
-            </div>
           </div>
         </div>
 
@@ -390,7 +415,7 @@ export default function NearbyView(props: { compact?: boolean }) {
             <span class="phone-bucket__files-empty-glyph" aria-hidden="true"><Upload size={18} /></span>
             <div>
               <strong>Nothing in the bucket yet.</strong>
-              <span>Add files from this PC, or scan the code and choose files on your phone.</span>
+              <span>Add files from this PC, then remember a phone to send or download them.</span>
             </div>
           </div>
         }>
@@ -413,7 +438,33 @@ export default function NearbyView(props: { compact?: boolean }) {
             )}</For>
           </div>
         </Show>
-        <div class="phone-bucket__security">Local Wi-Fi only · anyone with this link can access the bucket · stop the session when you’re done.</div>
+        <details class="phone-bucket__security"><summary>About this connection</summary><span>Only remembered phones can access files. Pairing and transfers work on the same local network over HTTP. Stop the session when you’re done; it closes automatically after 30 minutes.</span><span>Up to {formatBytes(bucket().maxFileBytes)} per file and {formatBytes(bucket().maxBucketBytes)} in total. Folders become ZIP files (up to 500 files / 95 MB). Saved in {bucket().saveFolder}.</span></details>
+      </Show>
+      <Show when={pairing().pending.length > 0 || pairing().devices.length > 0}>
+        <section class="phone-bucket__phones" aria-label="Remembered phones">
+          <div class="phone-bucket__phones-head"><strong>Phones on this PC</strong><span>{pairing().devices.length}/16</span></div>
+          <Show when={pairing().pending.length > 0}>
+            <div class="phone-bucket__requests">
+              <For each={pairing().pending}>{(request) => (
+                <div class="phone-bucket__request">
+                  <div><strong>{request.name}</strong><span>Compare code <b>{request.code}</b> on both screens</span></div>
+                  <button type="button" class="phone-bucket__allow" disabled={pairingBusy() === request.id || pairing().devices.length >= 16} onClick={() => void decidePairing(request.id, true)} title={pairing().devices.length >= 16 ? 'Remove a saved phone first' : undefined}><Check size={13}/> Allow</button>
+                  <button type="button" class="phone-bucket__deny" disabled={pairingBusy() === request.id} onClick={() => void decidePairing(request.id, false)} aria-label={`Decline ${request.name}`}><X size={13}/></button>
+                </div>
+              )}</For>
+            </div>
+          </Show>
+          <div class="phone-bucket__device-strip">
+            <For each={pairing().devices}>{(device) => (
+              <div class="phone-bucket__device" classList={{ 'phone-bucket__device--online': device.online }}>
+                <span class="phone-bucket__device-dot" aria-hidden="true"/>
+                <strong>{device.name}</strong>
+                <span>{device.online ? 'Here now' : 'Saved'}</span>
+                <button type="button" disabled={pairingBusy() === device.id} onClick={() => void removePhone(device.id)} aria-label={`Remove ${device.name}`} title={`Remove ${device.name}`}><X size={12}/></button>
+              </div>
+            )}</For>
+          </div>
+        </section>
       </Show>
     </section>
   )

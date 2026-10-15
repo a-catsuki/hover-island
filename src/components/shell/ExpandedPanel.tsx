@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, For, Show, onCleanup, onMount } from 'solid-js'
-import { Bell, ChevronUp, ChevronLeft, ChevronRight, Moon, Pin, PinOff, Search, Settings as SettingsIcon, X, GripVertical, Check, LayoutGrid, ArrowUp, ArrowDown, FolderUp, SlidersHorizontal, Ellipsis } from 'lucide-solid'
+import { Bell, ChevronUp, Moon, Pin, PinOff, Search, Settings as SettingsIcon, X, GripVertical, Check, LayoutGrid, ArrowUp, ArrowDown, FolderUp, SlidersHorizontal, Ellipsis } from 'lucide-solid'
 import { browserPreview, cmd } from '../../lib/ipc'
 import { settings, patchSettings, savingSettings, flushSettings } from '../../state/settings'
 import { collapseIsland, open, pinned, setPinned } from '../../state/ui'
@@ -7,10 +7,9 @@ import { openSpotlight } from '../../state/spotlight'
 import { feedback, dismissFeedback, reportError } from '../../state/feedback'
 import { acknowledgePendingAlert, dismissPeek } from '../../state/peek'
 import { WIDGETS } from '../widgets/registry'
-import { PANELS, widgetPanel, moveToPanel, type PanelId } from '../../lib/panels'
+import { widgetPanel, moveToPanel, type PanelId } from '../../lib/panels'
 import { moveWidgetBefore, moveWidget } from '../../settings/widgetOrder'
 import { crossedWidgetDragThreshold, widgetPointerDropTarget, widgetPointerReleaseTarget, type WidgetPointerDropTarget } from '../../lib/widgetPointerDrag'
-import EventPeek from './EventPeek'
 import { activePanel, setActivePanel, showFileBucket, showControls, widgetRequest, detailRequest } from '../../state/panel'
 import { widgetPages } from '../../lib/widgetPages'
 import FirstRunTour from './FirstRunTour'
@@ -21,8 +20,6 @@ export default function ExpandedPanel() {
   let grid: HTMLDivElement | undefined
   let body: HTMLElement | undefined
   const [columns, setColumns] = createSignal(2)
-  const [pageIndex, setPageIndex] = createSignal(0)
-  const [detail, setDetail] = createSignal<string | null>(null)
   let panelMotion: Animation | undefined
   onMount(() => {
     const observer = new ResizeObserver(entries => setColumns(entries[0].contentRect.width < 540 ? 1 : 2))
@@ -55,24 +52,34 @@ export default function ExpandedPanel() {
   const [over, setOver] = createSignal<string | null>(null)
   let pointerDrag: { pointerId: number; sourceId: string; start: { x: number; y: number }; element: HTMLElement; started: boolean } | undefined
   const all = createMemo(() => [...settings.widgets].filter(widget => widget.enabled && widget.kind !== 'airdrop').sort((a,b) => a.order-b.order))
-  const panelWidgets = createMemo(() => all().filter(widget => widgetPanel(widget) === panel()))
-  const pages = createMemo(() => widgetPages(panelWidgets(), columns()))
-  const currentPage = () => Math.min(pageIndex(), pages().length - 1)
-  const slots = createMemo(() => {
-    const focused = detail() && panelWidgets().find(widget => widget.id === detail())
-    return focused ? [{ widget: focused, column: 1, row: 1, columns: columns(), rows: 2 }] : pages()[currentPage()]
-  })
+  const panelWidgets = createMemo(() => all().filter(widget => widgetPanel(widget, settings.panelOrder) === panel()))
+  const slotsForPanel = createMemo(() => widgetPages(panelWidgets(), columns())[0] ?? [])
+  const slots = slotsForPanel
   const visible = () => slots().map(slot => slot.widget)
-  let previousPanelForPage = panel()
   let seenWidgetRequest=0, seenDetailRequest=0
-  createEffect(() => { if (panel() !== previousPanelForPage) { previousPanelForPage = panel(); setPageIndex(0); setDetail(null) } })
+  createEffect(() => {
+    const order = settings.panelOrder
+    if (!order.length) return
+    if (!order.includes(panel())) setPanel(order[0])
+  })
   createEffect(() => {
     const request = widgetRequest()
     if (!request || request.revision===seenWidgetRequest) return
-    const index = pages().findIndex(page => page.some(slot => slot.widget.id === request.id))
-    if (index >= 0) { seenWidgetRequest=request.revision;setPageIndex(index); setDetail(null) }
+    const widget = settings.widgets.find(item => item.id === request.id && item.enabled && item.kind !== 'airdrop')
+    if (widget) {
+      seenWidgetRequest = request.revision
+      const targetPanel = widgetPanel(widget, settings.panelOrder)
+      if (targetPanel !== panel()) setPanel(targetPanel)
+    }
   })
-  createEffect(() => { const request=detailRequest(); if(request&&request.revision!==seenDetailRequest) {const widget=panelWidgets().find(item=>item.kind===request.kind);if(widget){seenDetailRequest=request.revision;setDetail(widget.id)}} })
+  createEffect(() => {
+    const request = detailRequest()
+    if (!request || request.revision === seenDetailRequest) return
+    const widget = all().find(item => item.kind === request.kind)
+    if (!widget) return
+    seenDetailRequest = request.revision
+    setPanel(widgetPanel(widget, settings.panelOrder))
+  })
   const commit = (widgets: typeof settings.widgets) => patchSettings({ widgets })
   const move = (id: string, direction: number) => {
     const ids = panelWidgets().map(widget => widget.id)
@@ -83,7 +90,6 @@ export default function ExpandedPanel() {
     const from = ordered.findIndex(widget => widget.id === id), to = ordered.findIndex(widget => widget.id === target)
     ;[ordered[from],ordered[to]] = [ordered[to],ordered[from]]
     commit(ordered.map((widget, order) => ({...widget,order})))
-    const nextPage=pages().findIndex(page=>page.some(slot=>slot.widget.id===id));if(nextPage>=0)setPageIndex(nextPage)
   }
   // HTML5 drag remains a browser-preview compatibility path only. Native
   // desktop builds use pointer capture because Tauri owns OS file dragging.
@@ -141,7 +147,7 @@ export default function ExpandedPanel() {
     if (!target || !arranging() || !settings.widgets.some(widget => widget.id === session.sourceId)) return
     const targetWidget = target.kind === 'widget' ? settings.widgets.find(widget => widget.id === target.id) : undefined
     if (target.kind === 'widget' && !targetWidget) return
-    const targetPanel = target.kind === 'panel' ? target.id as PanelId : widgetPanel(targetWidget!)
+    const targetPanel = target.kind === 'panel' ? target.id as PanelId : widgetPanel(targetWidget!, settings.panelOrder)
     const reassigned = moveToPanel(settings.widgets, session.sourceId, targetPanel)
     commit(target.kind === 'widget' ? moveWidgetBefore(reassigned, session.sourceId, target.id) : reassigned)
     setPanel(targetPanel)
@@ -198,10 +204,11 @@ export default function ExpandedPanel() {
   }
   return <div class="island__panel">
     <header class="panel__head">
-      <nav class="panel-tabs" role="tablist" aria-label="Panels" onKeyDown={event => { const index=PANELS.indexOf(panel()); const next=event.key==='ArrowRight' ? (index+1)%PANELS.length : event.key==='ArrowLeft' ? (index+PANELS.length-1)%PANELS.length : event.key==='Home' ? 0 : event.key==='End' ? PANELS.length-1 : -1; if(next<0)return;event.preventDefault();setPanel(PANELS[next]);(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next])?.focus() }}><For each={PANELS}>{id => <button role="tab" id={'panel-tab-'+id} data-panel-id={id} aria-controls="island-content" tabIndex={panel()===id ? 0 : -1} aria-selected={panel() === id} aria-label={settings.panels[id] + ' panel'} classList={{ selected: panel() === id, 'panel-tabs__drop': over() === id }} onClick={() => setPanel(id)} onDragOver={event => { if (browserPreview && arranging()) { event.preventDefault(); setOver(id) } }} onDragLeave={() => { if(browserPreview)setOver(null) }} onDrop={event => previewDrop(event, undefined, id)}>{settings.panels[id]}<Show when={arranging()}><small>{all().filter(widget => widgetPanel(widget) === id).length}</small></Show></button>}</For></nav>
+      <nav class="panel-tabs" role="tablist" aria-label="Panels" style={{ flex: '1 1 0', 'min-width': '0', 'overflow-x': 'auto', 'scrollbar-width': 'none' }} onKeyDown={event => { const order=settings.panelOrder; const index=order.indexOf(panel()); const next=event.key==='ArrowRight' ? (index+1)%order.length : event.key==='ArrowLeft' ? (index+order.length-1)%order.length : event.key==='Home' ? 0 : event.key==='End' ? order.length-1 : -1; if(next<0)return;event.preventDefault();setPanel(order[next]);(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next])?.focus() }}><For each={settings.panelOrder}>{id => <button role="tab" id={'panel-tab-'+id} data-panel-id={id} aria-controls="island-content" tabIndex={panel()===id ? 0 : -1} aria-selected={panel() === id} aria-label={settings.panels[id] + ' panel'} classList={{ selected: panel() === id, 'panel-tabs__drop': over() === id }} onClick={() => setPanel(id)} onDragOver={event => { if (browserPreview && arranging()) { event.preventDefault(); setOver(id) } }} onDragLeave={() => { if(browserPreview)setOver(null) }} onDrop={event => previewDrop(event, undefined, id)}>{settings.panels[id]}<Show when={arranging()}><small>{all().filter(widget => widgetPanel(widget, settings.panelOrder) === id).length}</small></Show></button>}</For></nav>
       <span class="panel__spacer"/>
       <div class="panel__tools">
         <button class="beam-button" type="button" aria-label="Open file beam" title="Beam files to your phone" onClick={showFileBucket}><FolderUp size={15}/><span>Beam</span></button>
+        <button class="icon-button panel__quick-controls" type="button" aria-label="Open quick controls" title="Quick controls" onClick={showControls}><SlidersHorizontal size={16}/></button>
         <button class="search-button" onClick={openSpotlight} title="Search anything (Ctrl+Space)" aria-label="Search Ctrl Space"><Search size={15}/><span>Search</span><kbd>Ctrl Space</kbd></button>
         <button class="icon-button" aria-label="Open settings" title="Settings" onClick={openSettings}><SettingsIcon size={16}/></button>
         <button class="icon-button" aria-label="Collapse island" title="Collapse (Esc)" onClick={() => { void flushSettings().catch(() => {}); collapseIsland() }}><ChevronUp size={16}/></button>
@@ -213,7 +220,6 @@ export default function ExpandedPanel() {
           }}><Ellipsis size={17}/></button>
           <Show when={moreOpen()}>
             <div ref={moreMenu} id="panel-more-menu" class="panel-more__menu" role="menu" aria-label="More island actions" onKeyDown={onMoreKeyDown}>
-              <button type="button" role="menuitem" onClick={() => runMoreAction(showControls)}><SlidersHorizontal size={15}/><span>PC controls</span></button>
               <button type="button" role="menuitem" class="files-shortcut" onClick={() => runMoreAction(showFileBucket)}><FolderUp size={15}/><span>File bucket</span></button>
               <button type="button" role="menuitemcheckbox" aria-checked={settings.dnd} onClick={() => runMoreAction(toggleDnd)}><Moon size={15} fill={settings.dnd?'currentColor':'none'}/><span>Do Not Disturb</span><small>{settings.dnd ? 'On' : 'Off'}</small></button>
               <button type="button" role="menuitemcheckbox" aria-checked={pinned()} onClick={() => runMoreAction(() => setPinned(!pinned()))}>{pinned() ? <PinOff size={15}/> : <Pin size={15}/>}<span>{pinned() ? 'Unpin island' : 'Keep island open'}</span><small>{pinned() ? 'On' : 'Off'}</small></button>
@@ -226,9 +232,8 @@ export default function ExpandedPanel() {
     <Show when={feedback()}><div class="feedback" role="alert"><span>{feedback()}</span><button class="icon-button" aria-label="Dismiss error" onClick={dismissFeedback}><X size={14}/></button></div></Show>
     <main ref={body} class="panel__body" id="island-content" role="tabpanel" aria-labelledby={'panel-tab-'+panel()} classList={{'panel__body--tutorial':onboardingOpen()}}>
       <FirstRunTour/>
-      <EventPeek/>
       <Show when={arranging()}><p class="arrange-hint"><GripVertical size={13}/>Drag a widget to reorder, or drop it on a panel above.</p></Show>
-      <div ref={grid} class={'widget-grid widget-grid--' + panel()} style={{'--grid-columns':columns()}} classList={{ 'widget-grid--arranging': arranging(), 'widget-grid--detail':!!detail() }} inert={onboardingOpen()}>
+      <div ref={grid} class={'widget-grid widget-grid--' + panel()} style={{'--grid-columns':columns()}} classList={{ 'widget-grid--arranging': arranging() }} inert={onboardingOpen()}>
         <For each={visible()}>{widget => {
           const slot = () => slots().find(item => item.widget.id === widget.id) ?? {column:1,row:1,columns:1,rows:1}
           const panelIndex = () => panelWidgets().findIndex(item => item.id === widget.id)
@@ -241,7 +246,7 @@ export default function ExpandedPanel() {
         <Show when={!visible().length}><div class="panel-empty"><LayoutGrid size={24}/><strong>A space for your essentials.</strong><p>Add widgets or move them here from another panel.</p><button class="button" onClick={openSettings}>Choose widgets</button></div></Show>
       </div>
     </main>
-    <footer class="panel__foot" classList={{'panel__foot--quiet':!detail()&&pages().length===1&&!savingSettings()&&!settings.dnd&&!arranging()&&!pinned()}}><span>{savingSettings() ? 'Saving…' : settings.dnd ? 'Do Not Disturb' : arranging() ? 'Arrange widgets' : pinned() ? 'Pinned open' : ''}</span><Show when={detail()} fallback={<Show when={pages().length>1}><nav class="panel-pager" aria-label="Widget pages"><button class="icon-button" aria-label="Previous widget page" disabled={currentPage()===0} onClick={() => setPageIndex(currentPage()-1)}><ChevronLeft size={15}/></button><span>{currentPage()+1} / {pages().length}</span><button class="icon-button" aria-label="Next widget page" disabled={currentPage()>=pages().length-1} onClick={() => setPageIndex(currentPage()+1)}><ChevronRight size={15}/></button></nav></Show>}><button class="text-button" onClick={()=>setDetail(null)}>Back to panel</button></Show></footer>
+      <footer class="panel__foot" classList={{'panel__foot--quiet':!savingSettings()&&!settings.dnd&&!arranging()&&!pinned()}}><span>{savingSettings() ? 'Saving…' : settings.dnd ? 'Do Not Disturb' : arranging() ? 'Arrange widgets' : pinned() ? 'Pinned open' : ''}</span></footer>
   </div>
 }
 

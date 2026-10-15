@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { Battery, BatteryCharging, Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, FolderUp, Music, Pause, Play, SkipBack, SkipForward, Sun } from 'lucide-solid'
+import { Battery, BatteryCharging, Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, Music, Pause, Play, SkipBack, SkipForward, Sun } from 'lucide-solid'
 import { nowPlaying, mediaBusy, mediaControl } from '../../state/media'
 import { settings } from '../../state/settings'
 import { notifications } from '../../state/notifications'
@@ -12,8 +12,6 @@ import './CollapsedPill.css'
 import { Dynamic } from 'solid-js/web'
 import { clockTime } from '../../lib/clockDisplay'
 import { pendingAlert, openPendingAlert } from '../../state/peek'
-import { expandIsland } from '../../state/ui'
-import { showFileBucket } from '../../state/panel'
 
 function UsageRing(props: { percent: number }) {
   const radius = 6
@@ -148,7 +146,6 @@ export default function CollapsedPill() {
       <Show when={visible().length === 0}><span class="pill__compact-empty">Hover Island</span></Show>
     </div>
     <Show when={!settings.dnd && settings.notifications.enabled ? pendingAlert() : null}>{item=><button class="pill__alert-badge" aria-label={`Unread alert: ${item().title}`} title={`${item().app}: ${item().title}`} onPointerDown={stop} onClick={event=>{event.stopPropagation();openPendingAlert()}}><span class="pill__alert-dot"/><span>{item().title}</span></button>}</Show>
-    <button class="pill__beam" type="button" aria-label="Open file beam" title="Beam files to your phone" data-no-drag onPointerDown={stop} onClick={event=>{event.stopPropagation();expandIsland();showFileBucket()}}><FolderUp size={15}/></button>
     <div class="pill__badges" aria-hidden="true">
       <Show when={settings.modules.notifications && settings.notifications.enabled && unread() > 0}><span class="pill__dot" title={`${unread()} unread`} /></Show>
       <Show when={focusTimer().endsAt && !visible().includes('clock')}><span class="pill__focus">{formatFocus(focusTimer().remaining)}</span></Show>

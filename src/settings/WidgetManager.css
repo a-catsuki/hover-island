@@ -1,4 +1,4 @@
-/* ================================================= widget page preview */
+/* ================================================= panel previews */
 /* A wallpaper-picker style arrangement surface. Self-contained under .wmp  */
 
 .wmp {
@@ -16,7 +16,7 @@
   max-width: 62ch;
 }
 
-/* ---------------------------------------------------------- page tray */
+/* -------------------------------------------------------- panel tray */
 
 .wmp__tray {
   display: flex;
@@ -64,6 +64,8 @@
 .wmp__title {
   flex: 1;
   min-width: 0;
+  display: block;
+  overflow: hidden;
   height: 28px;
   padding: 0 2px;
   border: 0;
@@ -76,14 +78,7 @@
   font-weight: var(--fw-semibold);
   letter-spacing: var(--track-title);
   text-overflow: ellipsis;
-  transition: border-color var(--dur-fast) var(--ease);
-}
-.wmp__title:hover {
-  border-bottom-color: var(--line-1);
-}
-.wmp__title:focus-visible {
-  outline: none;
-  border-bottom-color: var(--accent);
+  white-space: nowrap;
 }
 
 .wmp__count {
@@ -257,54 +252,6 @@
 }
 .wmp__mini--drop-after::after {
   right: 3px;
-}
-
-/* ---------------------------------------------------------- pager */
-
-.wmp__pager {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  color: var(--text-3);
-  font-size: var(--fs-11);
-  font-variant-numeric: tabular-nums;
-}
-.wmp__pager button {
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--line-1);
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-2);
-  cursor: pointer;
-  transition:
-    background var(--dur-fast) var(--ease),
-    color var(--dur-fast) var(--ease);
-}
-.wmp__pager button:hover:not(:disabled) {
-  background: var(--surface-hover);
-  color: var(--text-1);
-}
-.wmp__pager button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.wmp__dots {
-  display: flex;
-  gap: 4px;
-}
-.wmp__dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--line-1);
-  transition: background var(--dur-fast) var(--ease);
-}
-.wmp__dot--on {
-  background: var(--accent);
 }
 
 /* ---------------------------------------------------------- inspector */
@@ -531,7 +478,6 @@
   .wmp__mini,
   .wmp__seg button,
   .wmp__moves button,
-  .wmp__pager button,
   .wmp__remove,
   .wmp__chip,
   .wmp__dot {

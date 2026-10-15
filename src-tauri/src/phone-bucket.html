@@ -78,6 +78,8 @@
     .button svg{width:15px;height:15px}
 
     .footer{font-size:12px;line-height:1.75;color:var(--muted-2);margin:2px 4px 0}
+    .footer summary{width:fit-content;color:var(--muted);cursor:pointer}
+    .footer p{margin:8px 0 0;overflow-wrap:anywhere}
     .footer strong{color:var(--muted);font-weight:600}
 
     #burst{position:fixed;inset:0;z-index:9;display:grid;place-items:center;pointer-events:none;opacity:0;transition:opacity .18s ease}
@@ -105,7 +107,7 @@
   <header class="hero">
     <span class="eyebrow"><i></i>Nearby sharing</span>
     <h1>Send to PC</h1>
-    <p>Move files across your Wi-Fi. No app, no account.</p>
+    <p>Move files across your Wi‑Fi. Remember this phone on your PC for next time.</p>
   </header>
 
   <section class="card" aria-label="Send files to PC">
@@ -128,7 +130,7 @@
     <div id="files" class="empty">Connecting…</div>
   </section>
 
-  <p class="footer">Same Wi-Fi, please · up to <strong>100 MB</strong> per file · <strong>500 MB</strong> per session.<br>Saved on the PC in <strong>Downloads / Hover Island</strong>. The link closes after 30 minutes.</p>
+  <details class="footer"><summary>About this connection</summary><p>Same local Wi‑Fi · up to <strong>100 MB</strong> per file · <strong>500 MB</strong> per session. Saved on the PC in <strong>Downloads / Hover Island</strong>. The bucket closes after 30 minutes.</p><p>When the bucket is running, use this phone bookmark to return: <strong>__DEVICE_BOOKMARK__</strong>. __BOOKMARK_NOTE__</p></details>
 </main>
 <div id="burst" aria-hidden="true"></div>
 <script>

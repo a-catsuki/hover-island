@@ -54,23 +54,19 @@ try {
     const collapsed = await page.locator('.island__collapsed').boundingBox()
     const host = await page.locator('.island-stage').boundingBox()
     assert.equal(Math.round(collapsed.width), 56, `${edge} side-notch width`)
-    assert.equal(Math.round(collapsed.height), 200, `${edge} side-notch height`)
+    assert.equal(Math.round(collapsed.height), 144, `${edge} side-notch height`)
     assert.equal(Math.round(collapsed.x), edge === 'left' ? 0 : 1144, `${edge} pill sits on the monitor edge`)
-    assert.equal(Math.round(collapsed.y), 300, `${edge} pill stays vertically centered`)
+    assert.equal(Math.round(collapsed.y), 328, `${edge} pill stays vertically centered`)
     const items = await page.locator('.pill__compact-item').evaluateAll(elements => elements.map(element => {
       const rect = element.getBoundingClientRect()
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
     }))
-    const beam = await page.locator('.pill__beam').boundingBox()
-    const handle = await page.locator('.island__move-handle').boundingBox()
+    assert.equal(await page.locator('.pill__beam').count(), 0, 'collapsed surface has no Beam button')
+    assert.equal(await page.locator('.island__move-handle').count(), 0, 'collapsed surface has no separate move handle')
     assert.equal(items.length, 4, `${edge} pill fits the large preset's four compact essentials`)
     for (const item of items) {
       assert.ok(item.x >= collapsed.x - 1 && item.x + item.width <= collapsed.x + collapsed.width + 1, `${edge} essential fits inside the vertical pill`)
       assert.ok(item.y >= collapsed.y - 1 && item.y + item.height <= collapsed.y + collapsed.height + 1, `${edge} essential fits vertically`)
-    }
-    for (const [name, rect] of [['Beam', beam], ['move handle', handle]]) {
-      assert.ok(rect.x >= collapsed.x - 1 && rect.x + rect.width <= collapsed.x + collapsed.width + 1, `${edge} ${name} fits horizontally`)
-      assert.ok(rect.y >= collapsed.y - 1 && rect.y + rect.height <= collapsed.y + collapsed.height + 1, `${edge} ${name} fits vertically`)
     }
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('island://proximity', { detail: { x: 5, y: -4 } })))
     await page.waitForFunction(() => {
@@ -86,7 +82,7 @@ try {
     assert.ok(Math.abs(motion.x) <= 6 && Math.abs(motion.y) <= 6, `${edge} magnetic pull is bounded`)
     assert.equal(motion.open, false, `${edge} magnetic pull does not open the pill`)
     await page.screenshot({ path: join(outDir, `notch-${edge}-collapsed.png`) })
-    cases.push({ edge, host, collapsed, itemCount: items.length, beam, handle, motion })
+    cases.push({ edge, host, collapsed, itemCount: items.length, motion, collapsedActions: 'none' })
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('island://proximity', { detail: { x: 0, y: 0 } })))
     await page.waitForFunction(() => {
       const island = document.querySelector('.island')

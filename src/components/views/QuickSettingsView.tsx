@@ -37,15 +37,37 @@ const errorText = (error: unknown): string => error instanceof Error ? error.mes
  */
 const commitVolume = createSliderCommitter(
   value => cmd.setMasterVolume(value),
-  error => { setControlError(errorText(error)); reportError('Could not set the system volume', error) },
+  error => {
+    setControlError(`Could not set system volume: ${errorText(error)}`)
+    reportError('Could not set the system volume', error)
+    void restoreSliderReadback('volume')
+  },
 )
 const commitBrightness = createSliderCommitter(
   value => cmd.setBrightness(value),
-  error => { setControlError(errorText(error)); reportError('Could not set the display brightness', error) },
+  error => {
+    setControlError(`Could not set display brightness: ${errorText(error)}`)
+    reportError('Could not set the display brightness', error)
+    void restoreSliderReadback('brightness')
+  },
 )
 
 function patchControl<K extends ControlKey>(key: K, value: QuickControlsSnapshot[K]): void {
   setControls(previous => (previous ? { ...previous, [key]: value } : previous))
+}
+
+async function restoreSliderReadback(key: 'volume' | 'brightness'): Promise<void> {
+  try {
+    const latest = await cmd.quickControlsGet()
+    const control = latest[key]
+    patchControl(key, control)
+    if (typeof control?.level === 'number') {
+      if (key === 'volume') setVolumeLevel(control.level)
+      else setBrightnessLevel(control.level)
+    }
+  } catch {
+    setControlError('The change failed and Windows could not confirm the current value. Refresh to try again.')
+  }
 }
 
 async function refresh(): Promise<void> {
@@ -130,7 +152,13 @@ function toggleMute(): void {
   setBusy(true)
   setControlError('')
   void cmd.setMute(next)
-    .then(() => confirmAction(next ? 'Muted' : 'Unmuted', next ? 'System volume is muted.' : 'System volume is back on.'))
+    .then(async () => {
+      const latest = await cmd.quickControlsGet()
+      if (latest.volume?.muted !== next) throw new Error('Windows did not confirm the mute state. Refresh and try again.')
+      patchControl('volume', latest.volume)
+      if (typeof latest.volume.level === 'number') setVolumeLevel(latest.volume.level)
+      confirmAction(next ? 'Muted' : 'Unmuted', next ? 'System volume is muted.' : 'System volume is back on.')
+    })
     .catch(error => {
       patchControl('volume', volume)
       setControlError(errorText(error))
@@ -157,8 +185,13 @@ function toggleDnd(): void {
       patchSettings({ dnd: next })
       await flushSettings()
       if (control?.supported && control.enabled !== null) {
-        try { await cmd.setDoNotDisturb(next) }
-        catch { setControlError('Notch alerts were updated. Windows Do Not Disturb could not be changed.') }
+        try {
+          await cmd.setDoNotDisturb(next)
+          const latest = await cmd.quickControlsGet()
+          if (latest.doNotDisturb?.enabled !== next) {
+            setControlError(`Notch alerts ${next ? 'are silenced' : 'are on'}, but Windows Do Not Disturb did not confirm the change.`)
+          } else patchControl('doNotDisturb', latest.doNotDisturb)
+        } catch { setControlError(`Notch alerts ${next ? 'are silenced' : 'are on'}, but Windows Do Not Disturb could not be changed.`) }
       }
     } catch (error) {
       setControlError(errorText(error))
@@ -183,10 +216,10 @@ function togglePowerEfficiency(): void {
     setControlError('')
     try {
       await cmd.setBestPowerEfficiency(enable)
+      const latest = await cmd.quickControlsGet()
+      if (latest.powerMode?.bestEfficiencyActive !== enable) throw new Error('Windows did not confirm the requested power mode. Refresh and try again.')
+      patchControl('powerMode', latest.powerMode)
       confirmAction(enable ? 'Best power efficiency enabled' : 'Previous power mode restored', enable ? 'Windows selected Best power efficiency. Energy Saver is a separate Windows setting.' : 'Windows restored the power modes that were active before this change.')
-      void cmd.quickControlsGet()
-        .then(snapshot => { if (snapshot.powerMode) patchControl('powerMode', snapshot.powerMode) })
-        .catch(() => {})
     } catch (error) {
       setControlError(errorText(error))
       reportError('Could not change the Windows power mode', error)
@@ -260,7 +293,17 @@ export default function QuickSettingsView() {
   const bluetooth = () => controls()?.bluetooth
   const powerMode = () => controls()?.powerMode
   const nightLight = () => controls()?.nightLight
+  const doNotDisturb = () => controls()?.doNotDisturb
   const volumeUsable = () => !!volume()?.supported && volume()?.level !== null
+  const bluetoothLabel = () => bluetooth()?.supported
+    ? bluetooth()?.enabled === null ? 'Status unavailable' : bluetooth()?.enabled ? 'On' : 'Off'
+    : 'Unavailable · open Windows'
+  const nightLightLabel = () => nightLight()?.supported
+    ? nightLight()?.enabled === null ? 'Status unavailable' : nightLight()?.enabled ? 'On' : 'Off'
+    : 'Unavailable · open Windows'
+  const powerModeLabel = () => powerMode()?.supported
+    ? powerMode()?.bestEfficiencyActive ? powerMode()?.canRestorePrevious ? 'Efficiency · restore available' : 'Best efficiency active' : powerMode()?.activeName || 'Windows power mode'
+    : 'Unavailable · open Windows'
 
   return <section class="quick-settings" aria-label="Quick settings">
     <header class="quick-settings__head">
@@ -276,10 +319,10 @@ export default function QuickSettingsView() {
     </header>
 
     <Show when={memoryOpen()} fallback={<div class="quick-settings__overview">
-      <div class="quick-settings__sliders">
+      <div class="quick-settings__sliders" role="group" aria-label="Volume and display brightness">
        <div class="quick-settings__slider-section">
         <div class="quick-settings__slider-row" classList={{ 'is-disabled': !volumeUsable() }}>
-          <button class="quick-settings__icon quick-settings__icon--action" aria-label={volume()?.muted ? 'Unmute' : 'Mute'} title={volume()?.muted ? 'Unmute' : 'Mute'} disabled={!volume()?.supported || volume()?.muted === null || busy()} onClick={toggleMute}>
+          <button class="quick-settings__icon quick-settings__icon--action quick-settings__icon--volume" aria-label={volume()?.muted ? 'Unmute' : 'Mute'} title={volume()?.muted ? 'Unmute' : 'Mute'} disabled={!volume()?.supported || volume()?.muted === null || busy()} onClick={toggleMute}>
             {volume()?.muted ? <VolumeX size={17}/> : <Volume2 size={17}/>}
           </button>
           <div class="quick-settings__slider-body">
@@ -289,12 +332,12 @@ export default function QuickSettingsView() {
               onInput={event => onVolumeInput(event.currentTarget.value)} onChange={() => commitVolume.flush()}/>
           </div>
         </div>
-        <Show when={!volume()?.supported}><button class="quick-settings__fallback" title={volume()?.error || ''} onClick={()=>openSettings('sound','Could not open Sound settings')}>Adjust sound in Windows<ChevronRight size={13}/></button></Show>
+        <Show when={!volume()?.supported}><button class="quick-settings__fallback" title={volume()?.error || 'Volume control unavailable'} onClick={()=>openSettings('sound','Could not open Sound settings')}>Open Sound settings<ChevronRight size={13}/></button></Show>
        </div>
 
        <div class="quick-settings__slider-section">
         <div class="quick-settings__slider-row" classList={{ 'is-disabled': !brightness()?.supported }}>
-          <span class="quick-settings__icon"><Sun size={17}/></span>
+          <span class="quick-settings__icon quick-settings__icon--brightness"><Sun size={17}/></span>
           <div class="quick-settings__slider-body">
             <div class="quick-settings__slider-head"><span>Brightness</span><span class="quick-settings__value">{brightness()?.supported ? `${brightnessLevel()}%` : '—'}</span></div>
             <input class="quick-settings__range" type="range" min="0" max="100" step="1" aria-label="Display brightness"
@@ -302,46 +345,46 @@ export default function QuickSettingsView() {
               onInput={event => onBrightnessInput(event.currentTarget.value)} onChange={() => commitBrightness.flush()}/>
           </div>
         </div>
-        <Show when={!brightness()?.supported}><button class="quick-settings__fallback" title={brightness()?.error || ''} onClick={()=>openSettings('display','Could not open Display settings')}>Adjust display in Windows<ChevronRight size={13}/></button></Show>
+        <Show when={!brightness()?.supported}><button class="quick-settings__fallback" title={brightness()?.error || 'Brightness control unavailable'} onClick={()=>openSettings('display','Could not open Display settings')}>Open Display settings<ChevronRight size={13}/></button></Show>
        </div>
       </div>
 
-      <div class="quick-settings__tiles">
-        <button class="quick-settings__tile" disabled={busy()} aria-pressed={bluetooth()?.supported ? bluetooth()?.enabled ?? false : undefined} title={bluetooth()?.error || 'Bluetooth'} onClick={()=>bluetooth()?.supported && bluetooth()?.enabled!==null ? toggleBluetooth() : openSettings('bluetooth','Could not open Bluetooth settings')}>
-          <span class="quick-settings__icon"><Bluetooth size={17}/></span>
-          <span class="quick-settings__text"><strong>Bluetooth</strong><small>{bluetooth()?.supported ? (bluetooth()?.enabled ? 'On' : 'Off') : 'Open Windows settings'}</small></span>
+      <div class="quick-settings__tiles" role="group" aria-label="Connectivity, focus, and power">
+        <button class="quick-settings__tile" classList={{ 'is-active': !!bluetooth()?.enabled }} disabled={busy()} aria-pressed={bluetooth()?.supported && bluetooth()?.enabled !== null ? !!bluetooth()?.enabled : undefined} title={bluetooth()?.error || bluetoothLabel()} onClick={()=>bluetooth()?.supported && bluetooth()?.enabled!==null ? toggleBluetooth() : openSettings('bluetooth','Could not open Bluetooth settings')}>
+          <span class="quick-settings__icon quick-settings__icon--bluetooth"><Bluetooth size={17}/></span>
+          <span class="quick-settings__text"><strong>Bluetooth</strong><small>{bluetoothLabel()}</small></span>
           <Show when={bluetooth()?.supported} fallback={<ChevronRight size={15}/>}><span class="quick-settings__switch" classList={{ 'is-on': !!bluetooth()?.enabled }} aria-hidden="true"><i/></span></Show>
         </button>
 
-        <button class="quick-settings__tile" disabled={busy()} aria-pressed={nightLight()?.supported ? nightLight()?.enabled ?? false : undefined} title={nightLight()?.error || 'Night light'} onClick={()=>nightLight()?.supported && nightLight()?.enabled!==null ? toggleNightLight() : openSettings('nightlight','Could not open Night light settings')}>
-          <span class="quick-settings__icon"><Sun size={17}/></span>
-          <span class="quick-settings__text"><strong>Night light</strong><small>{nightLight()?.supported ? (nightLight()?.enabled ? 'On' : 'Off') : 'Adjust in Windows'}</small></span>
+        <button class="quick-settings__tile" classList={{ 'is-active': !!nightLight()?.enabled }} disabled={busy()} aria-pressed={nightLight()?.supported && nightLight()?.enabled !== null ? !!nightLight()?.enabled : undefined} title={nightLight()?.error || nightLightLabel()} onClick={()=>nightLight()?.supported && nightLight()?.enabled!==null ? toggleNightLight() : openSettings('nightlight','Could not open Night light settings')}>
+          <span class="quick-settings__icon quick-settings__icon--warmth"><Sun size={17}/></span>
+          <span class="quick-settings__text"><strong>Night light</strong><small>{nightLightLabel()}</small></span>
           <Show when={nightLight()?.supported} fallback={<ChevronRight size={15}/>}><span class="quick-settings__switch" classList={{ 'is-on': !!nightLight()?.enabled }} aria-hidden="true"><i/></span></Show>
         </button>
 
-        <button class="quick-settings__tile" disabled={busy()} aria-pressed={settings.dnd} title="Silence notch notifications and chimes" onClick={toggleDnd}>
-          <span class="quick-settings__icon"><Moon size={17}/></span>
-          <span class="quick-settings__text"><strong>Do not disturb</strong><small>{settings.dnd ? 'Notch alerts silenced' : 'Notch alerts on'}</small></span>
+        <button class="quick-settings__tile" classList={{ 'is-active': settings.dnd }} disabled={busy()} aria-pressed={settings.dnd} title={doNotDisturb()?.error || 'Silence Hover Island alerts; Windows focus is best effort'} onClick={toggleDnd}>
+          <span class="quick-settings__icon quick-settings__icon--focus"><Moon size={17}/></span>
+          <span class="quick-settings__text"><strong>Focus</strong><small>{settings.dnd ? 'Notch alerts off' : 'Notch alerts on'}{doNotDisturb()?.supported && doNotDisturb()?.enabled !== null ? ` · Windows ${doNotDisturb()?.enabled ? 'on' : 'off'}` : ''}</small></span>
           <span class="quick-settings__switch" classList={{ 'is-on': settings.dnd }} aria-hidden="true"><i/></span>
         </button>
 
-        <button class="quick-settings__tile" disabled={busy()} aria-pressed={powerMode()?.bestEfficiencyActive ?? false} title={powerMode()?.error || powerMode()?.activeName || 'Power mode'} onClick={()=>powerMode()?.supported && !(powerMode()?.bestEfficiencyActive && !powerMode()?.canRestorePrevious) ? togglePowerEfficiency() : openSettings('power','Could not open Power settings')}>
-          <span class="quick-settings__icon"><Leaf size={17}/></span>
-          <span class="quick-settings__text"><strong>Power mode</strong><small>{powerMode()?.bestEfficiencyActive ? (powerMode()?.canRestorePrevious ? 'Best efficiency · restore' : 'Best efficiency active') : (powerMode()?.supported ? (powerMode()?.activeName || 'Choose in Windows') : 'Adjust in Windows')}</small></span>
+        <button class="quick-settings__tile" classList={{ 'is-active': !!powerMode()?.bestEfficiencyActive }} disabled={busy()} aria-pressed={powerMode()?.supported ? !!powerMode()?.bestEfficiencyActive : undefined} title={powerMode()?.error || powerMode()?.activeName || 'Power mode'} onClick={()=>powerMode()?.supported && !(powerMode()?.bestEfficiencyActive && !powerMode()?.canRestorePrevious) ? togglePowerEfficiency() : openSettings('power','Could not open Power settings')}>
+          <span class="quick-settings__icon quick-settings__icon--power"><Leaf size={17}/></span>
+          <span class="quick-settings__text"><strong>Power mode</strong><small>{powerModeLabel()}</small></span>
           <Show when={powerMode()?.supported && !(powerMode()?.bestEfficiencyActive && !powerMode()?.canRestorePrevious)} fallback={<ChevronRight size={15}/>}><span class="quick-settings__switch" classList={{ 'is-on': !!powerMode()?.bestEfficiencyActive }} aria-hidden="true"><i/></span></Show>
         </button>
       </div>
 
       <div class="quick-settings__status">
         <div class="quick-settings__status-row">
-          <span class="quick-settings__icon"><BatteryMedium size={17}/></span>
+          <span class="quick-settings__icon quick-settings__icon--battery"><BatteryMedium size={16}/></span>
           <span class="quick-settings__text"><strong>Battery</strong><small>{batteryText()}</small></span>
         </div>
         <Show when={devices().length > 0}>
           <div class="quick-settings__devices" aria-label="Connected Bluetooth devices"><For each={devices()}>{name => <span>{name}</span>}</For></div>
         </Show>
-        <Show when={deviceError()}><p class="quick-settings__inline-error" role="status">{deviceError()}</p></Show>
       </div>
+      <Show when={deviceError()}><p class="quick-settings__inline-error" role="status">{deviceError()}</p></Show>
 
       <div class="quick-settings__links">
         <button class="quick-settings__link" onClick={() => openSettings('power', 'Could not open Windows Power & battery')}><Leaf size={14}/> <span>Energy Saver &amp; power</span><small>Open Windows settings</small><ChevronRight size={15}/></button>
@@ -351,7 +394,7 @@ export default function QuickSettingsView() {
       <Show when={controlError()}><p class="quick-settings__error" role="alert">{controlError()}</p></Show>
 
       <button class="quick-settings__memory-head" onClick={() => setMemoryOpen(true)}>
-        <span class="quick-settings__icon"><MemoryStick size={17}/></span>
+        <span class="quick-settings__icon quick-settings__icon--memory"><MemoryStick size={17}/></span>
         <span class="quick-settings__text"><strong>Optimize memory</strong><small>Trim eligible background apps · apps stay open</small></span>
         <span class="quick-settings__chevron"><ChevronRight size={16}/></span>
       </button>

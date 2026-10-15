@@ -78,7 +78,7 @@ export function ingestNotifications(items: AppNotification[]): void {
     if (!markSeen(item.id)) continue
     const allowed = item.app === 'Bluetooth' || item.app === 'Battery' || item.app === 'Volume' || item.app === 'Brightness' || item.app === 'Phone bucket' ||
       (item.app === 'Codex Reset Watch'
-        ? untrack(() => settings.usage.codex)
+        ? untrack(() => settings.widgets.some(widget => widget.kind === 'reset-watch' && widget.enabled))
         : notificationAllowed(item, untrack(() => settings.connections), untrack(() => settings.dock)))
     if (!dnd && alertsOn && item.timestamp >= startedAt && allowed && (!latest || item.timestamp >= latest.timestamp)) {
       latest = item

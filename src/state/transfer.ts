@@ -5,6 +5,8 @@ const EMPTY: TransferStatus = {
   active: false,
   phoneUrl: null,
   desktopUrl: null,
+  bookmarkUrl: null,
+  stableBookmark: false,
   qrDataUrl: null,
   expiresAt: null,
   files: [],

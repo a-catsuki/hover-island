@@ -19,8 +19,12 @@ export function refreshResetWatch(force=false): Promise<void> {
     const newEvents = snapshot.events.filter(event => !seen.has(event.id))
     if (initialized && !snapshot.stale) for (const event of newEvents.slice(0, 3)) ingestNotifications([{
       id: 'reset-watch:' + event.id, app: 'Codex Reset Watch',
-      title: event.kind === 'banked' ? 'Banked Codex grant announced' : event.upcoming ? 'Upcoming Codex reset announced' : 'Global Codex reset announced',
-      body: event.title, timestamp: Date.now(),
+      title: event.kind === 'banked' ? 'Banked Codex reset announced'
+        : event.status === 'landed' ? 'Global Codex reset landed'
+          : event.status === 'expected' ? 'Global Codex reset expected'
+            : event.status === 'awaiting_confirmation' ? 'Expected reset time passed · awaiting confirmation'
+              : 'Global Codex reset announced',
+      body: event.title, timestamp: Date.now(), url: event.sourceUrl,
     }])
     snapshot.events.forEach(event => seen.add(event.id))
     while (seen.size > 128) seen.delete(seen.values().next().value!)
@@ -30,7 +34,7 @@ export function refreshResetWatch(force=false): Promise<void> {
   return inFlight
 }
 export async function subscribeResetWatch(): Promise<() => void> {
-  const tick = () => { if (settings.modules.usage && settings.usage.codex) void refreshResetWatch() }
+  const tick = () => { if (settings.widgets.some(widget => widget.kind === 'reset-watch' && widget.enabled)) void refreshResetWatch() }
   tick()
   const timer = setInterval(tick, 15 * 60000)
   return () => clearInterval(timer)

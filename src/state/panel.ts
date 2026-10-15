@@ -1,5 +1,5 @@
 import { createSignal } from 'solid-js'
-import { widgetPanel, type PanelId } from '../lib/panels'
+import { defaultPanelForKind, widgetPanel, type PanelId } from '../lib/panels'
 import { settings, patchSettings } from './settings'
 
 export const [activePanel, setActivePanel] = createSignal<PanelId>('today')
@@ -15,9 +15,9 @@ export function showControls(): void {
   const id = existing?.id ?? 'pc-controls'
   if (!existing || !existing.enabled) patchSettings({ widgets: existing
     ? settings.widgets.map(widget => widget.id === id ? { ...widget, enabled: true } : widget)
-    : [...settings.widgets, { id, kind: 'controls', enabled: true, panel: 'activity', order: settings.widgets.length }],
+    : [...settings.widgets, { id, kind: 'controls', enabled: true, panel: defaultPanelForKind('controls', settings.panelOrder), order: settings.widgets.length }],
   })
-  setActivePanel(existing ? widgetPanel(existing) : 'activity')
+  setActivePanel(existing ? widgetPanel(existing, settings.panelOrder) : defaultPanelForKind('controls', settings.panelOrder))
   setWidgetRequest(previous => ({ id, revision: (previous?.revision ?? 0) + 1 }))
 }
 
@@ -27,10 +27,10 @@ export function showFileBucket(): void {
   if (!existing || !existing.enabled) {
     patchSettings({ widgets: existing
       ? settings.widgets.map(widget => widget.id === existing.id ? { ...widget, enabled: true } : widget)
-      : [...settings.widgets, { id: 'phone-bucket', kind: 'nearby', enabled: true, panel: 'desk', order: settings.widgets.length }],
+      : [...settings.widgets, { id: 'phone-bucket', kind: 'nearby', enabled: true, panel: defaultPanelForKind('nearby', settings.panelOrder), order: settings.widgets.length }],
     })
   }
-  setActivePanel(existing ? widgetPanel(existing) : 'desk')
+  setActivePanel(existing ? widgetPanel(existing, settings.panelOrder) : defaultPanelForKind('nearby', settings.panelOrder))
   setBucketRequest(value => value + 1)
   setWidgetRequest(previous => ({ id: existing?.id ?? 'phone-bucket', revision: (previous?.revision ?? 0) + 1 }))
 }

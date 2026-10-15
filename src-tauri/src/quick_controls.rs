@@ -96,14 +96,33 @@ fn clamp_brightness(level: u32) -> u32 {
     level.min(100)
 }
 
-/// Reads the "on/off" flag out of the Night light CloudStore blob.
+/// This is an undocumented CloudStore format. Support only the exact state
+/// record layout observed on Windows 11, and refuse to rewrite other versions.
+fn is_supported_night_light_record(data: &[u8]) -> bool {
+    data.len() >= 40
+        && data.len() <= 42
+        && data[..10] == [0x43, 0x42, 0x01, 0x00, 0x0a, 0x02, 0x01, 0x00, 0x2a, 0x06]
+        && data[15..18] == [0x2a, 0x2b, 0x0e]
+        && data[19..23] == [0x43, 0x42, 0x01, 0x00]
+        && data[23..25] == [0x10, 0x00]
+        && match data[18] {
+            // Windows 11 26300 reports the original off state as 0x12. After
+            // toggling it off through the same CloudStore convention it is 0x13.
+            0x12 | 0x13 => data.len() == 40,
+            // Turning it on inserts a second marker ahead of the original one.
+            0x15 => data.len() == 42 && data[25..27] == [0x10, 0x00],
+            _ => false,
+        }
+}
+
+/// Reads the "on/off" flag out of the known Night light CloudStore record.
 fn decode_night_light(data: &[u8]) -> Option<bool> {
-    if data.len() < 25 || !data.starts_with(&[0x43, 0x42, 0x01, 0x00]) {
+    if !is_supported_night_light_record(data) {
         return None;
     }
     match data[18] {
-        0x13 if data[23] != 0x10 => Some(false),
-        0x15 if data[23..25] == [0x10, 0x00] => Some(true),
+        0x12 | 0x13 => Some(false),
+        0x15 => Some(true),
         _ => None,
     }
 }
@@ -117,12 +136,13 @@ fn apply_night_light(data: &[u8], enabled: bool, now: u64) -> Option<Vec<u8>> {
     }
     let mut list = data.to_vec();
     if enabled {
-        // Insert the "enabled" marker pair and flip the status byte.
+        // Insert the enabled marker in front of the existing nested record.
         list.splice(23..23, [0x10u8, 0x00]);
         list[18] = 0x15;
     } else {
-        // Only remove the marker when it is exactly where Windows wrote it.
-        if !(list[23] == 0x10 && list[24] == 0x00) {
+        // The supported enabled record has a marker pair at 23..25 followed by
+        // the original nested marker at 25..27. Keep the latter intact.
+        if list[23..27] != [0x10, 0x00, 0x10, 0x00] {
             return None;
         }
         list.drain(23..25);
@@ -160,7 +180,9 @@ pub async fn quick_controls_get() -> Result<QuickControlsSnapshot, String> {
 
 #[tauri::command]
 pub async fn set_master_volume(level: f64) -> Result<(), String> {
-    if !level.is_finite() { return Err("Volume must be a finite number.".into()); }
+    if !level.is_finite() {
+        return Err("Volume must be a finite number.".into());
+    }
     let level = clamp_volume(level);
     tauri::async_runtime::spawn_blocking(move || platform::set_master_volume(level))
         .await
@@ -231,9 +253,20 @@ pub fn open_windows_settings(page: String) -> Result<(), String> {
         use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
         let wide: Vec<u16> = uri.encode_utf16().chain(std::iter::once(0)).collect();
         let result = unsafe {
-            ShellExecuteW(HWND::default(), w!("open"), PCWSTR(wide.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL)
+            ShellExecuteW(
+                HWND::default(),
+                w!("open"),
+                PCWSTR(wide.as_ptr()),
+                PCWSTR::null(),
+                PCWSTR::null(),
+                SW_SHOWNORMAL,
+            )
         };
-        if result.0 <= 32 { Err("Windows could not open this settings page.".into()) } else { Ok(()) }
+        if result.0 <= 32 {
+            Err("Windows could not open this settings page.".into())
+        } else {
+            Ok(())
+        }
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -321,13 +354,12 @@ mod platform {
         KEY_QUERY_VALUE, KEY_SET_VALUE, REG_BINARY, REG_VALUE_TYPE,
     };
     use windows::Win32::System::Variant::{
-        VariantChangeType, VariantClear, VAR_CHANGE_FLAGS, VARIANT, VARIANT_0_0, VARIANT_0_0_0,
+        VariantChangeType, VariantClear, VARIANT, VARIANT_0_0, VARIANT_0_0_0, VAR_CHANGE_FLAGS,
         VT_BSTR, VT_I4, VT_UI1, VT_UI4,
     };
     use windows::Win32::System::Wmi::{
         IEnumWbemClassObject, IWbemClassObject, IWbemContext, IWbemLocator, IWbemServices,
-        WbemLocator, WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY,
-        WBEM_GENERIC_FLAG_TYPE,
+        WbemLocator, WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_GENERIC_FLAG_TYPE,
     };
     use windows::Win32::UI::Shell::ShellExecuteW;
     use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
@@ -496,7 +528,9 @@ mod platform {
                 let level = unsafe { volume.GetMasterVolumeLevelScalar() }
                     .ok()
                     .map(|scalar| (scalar * 100.0).round().clamp(0.0, 100.0) as u32);
-                let muted = unsafe { volume.GetMute() }.ok().map(|value| value.as_bool());
+                let muted = unsafe { volume.GetMute() }
+                    .ok()
+                    .map(|value| value.as_bool());
                 if level.is_none() && muted.is_none() {
                     VolumeControl {
                         supported: false,
@@ -588,7 +622,8 @@ mod platform {
     fn first_object(enumerator: &IEnumWbemClassObject) -> Result<Option<IWbemClassObject>, String> {
         let mut objects: [Option<IWbemClassObject>; 1] = [None];
         let mut returned = 0u32;
-        unsafe { enumerator.Next(2000, &mut objects, &mut returned) }.ok()
+        unsafe { enumerator.Next(2000, &mut objects, &mut returned) }
+            .ok()
             .map_err(|error| format!("Windows brightness query failed: {error}"))?;
         if returned == 0 {
             return Ok(None);
@@ -623,7 +658,10 @@ mod platform {
     fn uint8_variant(value: u8) -> VARIANT {
         let mut variant = VARIANT::default();
         variant.Anonymous.Anonymous = std::mem::ManuallyDrop::new(VARIANT_0_0 {
-            vt: VT_UI1, wReserved1: 0, wReserved2: 0, wReserved3: 0,
+            vt: VT_UI1,
+            wReserved1: 0,
+            wReserved2: 0,
+            wReserved3: 0,
             Anonymous: VARIANT_0_0_0 { bVal: value },
         });
         variant
@@ -631,7 +669,10 @@ mod platform {
 
     fn read_brightness() -> Result<Option<u32>, String> {
         let services = wmi_services()?;
-        let enumerator = exec_query(&services, "SELECT CurrentBrightness FROM WmiMonitorBrightness")?;
+        let enumerator = exec_query(
+            &services,
+            "SELECT CurrentBrightness FROM WmiMonitorBrightness",
+        )?;
         let Some(object) = first_object(&enumerator)? else {
             return Ok(None);
         };
@@ -675,10 +716,8 @@ mod platform {
         }
     }
 
-    pub(super) fn set_brightness(level: u32) -> Result<(), String> {
-        let _com = com_apartment()?;
-        let services = wmi_services()?;
-        let enumerator = exec_query(&services, "SELECT * FROM WmiMonitorBrightnessMethods")?;
+    fn set_brightness_once(services: &IWbemServices, level: u32) -> Result<(), String> {
+        let enumerator = exec_query(services, "SELECT * FROM WmiMonitorBrightnessMethods")?;
         let Some(instance) = first_object(&enumerator)? else {
             return Err("This display does not support software brightness control.".into());
         };
@@ -688,7 +727,14 @@ mod platform {
             .map_err(|error| format!("WMI brightness path read failed: {error}"))?;
         let is_bstr = unsafe { path_variant.Anonymous.Anonymous.vt == VT_BSTR };
         let path = if is_bstr {
-            unsafe { path_variant.Anonymous.Anonymous.Anonymous.bstrVal.to_string() }
+            unsafe {
+                path_variant
+                    .Anonymous
+                    .Anonymous
+                    .Anonymous
+                    .bstrVal
+                    .to_string()
+            }
         } else {
             String::new()
         };
@@ -710,13 +756,15 @@ mod platform {
             )
         }
         .map_err(|error| format!("Windows did not expose the brightness method: {error}"))?;
-        let in_signature =
-            in_signature.ok_or_else(|| "Windows did not expose the brightness method.".to_string())?;
+        let in_signature = in_signature
+            .ok_or_else(|| "Windows did not expose the brightness method.".to_string())?;
         let in_params = unsafe { in_signature.SpawnInstance(0) }
             .map_err(|error| format!("Could not prepare the brightness change: {error}"))?;
 
         let mut brightness = uint8_variant(clamp_brightness(level) as u8);
-        let mut timeout = uint32_variant(0);
+        // A nonzero transition time is accepted by the built-in WMI provider on
+        // this HP panel; zero can be rejected by firmware-backed providers.
+        let mut timeout = uint32_variant(1);
         unsafe { in_params.Put(w!("Brightness"), 0, &brightness, CIM_UINT8) }
             .map_err(|error| format!("Could not set the brightness value: {error}"))?;
         unsafe { in_params.Put(w!("Timeout"), 0, &timeout, CIM_UINT32) }
@@ -743,13 +791,37 @@ mod platform {
         result?;
         if let Some(output) = output {
             let mut value = VARIANT::default();
-            unsafe { output.Get(w!("ReturnValue"), 0, &mut value, None, None) }
-                .map_err(|error| format!("Windows did not confirm the brightness change: {error}"))?;
+            unsafe { output.Get(w!("ReturnValue"), 0, &mut value, None, None) }.map_err(
+                |error| format!("Windows did not confirm the brightness change: {error}"),
+            )?;
             let code = variant_to_u32(&value);
-            unsafe { let _ = VariantClear(&mut value); }
-            if code != Some(0) { return Err(format!("Windows rejected the brightness change ({code:?}).")); }
-        } else { return Err("Windows did not confirm the brightness change.".into()); }
+            unsafe {
+                let _ = VariantClear(&mut value);
+            }
+            if code != Some(0) {
+                return Err(format!(
+                    "Windows rejected the brightness change ({code:?})."
+                ));
+            }
+        } else {
+            return Err("Windows did not confirm the brightness change.".into());
+        }
         Ok(())
+    }
+
+    pub(super) fn set_brightness(level: u32) -> Result<(), String> {
+        let _com = com_apartment()?;
+        let services = wmi_services()?;
+        // Like the working Windows CIM flow, refresh the method instance once
+        // if it went stale (for example after a display power transition).
+        let mut last_error = None;
+        for _ in 0..2 {
+            match set_brightness_once(&services, level) {
+                Ok(()) => return Ok(()),
+                Err(error) => last_error = Some(error),
+            }
+        }
+        Err(last_error.unwrap_or_else(|| "Windows could not apply the brightness change.".into()))
     }
 
     /* --------------------------------------------------------- night light */
@@ -829,15 +901,8 @@ mod platform {
             )
         }
         .map_err(|error| format!("Could not open the Night light state: {error}"))?;
-        let result = unsafe {
-            RegSetValueExW(
-                hkey,
-                PCWSTR(value_wide.as_ptr()),
-                0,
-                REG_BINARY,
-                Some(data),
-            )
-        };
+        let result =
+            unsafe { RegSetValueExW(hkey, PCWSTR(value_wide.as_ptr()), 0, REG_BINARY, Some(data)) };
         let _ = unsafe { RegCloseKey(hkey) };
         result.map_err(|error| format!("Could not write Night light state: {error}"))
     }
@@ -892,7 +957,11 @@ mod platform {
             "Windows Night light layout is unexpected; the state was left unchanged.".to_string()
         })?;
         write_registry_night_light(&updated)?;
-        if read_registry_night_light()?.as_deref().and_then(decode_night_light) != Some(enabled) {
+        if read_registry_night_light()?
+            .as_deref()
+            .and_then(decode_night_light)
+            != Some(enabled)
+        {
             return Err("Windows did not retain the Night light preference.".into());
         }
         Ok(())
@@ -925,8 +994,12 @@ mod platform {
         }
         let value = i32::from_ne_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
         if !(0..=2).contains(&value) {
-            return DoNotDisturbControl { supported: false, enabled: None, best_effort: true,
-                error: Some("Windows reported an unsupported Do Not Disturb profile.".into()) };
+            return DoNotDisturbControl {
+                supported: false,
+                enabled: None,
+                best_effort: true,
+                error: Some("Windows reported an unsupported Do Not Disturb profile.".into()),
+            };
         }
         DoNotDisturbControl {
             supported: true,
@@ -937,7 +1010,9 @@ mod platform {
     }
 
     pub(super) fn set_do_not_disturb(enabled: bool) -> Result<(), String> {
-        if !do_not_disturb_status().supported { return Err("Windows Do Not Disturb control is unavailable on this version.".into()); }
+        if !do_not_disturb_status().supported {
+            return Err("Windows Do Not Disturb control is unavailable on this version.".into());
+        }
         let state_name = WNF_QUIETHOURS_PROFILE;
         let value = i32::from(enabled).to_ne_bytes();
         let status = unsafe {
@@ -1442,13 +1517,21 @@ mod platform {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_night_light, clamp_brightness, clamp_volume, decode_night_light, windows_settings_uri};
+    use super::{
+        apply_night_light, clamp_brightness, clamp_volume, decode_night_light, windows_settings_uri,
+    };
 
     #[test]
     fn settings_recovery_only_opens_known_windows_pages() {
         assert_eq!(windows_settings_uri("sound").unwrap(), "ms-settings:sound");
-        assert_eq!(windows_settings_uri("display").unwrap(), "ms-settings:display");
-        assert_eq!(windows_settings_uri("notifications").unwrap(), "ms-settings:notifications");
+        assert_eq!(
+            windows_settings_uri("display").unwrap(),
+            "ms-settings:display"
+        );
+        assert_eq!(
+            windows_settings_uri("notifications").unwrap(),
+            "ms-settings:notifications"
+        );
         assert!(windows_settings_uri("file:///C:/anything").is_err());
         assert!(windows_settings_uri("ms-settings:privacy").is_err());
     }
@@ -1472,18 +1555,19 @@ mod tests {
     }
 
     fn night_light_blob(on: bool) -> Vec<u8> {
-        let mut data = vec![0u8; 30];
-        data[..4].copy_from_slice(&[0x43, 0x42, 0x01, 0x00]);
-        data[10] = 0x80;
-        data[11] = 0x80;
-        data[18] = if on { 0x15 } else { 0x13 };
+        // Read-only snapshot of this HP's Windows 11 26300 state record with
+        // Night light off. Its original status is 0x12 and it already contains
+        // the nested 0x10,0x00 marker at byte 23.
+        let off = vec![
+            0x43, 0x42, 0x01, 0x00, 0x0a, 0x02, 0x01, 0x00, 0x2a, 0x06, 0xea, 0xe3, 0xc0, 0xd6,
+            0x06, 0x2a, 0x2b, 0x0e, 0x12, 0x43, 0x42, 0x01, 0x00, 0x10, 0x00, 0xc6, 0x14, 0xcf,
+            0xeb, 0xad, 0xef, 0xfd, 0x88, 0xd7, 0xee, 0x01, 0x00, 0x00, 0x00, 0x00,
+        ];
         if on {
-            data[23] = 0x10;
-            data[24] = 0x00;
+            apply_night_light(&off, true, 1_700_000_000).expect("known record turns on")
         } else {
-            data[23] = 0x2a;
+            off
         }
-        data
     }
 
     #[test]
@@ -1498,14 +1582,15 @@ mod tests {
         let off = night_light_blob(false);
         let on = apply_night_light(&off, true, 1_700_000_000).expect("turn on");
         assert_eq!(decode_night_light(&on), Some(true));
-        assert_eq!(on[23], 0x10);
-        assert_eq!(on[24], 0x00);
+        assert_eq!(&on[23..27], &[0x10, 0x00, 0x10, 0x00]);
 
         let back_off = apply_night_light(&on, false, 1_700_000_100).expect("turn off");
         assert_eq!(decode_night_light(&back_off), Some(false));
         assert_eq!(back_off.len(), off.len());
-        // Everything except the advancing timestamp (bytes 10..15) is restored.
-        assert_eq!(&back_off[15..], &off[15..]);
+        // Only the timestamp and the status byte change across the round trip.
+        assert_eq!(&back_off[15..18], &off[15..18]);
+        assert_eq!(&back_off[19..], &off[19..]);
+        assert_eq!(back_off[18], 0x13);
     }
 
     #[test]
@@ -1519,7 +1604,7 @@ mod tests {
         assert_eq!(apply_night_light(&weird, false, 5), None);
         assert_eq!(apply_night_light(&[0u8; 4], true, 5), None);
         let mut unknown = night_light_blob(false);
-        unknown[18] = 0x12;
+        unknown[19] = 0x99;
         assert_eq!(decode_night_light(&unknown), None);
         assert_eq!(apply_night_light(&unknown, true, 5), None);
     }

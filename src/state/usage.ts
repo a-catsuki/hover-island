@@ -76,7 +76,7 @@ export function refreshDetected(): Promise<void> {
   setDetectError(null)
   detectInFlight = cmd.usageDetect()
     .then((providers) => { setDetected(Array.isArray(providers) ? providers : []) })
-    .catch(() => { setDetectError('Could not scan for AI tools on this PC.') })
+    .catch(() => { setDetected([]); setDetectError('Could not scan for active AI tools on this PC.') })
     .finally(() => {
       setDetecting(false)
       detectInFlight = null

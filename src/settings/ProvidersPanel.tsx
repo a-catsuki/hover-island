@@ -30,10 +30,12 @@ function ProviderRow(props: { provider: DetectedProvider }) {
   const provider = () => props.provider
   const key = () => SETTINGS_KEY[provider().id]
   const enabled = () => key() ? settings.usage[key()!] : providerEnabled(provider().id)
-  const capability = () =>
-    provider().supported && provider().capabilities.length > 0
-      ? provider().capabilities.map((item) => CAPABILITY_LABELS[item] ?? item).join(' · ')
-      : 'Detected — no local source yet'
+  const capability = () => {
+    const active = provider().evidence.some((item) => item.endsWith(' running'))
+    const capabilities = provider().capabilities.map((item) => CAPABILITY_LABELS[item] ?? item).join(' · ')
+    if (active) return capabilities ? `Active now · ${capabilities}` : 'Active now · Usage data unavailable'
+    return capabilities ? `Recent activity · ${capabilities}` : 'Recently active · Usage data unavailable'
+  }
   const evidence = () => {
     const items = provider().evidence
     const shown = items.slice(0, 3).join(' · ')
@@ -101,10 +103,10 @@ export default function ProvidersPanel() {
 
   return (
     <div class="providers">
-      <Group title="Detected AI tools" description="Scanned read-only from known local locations. Nothing is uploaded and no secrets are read.">
+      <Group title="Active and recently used AI tools" description="Based on running apps and recent local session activity. Nothing is uploaded and no secrets are read.">
         <div class="providers__toolbar">
           <span class="providers__summary" role="status">
-            {detecting() ? 'Scanning…' : `${detected().length} ${detected().length === 1 ? 'provider' : 'providers'} found`}
+            {detecting() ? 'Scanning…' : `${detected().length} ${detected().length === 1 ? 'tool' : 'tools'} active or recently used`}
           </span>
           <button type="button" class="button button--secondary providers__rescan" disabled={detecting()} onClick={() => void refreshDetected()}>
             <RefreshCw size={13} class={detecting() ? 'providers__spin' : undefined} />
@@ -115,12 +117,11 @@ export default function ProvidersPanel() {
           <p class="providers__error" role="status">{detectError()}</p>
         </Show>
         <Show when={!detecting() && !detectError() && detected().length === 0}>
-          <p class="providers__empty">No AI tools detected on this PC.</p>
+          <p class="providers__empty">No active or recently used AI tools found.</p>
         </Show>
         <For each={detected()}>{(provider) => <ProviderRow provider={provider} />}</For>
         <p class="providers__note">
-          Toggles only control what the AI usage widget displays. Providers labelled “no local source yet” are detected but
-          cannot report quota or activity locally, so they never show invented numbers.
+          Toggles control which supported usage reports appear in the widget. A running tool may appear here even when it does not expose local quota data.
         </p>
       </Group>
 

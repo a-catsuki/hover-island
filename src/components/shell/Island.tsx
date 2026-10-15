@@ -1,10 +1,10 @@
 import { createEffect, Show, onCleanup, onMount, createSignal } from 'solid-js'
-import { GripVertical } from 'lucide-solid'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import CollapsedPill from './CollapsedPill'
 import ExpandedPanel from './ExpandedPanel'
 import AmbientBackground from './AmbientBackground'
 import FileDropToast, { type FileDropTarget } from './FileDropToast'
+import EventPeek from './EventPeek'
 import {
   expanded,
   open,
@@ -27,7 +27,8 @@ import { refreshTransfer, uploads } from '../../state/transfer'
 import { filesFromDrop } from '../../lib/droppedFiles'
 import { canExpandOnHover, fileDropActionAtRelease, fileDropDestinationAt, physicalDragPositionToCss, updateFileDropPreview, type FileDropPreviewState } from '../../lib/fileDropTargets'
 import { shouldExpandAfterSustainedHover } from '../../state/hover'
-import { beginIslandPlacementDrag, cancelIslandPlacementDrag, finishIslandPlacementDrag, isPlacementDragging, moveIslandPlacementDrag } from '../../state/placement'
+import { beginIslandPlacementDrag, cancelIslandPlacementDrag, consumePlacementClick, finishIslandPlacementDrag, isPlacementDragging, isPlacementGesturePending, moveIslandPlacementDrag } from '../../state/placement'
+import { canStartIslandPlacementDrag } from '../../lib/placementPointerDrag'
 import './IslandPlacement.css'
 
 export default function Island() {
@@ -67,7 +68,9 @@ export default function Island() {
       if (!disposed && revision === dropRevision) setFileDrop(null)
     }, delay)
   }
-  const compactPeek = () => !!peek() && transientPeek() && !hovering() && !pinned()
+  // Every activity temporarily owns the visible notch surface. The dashboard
+  // underneath keeps its state and returns when the activity expires.
+  const compactPeek = () => !!peek()
   const sideEdge = () => settings.placement.edge === 'left' || settings.placement.edge === 'right'
   const sideNotch = () => settings.placement.mode === 'notch' && sideEdge()
   const sideDock = () => settings.placement.mode === 'sidebar' || (settings.placement.mode === 'notch' && sideEdge())
@@ -94,6 +97,8 @@ export default function Island() {
 
   const canClose = () =>
     !pinned() &&
+    !isPlacementDragging() &&
+    !isPlacementGesturePending() &&
     !fileDrop() &&
     !spotlightOpen() &&
     (!peek() || !transientPeek()) &&
@@ -110,12 +115,12 @@ export default function Island() {
 
   const scheduleHoverOpen = () => {
     clearTimeout(enterTimer)
-    if (!canExpandOnHover({ enabled: settings.interaction.hoverOpen, alreadyOpen: open(), placementDragging: isPlacementDragging(), fileDragging: !!fileDrop() })) return
+    if (!canExpandOnHover({ enabled: settings.interaction.hoverOpen, alreadyOpen: open(), placementDragging: isPlacementDragging() || isPlacementGesturePending(), fileDragging: !!fileDrop() })) return
     const enteredAt = performance.now()
     const delay = settings.interaction.openDelayMs
     enterTimer = setTimeout(() => {
       enterTimer = undefined
-      if (shouldExpandAfterSustainedHover(enteredAt, performance.now(), delay, pointerInside() && canExpandOnHover({ enabled: true, alreadyOpen: open(), placementDragging: isPlacementDragging(), fileDragging: !!fileDrop() }) && !document.querySelector('.pill__compact-controls:hover, .pill__beam:hover, .pill__alert-badge:hover, .island__move-handle:hover'))) {
+      if (shouldExpandAfterSustainedHover(enteredAt, performance.now(), delay, pointerInside() && canExpandOnHover({ enabled: true, alreadyOpen: open(), placementDragging: isPlacementDragging() || isPlacementGesturePending(), fileDragging: !!fileDrop() }) && !document.querySelector('.pill__compact-controls:hover, .pill__alert-badge:hover'))) {
         expandIsland()
       }
     }, delay)
@@ -140,13 +145,15 @@ export default function Island() {
   }
 
   const enter = () => {
+    if (peek()) { clearTimeout(enterTimer); return }
     if (fileDrop()) return
+    if (isPlacementGesturePending()) { clearTimeout(enterTimer); enterTimer = undefined; return }
     clearTimeout(leaveTimer)
     leavePending = false
     const newlyEntered = !pointerInside()
     setPointerInside(true)
     setHovering(true)
-    if (!open() && document.querySelector('.pill__compact-controls:hover, .pill__beam:hover, .pill__alert-badge:hover, .island__move-handle:hover')) {clearTimeout(enterTimer);enterTimer=undefined;return}
+    if (!open() && document.querySelector('.pill__compact-controls:hover, .pill__alert-badge:hover')) {clearTimeout(enterTimer);enterTimer=undefined;return}
     if (transientPeek()) promotePeek()
     if (newlyEntered || (!open() && enterTimer===undefined)) scheduleHoverOpen()
   }
@@ -162,7 +169,7 @@ export default function Island() {
       : settings.placement.mode === 'sidebar'
         ? { width: 72, height: viewport().height, radius: 0 }
         : sideNotch()
-          ? { width: 56, height: 200, radius: 28 }
+          ? { width: 56, height: 144, radius: 28 }
         : { width: settings.collapsed.w, height: settings.collapsed.h, radius: 17 }
     if (transferPeek()) {
       return { width: Math.min(440, settings.expanded.w), height: 148, radius: 24 }
@@ -203,7 +210,7 @@ export default function Island() {
       void cmd.setInteractionBounds(frame.width, frame.height)
         .catch(error => reportError('Could not update interaction area', error))
     }
-    if (magneticSpring && (open() || closing() || isPlacementDragging() || fileDrop() || settings.placement.mode !== 'notch' || reduceMotion)) {
+    if (magneticSpring && (open() || closing() || isPlacementDragging() || isPlacementGesturePending() || fileDrop() || settings.placement.mode !== 'notch' || reduceMotion)) {
       magneticSpring.retarget({ x: 0, y: 0 })
     }
   })
@@ -220,7 +227,7 @@ export default function Island() {
     shapeSpring.snap(targetFrame())
     magneticSpring = createMagneticSpring(publishMagnet, () => reduceMotion)
     void listen<{ x: number; y: number }>('island://proximity', event => {
-      const active = !reduceMotion && settings.placement.mode === 'notch' && !open() && !closing() && !isPlacementDragging()
+      const active = !reduceMotion && settings.placement.mode === 'notch' && !open() && !closing() && !isPlacementDragging() && !isPlacementGesturePending()
       magneticSpring?.retarget(active ? event.payload : { x: 0, y: 0 })
     }).then(fn => disposed ? fn() : unsubscribeProximity = fn).catch(error => reportError('Could not track cursor proximity', error))
     const onMotionChange = (event: MediaQueryListEvent) => {
@@ -359,27 +366,41 @@ export default function Island() {
       onDragLeave={handleFileDragLeave}
       onDrop={handleFileDrop}
       onPointerDown={event => {
-        if (!event.altKey || !(event.target instanceof Element) || !event.target.closest('.island__bar') || event.target.closest('[data-no-drag]')) return
-        void beginIslandPlacementDrag(event)
+        if (!(event.target instanceof Element) || fileDrop() || compactPeek()) return
+        const target = event.target
+        const interactive = target.closest('button,a,input,textarea,select,[role="button"],[role="tab"],[role="slider"],[data-no-drag],[contenteditable],.pill__compact-controls,.pill__alert-badge,.panel__tools')
+        const collapsedSurface = !open() ? target.closest<HTMLElement>('.island__bar') : null
+        const expandedSurface = open() ? target.closest<HTMLElement>('.panel__head') : null
+        const captureTarget = collapsedSurface ?? expandedSurface
+        if (!canStartIslandPlacementDrag({
+          button: event.button,
+          isPrimary: event.isPrimary,
+          insideDraggableSurface: !!captureTarget,
+          onInteractiveControl: !!interactive,
+        })) return
+        if (captureTarget && beginIslandPlacementDrag(event, captureTarget)) {
+          clearTimeout(enterTimer)
+          enterTimer = undefined
+        }
       }}
       onPointerMove={moveIslandPlacementDrag}
       onPointerUp={event => {
-        void finishIslandPlacementDrag(event).then(finished => {
-          if (finished && pointerInside()) scheduleHoverOpen()
-        })
+        void finishIslandPlacementDrag(event)
       }}
       onPointerCancel={event => { void cancelIslandPlacementDrag(event.pointerId) }}
+      onLostPointerCapture={event => { void cancelIslandPlacementDrag(event.pointerId) }}
       onPointerEnter={(event) => {
         if (browserPreview && event.pointerType !== 'touch') enter()
       }}
       onPointerLeave={() => { if (browserPreview) leave() }}
       onPointerOver={event => {
         if (open()) return
-        if (event.target instanceof Element && event.target.closest('.pill__compact-controls, .pill__beam, .pill__alert-badge, .island__move-handle')) {clearTimeout(enterTimer);enterTimer=undefined;return}
+        if (isPlacementGesturePending()) {clearTimeout(enterTimer);enterTimer=undefined;return}
+        if (event.target instanceof Element && event.target.closest('.pill__compact-controls, .pill__alert-badge')) {clearTimeout(enterTimer);enterTimer=undefined;return}
         enter()
       }}
       onFocusIn={() => {
-        if (transientPeek()) promotePeek()
+        if (!compactPeek() && transientPeek()) promotePeek()
       }}
       onFocusOut={() => {
         if (!pointerInside()) leave()
@@ -390,9 +411,9 @@ export default function Island() {
         const rect = event.currentTarget.getBoundingClientRect()
         event.currentTarget.style.setProperty('--pointer-x', `${((event.clientX - rect.left) / rect.width - .5) * 30}px`)
         event.currentTarget.style.setProperty('--pointer-y', `${((event.clientY - rect.top) / rect.height - .5) * 20}px`)
-      }} classList={{ 'island--open': open(), 'island--hover': hovering(), 'island--peek': compactPeek(), 'island--device-peek': devicePeek(), 'island--transfer-peek': transferPeek(), 'island--dragging': isPlacementDragging(), 'island--file-drop': !!fileDrop(), 'island--notch-side': sideNotch(), [`island--edge-${settings.placement.edge}`]: true, [`island--mode-${settings.placement.mode}`]: true }}>
+      }} classList={{ 'island--open': open(), 'island--hover': hovering(), 'island--peek': compactPeek(), 'island--live-activity': compactPeek(), 'island--device-peek': devicePeek(), 'island--transfer-peek': transferPeek(), 'island--dragging': isPlacementDragging(), 'island--file-drop': !!fileDrop(), 'island--notch-side': sideNotch(), [`island--edge-${settings.placement.edge}`]: true, [`island--mode-${settings.placement.mode}`]: true }}>
         <AmbientBackground/>
-        <div class="island__collapsed" inert={open() || !!fileDrop()} aria-hidden={open() || !!fileDrop()}>
+        <div class="island__collapsed" inert={open() || !!fileDrop() || compactPeek()} aria-hidden={open() || !!fileDrop() || compactPeek()}>
             <div
               class="island__bar"
               role="group"
@@ -400,6 +421,7 @@ export default function Island() {
               title="Open Hover Island"
               tabIndex={0}
               onClick={event => {
+                if (consumePlacementClick()) { event.preventDefault(); event.stopPropagation(); return }
                 if (event.target instanceof Element && event.target.closest('button')) return
                 promotePeek()
                 expandIsland()
@@ -413,13 +435,11 @@ export default function Island() {
             >
               <CollapsedPill />
             </div>
-            <button class="island__move-handle" type="button" aria-label="Move Hover Island to another screen edge" title="Drag to move · Alt-drag anywhere on the notch" onPointerDown={event => { event.stopPropagation(); void beginIslandPlacementDrag(event) }} onClick={event => event.stopPropagation()}>
-              <GripVertical size={12} aria-hidden="true"/>
-            </button>
         </div>
-        <div class="island__expanded" inert={!open() || !!fileDrop()} aria-hidden={!open() || !!fileDrop()}>
+        <div class="island__expanded" inert={!open() || !!fileDrop() || compactPeek()} aria-hidden={!open() || !!fileDrop() || compactPeek()}>
           <ExpandedPanel />
         </div>
+        <Show when={compactPeek() && !fileDrop()}><div class="live-activity"><EventPeek/></div></Show>
         <Show when={fileDrop()}>{drop => <FileDropToast
           count={drop().count}
           target={drop().target}

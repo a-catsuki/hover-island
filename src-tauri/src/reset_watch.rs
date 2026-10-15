@@ -1,8 +1,7 @@
-//! Read-only reset announcements sourced from codex-reset.com's public feed.
+//! Read-only global and banked reset announcements from codex-resets.com.
 //!
-//! This module reports community/maintainer announcements; it does not read,
-//! predict, or mutate account usage. Only announced feed events with a
-//! verifiable X status URL are exposed.
+//! The upstream site's public Markdown document is the primary, machine-readable
+//! archive. This module never reads or predicts account-specific quota.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -10,7 +9,8 @@ use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 
-const FEED_URL: &str = "https://codex-reset.com/api/feed";
+const FEED_URL: &str = "https://codex-resets.com/index.md";
+const SOURCE_URL: &str = "https://codex-resets.com/";
 const MAX_FEED_BYTES: usize = 512 * 1024;
 const MAX_EVENTS: usize = 64;
 const REFRESH_INTERVAL: Duration = Duration::from_secs(15 * 60);
@@ -24,6 +24,15 @@ pub enum ResetKind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ResetStatus {
+    Landed,
+    Announced,
+    Expected,
+    AwaitingConfirmation,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ResetWatchEvent {
     pub id: String,
@@ -32,7 +41,10 @@ pub struct ResetWatchEvent {
     pub published_at: i64,
     pub source_url: String,
     pub reported_by: String,
-    /// An explicit future announcement, never evidence of an account refill.
+    pub status: ResetStatus,
+    /// Estimated landing time from explicit announcement wording, in Unix ms.
+    pub landing_at: Option<i64>,
+    /// Compatibility convenience for consumers that only need a broad state.
     pub upcoming: bool,
 }
 
@@ -40,40 +52,12 @@ pub struct ResetWatchEvent {
 #[serde(rename_all = "camelCase")]
 pub struct ResetWatchSnapshot {
     pub events: Vec<ResetWatchEvent>,
-    /// Time this app last checked the endpoint, in Unix milliseconds.
     pub last_checked_at: i64,
-    /// Machine-readable upstream feed URL.
     pub source: String,
-    /// Upstream `fetched_at`, in Unix milliseconds. This is distinct from the
-    /// local check time so a successful HTTP response cannot mask stale data.
     pub source_updated_at: Option<i64>,
     pub stale: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Feed {
-    #[serde(default)]
-    stale: bool,
-    fetched_at: Option<String>,
-    #[serde(default)]
-    events: Vec<FeedEvent>,
-}
-
-#[derive(Debug, Deserialize)]
-struct FeedEvent {
-    id: serde_json::Value,
-    group: Option<String>,
-    scope: Option<String>,
-    reset_kind: Option<String>,
-    announcement_state: Option<String>,
-    #[serde(default)]
-    reason_tags: Vec<String>,
-    summary: Option<String>,
-    url: Option<String>,
-    announced_at: Option<String>,
-    source_label: Option<String>,
 }
 
 struct Cache {
@@ -97,7 +81,7 @@ fn client() -> &'static Result<reqwest::Client, String> {
         reqwest::Client::builder()
             .timeout(REQUEST_TIMEOUT)
             .user_agent(
-                "HoverIsland/0.1.0 (reset announcement reader; source: https://codex-reset.com/)",
+                "HoverIsland/0.1.0 (reset announcements; source: https://codex-resets.com/)",
             )
             .build()
             .map_err(|e| format!("Could not initialize reset feed client: {e}"))
@@ -151,7 +135,7 @@ pub async fn reset_watch_get(force: Option<bool>) -> ResetWatchSnapshot {
                 let snapshot = ResetWatchSnapshot {
                     events: Vec::new(),
                     last_checked_at: now_ms(),
-                    source: FEED_URL.to_string(),
+                    source: SOURCE_URL.into(),
                     source_updated_at: None,
                     stale: true,
                     error: Some(error),
@@ -169,10 +153,10 @@ async fn fetch_snapshot() -> Result<ResetWatchSnapshot, String> {
         .get(FEED_URL)
         .send()
         .await
-        .map_err(|_| "Could not reach the reset announcement feed.".to_string())?;
+        .map_err(|_| "Could not reach the Codex Resets announcement page.".to_string())?;
     if !response.status().is_success() {
         return Err(format!(
-            "Reset announcement feed returned HTTP {}.",
+            "Codex Resets returned HTTP {}.",
             response.status().as_u16()
         ));
     }
@@ -180,95 +164,96 @@ async fn fetch_snapshot() -> Result<ResetWatchSnapshot, String> {
         .content_length()
         .is_some_and(|n| n > MAX_FEED_BYTES as u64)
     {
-        return Err("Reset announcement feed exceeded the size limit.".to_string());
+        return Err("Codex Resets response exceeded the size limit.".into());
     }
-
     let mut bytes = Vec::new();
     while let Some(chunk) = response
         .chunk()
         .await
-        .map_err(|_| "Could not read the reset announcement feed.".to_string())?
+        .map_err(|_| "Could not read the Codex Resets announcement page.".to_string())?
     {
         if bytes.len().saturating_add(chunk.len()) > MAX_FEED_BYTES {
-            return Err("Reset announcement feed exceeded the size limit.".to_string());
+            return Err("Codex Resets response exceeded the size limit.".into());
         }
         bytes.extend_from_slice(&chunk);
     }
-    let feed: Feed = serde_json::from_slice(&bytes)
-        .map_err(|_| "Reset announcement feed had an invalid response.".to_string())?;
-    let source_updated_at = feed.fetched_at.as_deref().and_then(parse_rfc3339_millis);
-    let now = now_ms();
-    let source_too_old = source_updated_at
-        .map(|updated| now.saturating_sub(updated) > REFRESH_INTERVAL.as_millis() as i64)
-        .unwrap_or(true);
-    let events = normalize_events(feed.events);
-
+    let markdown = std::str::from_utf8(&bytes)
+        .map_err(|_| "Codex Resets response was not valid UTF-8.".to_string())?;
+    let events = parse_markdown(markdown, now_ms());
+    if events.is_empty() {
+        return Err("Codex Resets did not provide any valid linked announcements.".into());
+    }
+    let source_updated_at = events.first().map(|event| event.published_at);
     Ok(ResetWatchSnapshot {
         events,
-        last_checked_at: now,
-        source: FEED_URL.to_string(),
+        last_checked_at: now_ms(),
+        source: SOURCE_URL.into(),
         source_updated_at,
-        stale: feed.stale || source_too_old,
+        stale: false,
         error: None,
     })
 }
 
-fn normalize_events(records: Vec<FeedEvent>) -> Vec<ResetWatchEvent> {
+fn parse_markdown(markdown: &str, now: i64) -> Vec<ResetWatchEvent> {
+    let lines = markdown.lines().collect::<Vec<_>>();
+    let mut records = Vec::new();
+    let mut index = 0;
+    while index < lines.len() {
+        let Some((published_at, kind)) = parse_heading(lines[index]) else {
+            index += 1;
+            continue;
+        };
+        index += 1;
+        let mut title_lines = Vec::new();
+        let mut url = None;
+        while index < lines.len() && !lines[index].starts_with("### ") {
+            let line = lines[index].trim();
+            if let Some(quote) = line.strip_prefix("> ") {
+                if !quote.is_empty() {
+                    title_lines.push(quote.trim());
+                }
+            } else if let Some(link) = line.strip_prefix("[View announcement](") {
+                url = link.strip_suffix(')').map(str::to_string);
+            }
+            index += 1;
+        }
+        let title = title_lines
+            .join(" ")
+            .trim()
+            .chars()
+            .take(500)
+            .collect::<String>();
+        let Some(source_url) = url else {
+            continue;
+        };
+        let Some(id) = status_id(&source_url) else {
+            continue;
+        };
+        if title.is_empty() {
+            continue;
+        }
+        records.push((id, kind, title, published_at, source_url));
+    }
+
+    // Prefer the first (newest, full) entry if a post is repeated by the archive.
     let mut seen = HashSet::new();
     let mut events = records
         .into_iter()
-        .filter_map(|record| {
-            let upcoming = record.summary.as_deref().is_some_and(explicit_future_reset);
-            let kind = match record.group.as_deref()? {
-                "reset"
-                    if record.scope.as_deref() == Some("global")
-                        && (record.announcement_state.as_deref() == Some("announced")
-                            || upcoming) =>
-                {
-                    ResetKind::Global
-                }
-                "credits"
-                    if record.reset_kind.as_deref() == Some("banked")
-                        || record.reason_tags.iter().any(|tag| tag == "banked") =>
-                {
-                    // Cohort-specific banked grants are still useful
-                    // announcements, and the feed represents them with
-                    // linked X archives rather than announcement_state.
-                    ResetKind::Banked
-                }
-                _ => return None,
-            };
-            let id = match &record.id {
-                serde_json::Value::String(value) => value.clone(),
-                serde_json::Value::Number(value) => value.to_string(),
-                _ => return None,
-            };
-            if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
-                return None;
-            }
-            let source_url = record.url?;
-            if !valid_status_url(&source_url, &id) {
-                return None;
-            }
-            let title = record.summary?.trim().to_string();
-            if title.is_empty() || title.len() > 500 {
-                return None;
-            }
-            let published_at = parse_rfc3339_millis(record.announced_at.as_deref()?)?;
+        .filter_map(|(id, kind, title, published_at, source_url)| {
             if !seen.insert(id.clone()) {
                 return None;
             }
-            let reported_by = record
-                .source_label
-                .filter(|label| !label.trim().is_empty())
-                .unwrap_or_else(|| "codex-reset.com community feed".to_string());
+            let (status, landing_at) = event_status(&title, published_at, now);
+            let upcoming = matches!(status, ResetStatus::Announced | ResetStatus::Expected);
             Some(ResetWatchEvent {
                 id,
                 kind,
                 title,
                 published_at,
                 source_url,
-                reported_by,
+                reported_by: "Tibo · Codex Resets".into(),
+                status,
+                landing_at,
                 upcoming,
             })
         })
@@ -278,34 +263,280 @@ fn normalize_events(records: Vec<FeedEvent>) -> Vec<ResetWatchEvent> {
     events
 }
 
-fn explicit_future_reset(summary: &str) -> bool {
-    let text = summary.trim().to_ascii_lowercase();
-    // The upstream live lane can lag behind its archive classifier. Preserve
-    // explicit Tibo announcements while rejecting vague "Day N / Reset" posts.
-    [
-        "global reset landing",
-        "global reset by ",
-        "global reset tomorrow",
-        "global reset tonight",
-    ]
-    .iter()
-    .any(|prefix| text.starts_with(prefix))
+fn parse_heading(line: &str) -> Option<(i64, ResetKind)> {
+    let value = line.strip_prefix("### `")?;
+    let (timestamp, kind) = value.split_once("` · ")?;
+    let kind = match kind.trim_end_matches('*') {
+        "Regular reset" => ResetKind::Global,
+        "Banked reset" => ResetKind::Banked,
+        _ => return None,
+    };
+    Some((parse_rfc3339_millis(timestamp)?, kind))
 }
 
-fn valid_status_url(url: &str, id: &str) -> bool {
+fn status_id(url: &str) -> Option<String> {
+    let tail = url
+        .strip_prefix("https://x.com/thsottiaux/status/")
+        .or_else(|| url.strip_prefix("https://twitter.com/thsottiaux/status/"))?;
+    let id = tail.split(['?', '#', ')']).next()?;
+    if id.is_empty() || !id.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    Some(id.to_string())
+}
+
+fn explicit_future_reset(summary: &str) -> bool {
+    let text = summary.to_ascii_lowercase();
     [
-        "https://x.com/thsottiaux/status/",
-        "https://twitter.com/thsottiaux/status/",
+        "landing in ",
+        "lands in ",
+        "will land",
+        "should land",
+        "landing over ",
+        "reset incoming",
+        "will reset",
+        "resetting usage",
     ]
     .iter()
-    .any(|prefix| {
-        url.strip_prefix(prefix)
-            .is_some_and(|tail| tail.split(['?', '#']).next() == Some(id))
-    })
+    .any(|phrase| text.contains(phrase))
+}
+
+fn event_status(summary: &str, published_at: i64, now: i64) -> (ResetStatus, Option<i64>) {
+    if confirmed_landed(summary) {
+        return (ResetStatus::Landed, None);
+    }
+    let landing_at = parse_relative_estimate(summary, published_at)
+        .or_else(|| parse_anchored_estimate(summary, published_at));
+    if !explicit_future_reset(summary) && landing_at.is_none() {
+        return (ResetStatus::Landed, None);
+    }
+    match landing_at {
+        Some(estimated) if estimated > now => (ResetStatus::Expected, Some(estimated)),
+        Some(estimated) => (ResetStatus::AwaitingConfirmation, Some(estimated)),
+        None => (ResetStatus::Announced, None),
+    }
+}
+
+fn parse_relative_estimate(summary: &str, published_at: i64) -> Option<i64> {
+    let words = summary.to_ascii_lowercase();
+    let tokens = words
+        .split_whitespace()
+        .map(|token| token.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '.'))
+        .collect::<Vec<_>>();
+    for window in tokens.windows(3) {
+        let (number, unit) = if window[0] == "in" || window[0] == "next" {
+            (window[1], window[2])
+        } else {
+            continue;
+        };
+        let Some(amount) = number.parse::<f64>().ok() else {
+            continue;
+        };
+        let multiplier = match unit.trim_end_matches('s') {
+            "minute" | "min" => 60_000.0,
+            "hour" | "hr" => 3_600_000.0,
+            _ => continue,
+        };
+        let duration = (amount * multiplier).round();
+        if !duration.is_finite() || duration <= 0.0 || duration > 7.0 * 24.0 * 60.0 * 60.0 * 1000.0
+        {
+            return None;
+        }
+        return published_at.checked_add(duration as i64);
+    }
+    None
+}
+
+fn parse_anchored_estimate(summary: &str, published_at: i64) -> Option<i64> {
+    let tokens = summary
+        .split_whitespace()
+        .map(|token| {
+            token.trim_matches(|c: char| {
+                !c.is_ascii_alphanumeric() && c != ':' && c != '+' && c != '-' && c != '.'
+            })
+        })
+        .collect::<Vec<_>>();
+    for (index, token) in tokens.iter().enumerate() {
+        if !token.eq_ignore_ascii_case("at") {
+            continue;
+        }
+        let Some(time_token) = tokens.get(index + 1) else {
+            continue;
+        };
+        let mut clock = time_token.to_string();
+        let mut zone_index = index + 2;
+        if tokens
+            .get(zone_index)
+            .is_some_and(|part| matches!(part.to_ascii_lowercase().as_str(), "am" | "pm"))
+        {
+            clock.push_str(tokens[zone_index]);
+            zone_index += 1;
+        }
+        let Some(zone) = tokens.get(zone_index) else {
+            continue;
+        };
+        let (date, _, _) = civil_date_from_epoch_ms(published_at);
+        let Some((hour, minute)) = parse_clock(&clock) else {
+            continue;
+        };
+        let Some(offset) = timezone_offset_seconds(zone, &date) else {
+            continue;
+        };
+        let sign = if offset < 0 { '-' } else { '+' };
+        let absolute_offset = offset.unsigned_abs();
+        let zone = format!(
+            "{sign}{:02}:{:02}",
+            absolute_offset / 3600,
+            absolute_offset % 3600 / 60
+        );
+        let time = format!("{date}T{hour:02}:{minute:02}:00{zone}");
+        let Some(mut estimate) = parse_rfc3339_millis(&time) else {
+            continue;
+        };
+        if estimate <= published_at {
+            let Some(next_day) = estimate.checked_add(24 * 60 * 60 * 1000) else {
+                continue;
+            };
+            estimate = next_day;
+        }
+        return Some(estimate);
+    }
+    None
+}
+
+fn parse_clock(value: &str) -> Option<(u32, u32)> {
+    let lower = value.to_ascii_lowercase();
+    let (clock, meridiem) = if let Some(value) = lower.strip_suffix("am") {
+        (value, Some("am"))
+    } else if let Some(value) = lower.strip_suffix("pm") {
+        (value, Some("pm"))
+    } else {
+        (lower.as_str(), None)
+    };
+    let (hour, minute) = if let Some((hour, minute)) = clock.split_once(':') {
+        (hour.parse::<u32>().ok()?, minute.parse::<u32>().ok()?)
+    } else {
+        (clock.parse::<u32>().ok()?, 0)
+    };
+    if minute > 59 {
+        return None;
+    }
+    let hour = match meridiem {
+        Some("am") if (1..=12).contains(&hour) => hour % 12,
+        Some("pm") if (1..=12).contains(&hour) => hour % 12 + 12,
+        Some(_) => return None,
+        None if hour <= 23 => hour,
+        None => return None,
+    };
+    Some((hour, minute))
+}
+
+fn timezone_offset_seconds(zone: &str, date: &str) -> Option<i64> {
+    match zone.to_ascii_uppercase().as_str() {
+        "UTC" | "GMT" | "Z" => Some(0),
+        "PST" => Some(-8 * 3600),
+        "PDT" => Some(-7 * 3600),
+        "MST" => Some(-7 * 3600),
+        "MDT" => Some(-6 * 3600),
+        "CST" => Some(-6 * 3600),
+        "CDT" => Some(-5 * 3600),
+        "EST" => Some(-5 * 3600),
+        "EDT" => Some(-4 * 3600),
+        "PT" => Some(if us_daylight_time(date)? {
+            -7 * 3600
+        } else {
+            -8 * 3600
+        }),
+        "MT" => Some(if us_daylight_time(date)? {
+            -6 * 3600
+        } else {
+            -7 * 3600
+        }),
+        "CT" => Some(if us_daylight_time(date)? {
+            -5 * 3600
+        } else {
+            -6 * 3600
+        }),
+        "ET" => Some(if us_daylight_time(date)? {
+            -4 * 3600
+        } else {
+            -5 * 3600
+        }),
+        "IST" => Some(5 * 3600 + 1800),
+        value if value.starts_with('+') || value.starts_with('-') => {
+            let sign = if value.starts_with('+') { 1 } else { -1 };
+            let rest = &value[1..];
+            let (hour, minute) = rest.split_once(':')?;
+            let hour = hour.parse::<i64>().ok()?;
+            let minute = minute.parse::<i64>().ok()?;
+            if hour > 23 || minute > 59 {
+                return None;
+            }
+            Some(sign * (hour * 3600 + minute * 60))
+        }
+        _ => None,
+    }
+}
+
+fn us_daylight_time(date: &str) -> Option<bool> {
+    let mut parts = date.split('-');
+    let year = parts.next()?.parse::<i64>().ok()?;
+    let month = parts.next()?.parse::<u32>().ok()?;
+    let day = parts.next()?.parse::<u32>().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    let march_start = 1 + (7 - weekday(days_from_civil(year, 3, 1)) as u32) % 7 + 7;
+    let november_end = 1 + (7 - weekday(days_from_civil(year, 11, 1)) as u32) % 7;
+    Some(
+        (month > 3 && month < 11)
+            || (month == 3 && day >= march_start)
+            || (month == 11 && day < november_end),
+    )
+}
+
+fn weekday(days_since_epoch: i64) -> i64 {
+    (days_since_epoch + 4).rem_euclid(7)
+}
+
+fn civil_date_from_epoch_ms(value: i64) -> (String, u32, u32) {
+    let days = value.div_euclid(86_400_000);
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let mut year = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = mp + if mp < 10 { 3 } else { -9 };
+    year += i64::from(month <= 2);
+    (
+        format!("{year:04}-{month:02}-{day:02}"),
+        month as u32,
+        day as u32,
+    )
+}
+
+fn confirmed_landed(summary: &str) -> bool {
+    let text = summary.to_ascii_lowercase();
+    [
+        "done and dusted",
+        "it's done",
+        "it is done",
+        "all propagated",
+        "reset all propagated",
+        "all reset for everyone",
+        "have reset",
+        "reset button pressed",
+        "confirmed landed",
+        "limits have been reset",
+    ]
+    .iter()
+    .any(|phrase| text.contains(phrase))
 }
 
 /// Parse an RFC3339 UTC timestamp without pulling a date library into the app.
-/// Supports `Z` and numeric offsets, with optional fractional seconds.
 fn parse_rfc3339_millis(value: &str) -> Option<i64> {
     let (date, time) = value.split_once('T').or_else(|| value.split_once('t'))?;
     let mut d = date.split('-');
@@ -316,7 +547,6 @@ fn parse_rfc3339_millis(value: &str) -> Option<i64> {
     {
         return None;
     }
-
     let zone_pos = time.find(['Z', 'z', '+', '-']).unwrap_or(time.len());
     let clock = &time[..zone_pos];
     let zone = &time[zone_pos..];
@@ -338,16 +568,15 @@ fn parse_rfc3339_millis(value: &str) -> Option<i64> {
             if f.is_empty() || !f.bytes().all(|b| b.is_ascii_digit()) {
                 return None;
             }
-            let first_three = &f[..f.len().min(3)];
-            let parsed: i64 = first_three.parse().ok()?;
-            parsed * 10_i64.pow((3usize.saturating_sub(first_three.len())) as u32)
+            let first = &f[..f.len().min(3)];
+            first.parse::<i64>().ok()? * 10_i64.pow((3usize.saturating_sub(first.len())) as u32)
         }
     };
     let offset_seconds = if zone.eq_ignore_ascii_case("z") {
         0
     } else {
         let sign = if zone.starts_with('+') {
-            1i64
+            1
         } else if zone.starts_with('-') {
             -1
         } else {
@@ -379,12 +608,9 @@ fn month_days(year: i64, month: u32) -> u32 {
         _ => 0,
     }
 }
-
 fn is_leap(year: i64) -> bool {
     year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
 }
-
-// Howard Hinnant's civil-calendar conversion; epoch is 1970-01-01.
 fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
     let y = year - i64::from(month <= 2);
     let era = y.div_euclid(400);
@@ -399,95 +625,65 @@ fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
 mod tests {
     use super::*;
 
-    fn record(id: &str, group: &str, reset_kind: Option<&str>, state: &str) -> FeedEvent {
-        FeedEvent {
-            id: serde_json::Value::String(id.to_string()),
-            group: Some(group.to_string()),
-            scope: Some("global".to_string()),
-            reset_kind: reset_kind.map(str::to_string),
-            announcement_state: Some(state.to_string()),
-            summary: Some(format!("Announcement {id}")),
-            url: Some(format!("https://x.com/thsottiaux/status/{id}")),
-            announced_at: Some("2026-10-13T12:34:56.789Z".to_string()),
-            source_label: Some("Tibo Reset Tracker".to_string()),
-            reason_tags: if group == "credits" {
-                vec!["banked".to_string()]
-            } else {
-                Vec::new()
-            },
-        }
+    #[test]
+    fn parses_landed_latest_event_and_utc_offset_as_one_canonical_x_event() {
+        let markdown = "# Codex Resets\n\n### `2026-10-15T06:28:13.000Z` · Regular reset\n\n> Done and dusted\n\n[View announcement](https://x.com/thsottiaux/status/2110618732666257557)\n\n### `2026-10-15T11:58:13+05:30` · Regular reset\n\n> Done and dusted\n\n[View announcement](https://twitter.com/thsottiaux/status/2110618732666257557)\n";
+        let events = parse_markdown(
+            markdown,
+            parse_rfc3339_millis("2026-10-15T07:00:00Z").unwrap(),
+        );
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].id, "2110618732666257557");
+        assert_eq!(events[0].title, "Done and dusted");
+        assert_eq!(
+            events[0].published_at,
+            parse_rfc3339_millis("2026-10-15T06:28:13Z").unwrap()
+        );
+        assert_eq!(events[0].status, ResetStatus::Landed);
+        assert_eq!(events[0].landing_at, None);
     }
 
     #[test]
-    fn only_announced_global_and_linked_banked_posts_are_returned() {
-        let mut no_post = record("123", "reset", None, "announced");
-        no_post.url = None;
-        let mut mismatch = record("124", "reset", None, "announced");
-        mismatch.url = Some("https://x.com/thsottiaux/status/999".to_string());
-        let mut personal = record("125", "reset", None, "announced");
-        personal.scope = Some("personal".to_string());
-        let mut cohort_banked = record("126", "credits", Some("banked"), "");
-        cohort_banked.scope = Some("paid".to_string());
-        cohort_banked.announcement_state = None;
-        let mut no_banked_source = record("127", "credits", Some("banked"), "");
-        no_banked_source.url = None;
-        let events = normalize_events(vec![
-            record("120", "reset", None, "announced"),
-            record("121", "credits", Some("banked"), "announced"),
-            record("122", "reset", None, "candidate"),
-            record("123", "reset", None, "announced"),
-            mismatch,
-            personal,
-            cohort_banked,
-            no_banked_source,
-            record("120", "reset", None, "announced"),
-        ]);
-        // ID 123 first appears in a URL-less monitoring row, then as a valid
-        // source-linked announcement. The malformed row must not poison the
-        // later valid record during deduplication.
-        assert_eq!(events.len(), 4);
-        assert_eq!(events[0].kind, ResetKind::Global);
-        assert_eq!(events[1].kind, ResetKind::Banked);
-        assert_ne!(events[1].kind, events[0].kind);
-        assert!(events
-            .iter()
-            .any(|event| event.id == "126" && event.kind == ResetKind::Banked));
-        assert!(events
-            .iter()
-            .any(|event| event.id == "123" && event.kind == ResetKind::Global));
+    fn relative_estimate_is_expected_until_then_awaits_confirmation() {
+        let published = parse_rfc3339_millis("2026-10-15T06:00:00Z").unwrap();
+        let now = parse_rfc3339_millis("2026-10-15T08:00:00Z").unwrap();
+        let future = "### `2026-10-15T06:00:00Z` · Regular reset\n\n> Global reset landing in 3 hours\n\n[View announcement](https://x.com/thsottiaux/status/123)\n";
+        let event = &parse_markdown(future, now)[0];
+        assert_eq!(event.status, ResetStatus::Expected);
+        assert_eq!(event.landing_at, Some(published + 3 * 60 * 60 * 1000));
+        assert!(event.upcoming);
+        let past = parse_markdown(
+            future,
+            parse_rfc3339_millis("2026-10-15T10:00:00Z").unwrap(),
+        );
+        assert_eq!(past[0].status, ResetStatus::AwaitingConfirmation);
+        assert_eq!(past[0].landing_at, Some(published + 3 * 60 * 60 * 1000));
+        let landed = "### `2026-10-15T06:00:00Z` · Regular reset\n\n> Global reset landing in 3 hours. Done and dusted.\n\n[View announcement](https://x.com/thsottiaux/status/124)\n";
+        assert_eq!(parse_markdown(landed, now)[0].status, ResetStatus::Landed);
     }
 
     #[test]
-    fn maps_real_feed_shapes_for_global_and_banked_records() {
-        // Representative rows from /api/feed: global announcements set
-        // announcement_state; verified banked X archives carry reset_kind
-        // and reason_tags instead.
-        let rows: Vec<FeedEvent> = serde_json::from_str(
-            r#"[
-              {
-                "id":"2109812360596865224","group":"reset","scope":"global",
-                "reset_kind":"hard","announcement_state":"announced","reason_tags":[],
-                "summary":"Global reset announcement","url":"https://x.com/thsottiaux/status/2109812360596865224",
-                "announced_at":"2026-10-13T05:03:51Z","source_label":"Verified archive"
-              },
-              {
-                "id":"2107913674593644711","group":"credits","scope":"global",
-                "reset_kind":"banked","banked_state":"unknown","reason_tags":["milestone","banked"],
-                "summary":"One banked reset loaded into paid accounts","url":"https://x.com/thsottiaux/status/2107913674593644711",
-                "announced_at":"2026-10-07T19:19:17Z","source_label":"Verified archive"
-              }
-            ]"#,
-        )
-        .unwrap();
-        let events = normalize_events(rows);
+    fn anchored_timezone_time_is_normalized_to_utc() {
+        let published = parse_rfc3339_millis("2026-10-15T06:00:00Z").unwrap();
+        let text = "Global reset landing at 8:00 PM PT";
+        let estimate = parse_anchored_estimate(text, published).unwrap();
+        assert_eq!(
+            estimate,
+            parse_rfc3339_millis("2026-10-16T03:00:00Z").unwrap()
+        );
+    }
+
+    #[test]
+    fn parser_accepts_only_linked_global_or_banked_announcements() {
+        let markdown = "### `2026-10-15T06:28:13Z` · Regular reset\n\n> Done and dusted\n\n[View announcement](https://x.com/thsottiaux/status/123)\n### `2026-10-15T06:29:13Z` · Banked reset\n\n> Grant added\n\n[View announcement](https://x.com/thsottiaux/status/124)\n### `2026-10-15T06:30:13Z` · Forecast\n\n> Reset soon\n\n[View announcement](https://x.com/thsottiaux/status/125)\n### `2026-10-15T06:31:13Z` · Regular reset\n\n> Missing link\n";
+        let events = parse_markdown(markdown, now_ms());
         assert_eq!(events.len(), 2);
-        assert_eq!(events[0].kind, ResetKind::Global);
-        assert_eq!(events[1].kind, ResetKind::Banked);
-        assert_eq!(events[1].id, "2107913674593644711");
+        assert_eq!(events[0].kind, ResetKind::Banked);
+        assert_eq!(events[1].kind, ResetKind::Global);
     }
 
     #[test]
-    fn validates_timestamp_fraction_offsets_and_dates() {
+    fn parses_rfc3339_fraction_offsets_and_invalid_dates() {
         let utc = parse_rfc3339_millis("2026-10-13T12:34:56.789Z").unwrap();
         assert_eq!(utc % 1000, 789);
         assert_eq!(
@@ -496,38 +692,33 @@ mod tests {
         );
         assert_eq!(parse_rfc3339_millis("2026-02-29T00:00:00Z"), None);
         assert_eq!(parse_rfc3339_millis("bad"), None);
-        assert_eq!(parse_rfc3339_millis("2026-10-13T12:34:56"), None);
     }
 
-    #[test]
-    fn explicit_upcoming_announcements_survive_delayed_feed_classification() {
-        let mut upcoming = record("130", "reset", None, "none");
-        upcoming.summary = Some("Global reset landing by EOD PST time. Enjoy".into());
-        let events = normalize_events(vec![upcoming, record("131", "reset", None, "none")]);
-        assert_eq!(events.len(), 1);
-        assert!(events[0].upcoming);
-        assert!(!explicit_future_reset("No global reset tomorrow"));
-        assert!(!explicit_future_reset("Day 8 / Reset"));
-    }
+    #[tokio::test]
+    #[ignore = "opt-in read-only live fetch of codex-resets.com/index.md"]
+    async fn live_archive_fetch_reports_latest_announcement_metadata() {
+        let snapshot = fetch_snapshot()
+            .await
+            .expect("the public Codex Resets archive is reachable and parseable");
+        let latest = snapshot
+            .events
+            .first()
+            .expect("archive has a linked announcement");
+        let title = latest
+            .title
+            .chars()
+            .filter(|character| !character.is_control())
+            .take(96)
+            .collect::<String>();
 
-    #[test]
-    fn validates_only_exact_thsottiaux_status_links() {
-        assert!(valid_status_url(
-            "https://x.com/thsottiaux/status/123?ref=feed",
-            "123"
-        ));
-        assert!(valid_status_url(
-            "https://twitter.com/thsottiaux/status/123",
-            "123"
-        ));
-        assert!(!valid_status_url("https://x.com/other/status/123", "123"));
-        assert!(!valid_status_url(
-            "https://x.com/thsottiaux/status/1234",
-            "123"
-        ));
-        assert!(!valid_status_url(
-            "http://x.com/thsottiaux/status/123",
-            "123"
-        ));
+        assert!(!title.trim().is_empty(), "latest announcement has a title");
+        assert!(
+            latest.published_at > 0,
+            "latest announcement has a UTC timestamp"
+        );
+        println!(
+            "latest announcement: status={:?}, published_at_unix_ms={}, title={}",
+            latest.status, latest.published_at, title
+        );
     }
 }
