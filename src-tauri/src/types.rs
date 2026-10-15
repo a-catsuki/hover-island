@@ -132,6 +132,8 @@ pub struct WidgetConfig {
     pub order: i32,
     pub panel: Option<String>,
     pub clock_style: Option<String>,
+    pub size: Option<String>,
+    pub show_lyrics: Option<bool>,
 }
 
 /// A connected web app (WhatsApp Web, Gmail, …) surfaced in the notch.

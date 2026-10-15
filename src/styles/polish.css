@@ -89,3 +89,14 @@
 .peek-ai-icon { position:relative; display:grid; flex:none; width:44px; height:44px; place-items:center; border-radius:14px; background:#ffffff0a; }
 .peek-ai-icon>span { position:absolute; width:7px; height:7px; right:3px; bottom:3px; border-radius:50%; background:#8edaa6; box-shadow:0 0 0 3px #08090b; }
 .peek-ai-icon--input>span { background:#dfbd7b; }
+/* Header navigation owns only the space left by the fixed action buttons. */
+.island .panel__head {display:grid;grid-template-columns:minmax(0,1fr) max-content;min-width:0;}
+.island .panel-navigation {display:flex;align-items:center;gap:3px;min-width:0;overflow:hidden;}
+.island .panel-navigation .panel-tabs {flex:1 1 0!important;min-width:0;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;}
+.island .panel-navigation .panel-tabs button {flex:0 0 auto;max-width:min(140px,100%);overflow:hidden;text-overflow:ellipsis;}
+.island .panel-tabs__label {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.island .panel-navigation__step {display:grid;place-items:center;width:20px;min-width:20px;height:28px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--text-3);cursor:pointer;}
+.island .panel-navigation__step:hover {background:#ffffff0c;color:var(--text-1);}
+.island .panel-navigation__step:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}
+.island .panel__tools {min-width:0;white-space:nowrap;}
+@container dashboard (max-width:540px) {.island .beam-button>span {display:none;}.island .beam-button {width:27px;min-width:27px;padding:0;justify-content:center;}.island .panel-navigation .panel-tabs button {max-width:min(90px,100%);}}

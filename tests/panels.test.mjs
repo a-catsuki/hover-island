@@ -66,6 +66,22 @@ test('custom panels and orphaned widget assignments survive layout repair', () =
   assert.ok(result.panels['older-space'], 'an orphaned panel ID receives a visible label')
 })
 
+test('empty generated overflow panels disappear after widgets move away', () => {
+  const initial = fitPanelLayout(
+    { today: 'Today' },
+    ['today'],
+    [widget('one', 'notes', 0, 'today'), widget('two', 'ai', 1, 'today'), widget('three', 'system', 2, 'today')],
+  )
+  const overflow = initial.panelOrder.find(id => id.startsWith('overflow-'))
+  assert.ok(overflow, 'the overfull panel creates a visible overflow page')
+
+  const panels = { ...initial.panels, research: 'Research' }
+  const movedWidgets = initial.widgets.map(item => item.id === 'three' ? { ...item, panel: 'research' } : item)
+  const normalized = fitPanelLayout(panels, [...initial.panelOrder, 'research'], movedWidgets)
+  assert.equal(normalized.panelOrder.includes(overflow), false, 'the now-empty generated page is removed')
+  assert.equal(normalized.widgets.find(item => item.id === 'three')?.panel, 'research')
+})
+
 test('panels can be added, renamed, and removed without losing assigned widgets', () => {
   const start = fitPanelLayout(
     { today: 'Today', desk: 'Desk' },

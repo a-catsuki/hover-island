@@ -14,6 +14,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-solid'
 import type { WidgetConfig, WidgetKind } from '../../lib/ipc'
+import { patchSettings, settings } from '../../state/settings'
 import MediaView from '../views/MediaView'
 import UsageView from '../views/UsageView'
 import NotificationsView from '../views/NotificationsView'
@@ -57,7 +58,10 @@ export const WIDGETS: Record<WidgetKind, WidgetDef> = {
     hint: 'Now playing and playback controls',
     wide: true,
     icon: () => <Music class="icon icon--sm" strokeWidth={1.7} aria-hidden="true" />,
-    render: () => <MediaView compact />,
+    render: (widget) => <MediaView compact showLyrics={widget?.showLyrics ?? false} size={widget?.size ?? 'wide'} onToggleLyrics={() => {
+      if (!widget) return
+      patchSettings({ widgets: settings.widgets.map((item) => item.id === widget.id ? { ...item, showLyrics: !(item.showLyrics ?? false) } : item) })
+    }} />,
   },
   weather: {
     kind: 'weather',

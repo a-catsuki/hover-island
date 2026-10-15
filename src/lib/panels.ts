@@ -92,6 +92,14 @@ export function fitPanelLayout(
       widgets = widgets.map(widget => pageIds.has(widget.id) ? { ...widget, panel: id } : widget)
     }
   }
+
+  // Overflow pages are derived from capacity. Remove them again when a resize
+  // or move leaves them empty, while retaining user-created and disabled-only pages.
+  for (const id of [...panelOrder]) {
+    if (!id.startsWith('overflow-') || widgets.some(widget => widget.panel === id)) continue
+    delete panels[id]
+    panelOrder.splice(panelOrder.indexOf(id), 1)
+  }
   return { panels, panelOrder, widgets }
 }
 

@@ -91,7 +91,7 @@ fn monitor(app: tauri::AppHandle) {
         return;
     }
     let _com = ComApartment;
-    let mut known_devices: Option<HashMap<String, BluetoothDeviceInfo>> = None;
+    let mut bluetooth_monitor = BluetoothStabilizer::default();
     let mut known_battery: Option<BatterySnapshot> = None;
     let mut bluetooth_error: Option<String> = None;
     let mut battery_error: Option<String> = None;
@@ -104,8 +104,11 @@ fn monitor(app: tauri::AppHandle) {
         match connected_bluetooth_devices() {
             Ok(current) => {
                 bluetooth_error = None;
-                update_bluetooth_snapshot(&current);
-                for transition in observe_bluetooth(&mut known_devices, current) {
+                let transitions = bluetooth_monitor.observe(current);
+                if let Some(confirmed) = &bluetooth_monitor.confirmed {
+                    update_bluetooth_snapshot(confirmed);
+                }
+                for transition in transitions {
                     emit_bluetooth_transition(&app, transition);
                 }
             }
@@ -273,6 +276,69 @@ fn observe_bluetooth(
     transitions
 }
 
+/// Classic/LE interfaces can briefly disappear or rotate identifiers without
+/// a physical connection changing. Confirm each named device over three valid
+/// samples before showing an arrival/departure; failed polls never count.
+#[derive(Default)]
+struct BluetoothStabilizer {
+    confirmed: Option<HashMap<String, BluetoothDeviceInfo>>,
+    pending: HashMap<String, (bool, u8, BluetoothDeviceInfo)>,
+}
+
+impl BluetoothStabilizer {
+    fn observe(&mut self, raw: HashMap<String, BluetoothDeviceInfo>) -> Vec<BluetoothTransition> {
+        let current: HashMap<String, BluetoothDeviceInfo> = raw
+            .into_values()
+            .map(|info| (info.name.trim().to_lowercase(), info))
+            .collect();
+        let Some(confirmed) = self.confirmed.as_mut() else {
+            self.confirmed = Some(current);
+            return Vec::new();
+        };
+        let keys: std::collections::HashSet<String> = current
+            .keys()
+            .chain(confirmed.keys())
+            .chain(self.pending.keys())
+            .cloned()
+            .collect();
+        let mut transitions = Vec::new();
+        for key in keys {
+            let present = current.contains_key(&key);
+            if present == confirmed.contains_key(&key) {
+                self.pending.remove(&key);
+                continue;
+            }
+            let Some(info) = current.get(&key).or_else(|| confirmed.get(&key)).cloned() else {
+                self.pending.remove(&key);
+                continue;
+            };
+            let pending = self
+                .pending
+                .entry(key.clone())
+                .or_insert((present, 0, info.clone()));
+            if pending.0 != present {
+                *pending = (present, 0, info.clone());
+            }
+            pending.1 = pending.1.saturating_add(1);
+            if pending.1 < 3 {
+                continue;
+            }
+            self.pending.remove(&key);
+            if present {
+                confirmed.insert(key.clone(), info.clone());
+            } else {
+                confirmed.remove(&key);
+            }
+            transitions.push(BluetoothTransition {
+                key,
+                name: info.name,
+                connected: present,
+            });
+        }
+        transitions
+    }
+}
+
 fn battery_snapshot() -> Result<Option<BatterySnapshot>, String> {
     let mut status = SYSTEM_POWER_STATUS::default();
     unsafe { GetSystemPowerStatus(&mut status) }.map_err(|error| error.to_string())?;
@@ -396,6 +462,34 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    #[test]
+    fn bluetooth_interface_churn_and_single_poll_dropouts_are_silent() {
+        let mut monitor = BluetoothStabilizer::default();
+        assert!(monitor
+            .observe(devices(&[("classic", "Headphones"), ("le", "Headphones")]))
+            .is_empty());
+        assert!(monitor
+            .observe(devices(&[("rotated", "Headphones")]))
+            .is_empty());
+        assert!(monitor.observe(HashMap::new()).is_empty());
+        assert!(monitor
+            .observe(devices(&[("new-id", "Headphones")]))
+            .is_empty());
+        assert!(monitor.observe(HashMap::new()).is_empty());
+        assert!(monitor.observe(HashMap::new()).is_empty());
+        let gone = monitor.observe(HashMap::new());
+        assert_eq!(gone.len(), 1);
+        assert!(!gone[0].connected);
+        for _ in 0..2 {
+            assert!(monitor
+                .observe(devices(&[("back", "Headphones")]))
+                .is_empty());
+        }
+        let back = monitor.observe(devices(&[("back", "Headphones")]));
+        assert_eq!(back.len(), 1);
+        assert!(back[0].connected);
     }
 
     #[test]

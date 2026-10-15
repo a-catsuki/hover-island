@@ -1,7 +1,7 @@
 import { createEffect, onCleanup, onMount } from 'solid-js'
 import { audioCaptureError, audioCaptureStatus, audioSpectrum, subscribeAudioSpectrum } from '../../state/audio'
 import { normalizeVisualizerStyle, visualizerStyleLabel, type VisualizerStyle } from '../../lib/visualizerStyles'
-import { audioFrequencyMetrics, audioMetrics } from '../../lib/audioMetrics'
+import { adaptSpectrumLevels, audioMetrics, isMeaningfulSpectrum } from '../../lib/audioMetrics'
 import { syntheticAudioSpectrum } from '../../lib/syntheticAudioPreview'
 import './Visualizer.css'
 
@@ -29,6 +29,7 @@ export default function Visualizer(props: {
   let captureEpoch = 0
   let acquiring = false
   const smoothed = Array.from({ length: BANDS }, () => 0)
+  const peakTrack = Array.from({ length: BANDS }, () => 0.008)
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
   let beatBaseline = 0
   let beatPulse = 0
@@ -56,8 +57,10 @@ export default function Visualizer(props: {
     const response = clamp(Number.isFinite(props.reactivity) ? props.reactivity : 0.8, 0, 1)
     const rise = 0.24 + response * 0.5
     const fall = 0.07 + response * 0.2
+    const adapted = adaptSpectrumLevels(raw, peakTrack, active)
+    adapted.peaks.forEach((peak, index) => { peakTrack[index] = peak })
     const levels = smoothed.map((old, index) => {
-      const next = active ? clamp(raw[index] ?? 0, 0, 1) : 0
+      const next = adapted.levels[index]
       const alpha = reducedMotion.matches ? 1 : next > old ? rise : fall
       const level = old + (next - old) * alpha
       smoothed[index] = level
@@ -377,14 +380,26 @@ export default function Visualizer(props: {
     ctx.restore()
   }
 
-  const drawAmbientLight = (levels: number[], active: boolean, accent: string, accent2: string, time: number) => {
+  const drawAmbientLight = (levels: number[], sourceActive: boolean, accent: string, accent2: string, time: number) => {
     if (!ctx) return
-    const metrics = audioMetrics(levels)
-    const frequency = audioFrequencyMetrics(levels)
-    const low = active ? metrics.bass : idleAt(0, time) * 0.18
-    const mid = active ? frequency.mids : idleAt(1, time + 1.8) * 0.16
-    const high = active ? frequency.treble : idleAt(2, time + 3.1) * 0.14
-    const drive = active ? clamp(energy + beatPulse * 0.25, 0, 1) : 0.12
+    const rms = (group: number[]) => Math.sqrt(group.reduce((sum, value) => sum + value * value, 0) / Math.max(1, group.length))
+    // The broad-light transfer has its own lower noise floor than the crisp
+    // geometry. WASAPI's FFT bands can be useful while still below the equalizer
+    // gate, and the ambient fields should reflect that real low-level spectrum.
+    const lift = (value: number) => clamp(Math.sqrt(Math.max(0, value - 0.0015)) * 1.7, 0, 1)
+    const rawEnergy = rms(levels)
+    const lowRaw = rms(levels.slice(0, 7))
+    const midRaw = rms(levels.slice(7, 17))
+    const highRaw = rms(levels.slice(17))
+    // Even quiet but valid loopback frames must steer the light field. The
+    // per-style active threshold is useful for crisp geometry, but using it as
+    // the Ambient data gate made low-level music fall back to unrelated idle
+    // breathing and looked like the effect was not listening to the track.
+    const liveSpectrum = sourceActive && rawEnergy > 0.002
+    const low = liveSpectrum ? lift(lowRaw) : idleAt(0, time) * 0.18
+    const mid = liveSpectrum ? lift(midRaw) : idleAt(1, time + 1.8) * 0.16
+    const high = liveSpectrum ? lift(highRaw) : idleAt(2, time + 3.1) * 0.14
+    const drive = liveSpectrum ? clamp(lift(rawEnergy) + beatPulse * 0.25, 0, 1) : 0.12
     ctx.save()
     // Three broad, edge-to-edge light fields respond independently to bass,
     // mids and treble. The canvas is softly blurred by the media stage CSS, so
@@ -426,10 +441,12 @@ export default function Visualizer(props: {
     if (current === 'off') return
     const preview = syntheticAudioSpectrum()
     const sourceActive = audioCaptureStatus() === 'active' || preview !== null
-    const levels = readLevels(sourceActive, preview ?? audioSpectrum())
-    // Keep the visualizer alive at silence and during pauses; only the actual
-    // spectrum-driven movement switches on above the measured noise floor.
-    const active = sourceActive && energy > 0.035
+    const rawBands = preview ?? audioSpectrum()
+    const safeBands = Array.from({ length: BANDS }, (_, index) => clamp(rawBands[index] ?? 0, 0, 1))
+    // Reject near-silence and isolated single-bin noise, but keep real quiet
+    // music responsive across every visual style.
+    const active = sourceActive && isMeaningfulSpectrum(safeBands)
+    const levels = readLevels(active, safeBands)
     const time = reducedMotion.matches ? 0 : performance.now() / 1000
     switch (current) {
       case 'ambient': drawAmbientLight(levels, active, accent, accent2, time); break

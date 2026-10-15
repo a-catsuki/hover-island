@@ -355,7 +355,7 @@ mod platform {
     };
     use windows::Win32::System::Variant::{
         VariantChangeType, VariantClear, VARIANT, VARIANT_0_0, VARIANT_0_0_0, VAR_CHANGE_FLAGS,
-        VT_BSTR, VT_I4, VT_UI1, VT_UI4,
+        VT_BOOL, VT_BSTR, VT_I4, VT_UI1,
     };
     use windows::Win32::System::Wmi::{
         IEnumWbemClassObject, IWbemClassObject, IWbemContext, IWbemLocator, IWbemServices,
@@ -383,8 +383,6 @@ mod platform {
 
     const RPC_C_AUTHN_WINNT: u32 = 10;
     const RPC_C_AUTHZ_NONE: u32 = 0;
-    const CIM_UINT32: i32 = 19;
-    const CIM_UINT8: i32 = 17;
 
     type GetPowerMode = unsafe extern "system" fn(*mut GUID) -> u32;
     type SetPowerMode = unsafe extern "system" fn(*const GUID) -> u32;
@@ -494,8 +492,15 @@ mod platform {
 
     fn com_apartment() -> Result<ComApartment, String> {
         unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }
-            .map_err(|error| format!("Windows COM runtime unavailable: {error}"))?;
+            .map_err(|error| hresult_error("Windows COM runtime unavailable", &error))?;
         Ok(ComApartment)
+    }
+
+    fn hresult_error(context: &str, error: &windows::core::Error) -> String {
+        // windows-core 0.52's Error formatting can panic when FormatMessageW
+        // returns no system string. Keep native HRESULT failures diagnosable
+        // without asking that version to format a missing message pointer.
+        format!("{context} (HRESULT 0x{:08X})", error.code().0 as u32)
     }
 
     /* --------------------------------------------------------------- volume */
@@ -577,8 +582,9 @@ mod platform {
 
     fn wmi_services() -> Result<IWbemServices, String> {
         let locator: IWbemLocator =
-            unsafe { CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER) }
-                .map_err(|error| format!("Windows management (WMI) is unavailable: {error}"))?;
+            unsafe { CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER) }.map_err(
+                |error| hresult_error("Windows management (WMI) is unavailable", &error),
+            )?;
         let services = unsafe {
             locator.ConnectServer(
                 &BSTR::from("ROOT\\WMI"),
@@ -590,7 +596,7 @@ mod platform {
                 None::<&IWbemContext>,
             )
         }
-        .map_err(|error| format!("Windows management (WMI) connection failed: {error}"))?;
+        .map_err(|error| hresult_error("Windows management (WMI) connection failed", &error))?;
         unsafe {
             CoSetProxyBlanket(
                 &services,
@@ -603,7 +609,7 @@ mod platform {
                 EOAC_NONE,
             )
         }
-        .map_err(|error| format!("Windows management (WMI) security setup failed: {error}"))?;
+        .map_err(|error| hresult_error("Windows management (WMI) security setup failed", &error))?;
         Ok(services)
     }
 
@@ -616,7 +622,7 @@ mod platform {
                 None::<&IWbemContext>,
             )
         }
-        .map_err(|error| format!("WMI query failed: {error}"))
+        .map_err(|error| hresult_error("WMI query failed", &error))
     }
 
     fn first_object(enumerator: &IEnumWbemClassObject) -> Result<Option<IWbemClassObject>, String> {
@@ -624,7 +630,7 @@ mod platform {
         let mut returned = 0u32;
         unsafe { enumerator.Next(2000, &mut objects, &mut returned) }
             .ok()
-            .map_err(|error| format!("Windows brightness query failed: {error}"))?;
+            .map_err(|error| hresult_error("Windows brightness query failed", &error))?;
         if returned == 0 {
             return Ok(None);
         }
@@ -643,14 +649,33 @@ mod platform {
         }
     }
 
+    fn brightness_method_succeeded(value: &VARIANT) -> Option<bool> {
+        if unsafe { value.Anonymous.Anonymous.vt == VT_BOOL } {
+            let mut converted = VARIANT::default();
+            let result = unsafe {
+                VariantChangeType(&mut converted, value, VAR_CHANGE_FLAGS(0), VT_I4)
+                    .ok()
+                    .map(|_| converted.Anonymous.Anonymous.Anonymous.lVal != 0)
+            };
+            unsafe {
+                let _ = VariantClear(&mut converted);
+            }
+            result
+        } else {
+            variant_to_u32(value).map(|code| code == 0)
+        }
+    }
+
     fn uint32_variant(value: u32) -> VARIANT {
         let mut variant = VARIANT::default();
         variant.Anonymous.Anonymous = std::mem::ManuallyDrop::new(VARIANT_0_0 {
-            vt: VT_UI4,
+            // WMI Automation maps CIM uint32 to VT_I4, preserving the 32-bit
+            // bit pattern. See Microsoft's "Numbers (WMI)" mapping table.
+            vt: VT_I4,
             wReserved1: 0,
             wReserved2: 0,
             wReserved3: 0,
-            Anonymous: VARIANT_0_0_0 { ulVal: value },
+            Anonymous: VARIANT_0_0_0 { lVal: value as i32 },
         });
         variant
     }
@@ -671,14 +696,14 @@ mod platform {
         let services = wmi_services()?;
         let enumerator = exec_query(
             &services,
-            "SELECT CurrentBrightness FROM WmiMonitorBrightness",
+            "SELECT CurrentBrightness FROM WmiMonitorBrightness WHERE Active = TRUE",
         )?;
         let Some(object) = first_object(&enumerator)? else {
             return Ok(None);
         };
         let mut value = VARIANT::default();
         unsafe { object.Get(w!("CurrentBrightness"), 0, &mut value, None, None) }
-            .map_err(|error| format!("WMI brightness read failed: {error}"))?;
+            .map_err(|error| hresult_error("WMI brightness read failed", &error))?;
         let level = variant_to_u32(&value);
         unsafe {
             let _ = VariantClear(&mut value);
@@ -717,14 +742,17 @@ mod platform {
     }
 
     fn set_brightness_once(services: &IWbemServices, level: u32) -> Result<(), String> {
-        let enumerator = exec_query(services, "SELECT * FROM WmiMonitorBrightnessMethods")?;
+        let enumerator = exec_query(
+            services,
+            "SELECT * FROM WmiMonitorBrightnessMethods WHERE Active = TRUE",
+        )?;
         let Some(instance) = first_object(&enumerator)? else {
             return Err("This display does not support software brightness control.".into());
         };
 
         let mut path_variant = VARIANT::default();
         unsafe { instance.Get(w!("__PATH"), 0, &mut path_variant, None, None) }
-            .map_err(|error| format!("WMI brightness path read failed: {error}"))?;
+            .map_err(|error| hresult_error("WMI brightness path read failed", &error))?;
         let is_bstr = unsafe { path_variant.Anonymous.Anonymous.vt == VT_BSTR };
         let path = if is_bstr {
             unsafe {
@@ -745,30 +773,49 @@ mod platform {
             return Err("Windows did not expose a brightness control path.".into());
         }
 
+        // WMI method signatures belong to the class definition. Querying an
+        // instance returns its values and path, but providers are not required
+        // to expose method metadata on that instance.
+        let mut method_class: Option<IWbemClassObject> = None;
+        unsafe {
+            services.GetObject(
+                &BSTR::from("WmiMonitorBrightnessMethods"),
+                WBEM_GENERIC_FLAG_TYPE(0),
+                None::<&IWbemContext>,
+                Some(&mut method_class),
+                None,
+            )
+        }
+        .map_err(|error| hresult_error("Windows brightness class unavailable", &error))?;
+        let method_class =
+            method_class.ok_or_else(|| "Windows brightness class unavailable.".to_string())?;
+
         let mut in_signature: Option<IWbemClassObject> = None;
         let mut out_signature: Option<IWbemClassObject> = None;
         unsafe {
-            instance.GetMethod(
+            method_class.GetMethod(
                 w!("WmiSetBrightness"),
                 0,
                 &mut in_signature,
                 &mut out_signature,
             )
         }
-        .map_err(|error| format!("Windows did not expose the brightness method: {error}"))?;
+        .map_err(|error| hresult_error("Windows did not expose the brightness method", &error))?;
         let in_signature = in_signature
             .ok_or_else(|| "Windows did not expose the brightness method.".to_string())?;
         let in_params = unsafe { in_signature.SpawnInstance(0) }
-            .map_err(|error| format!("Could not prepare the brightness change: {error}"))?;
+            .map_err(|error| hresult_error("Could not prepare the brightness change", &error))?;
 
         let mut brightness = uint8_variant(clamp_brightness(level) as u8);
         // A nonzero transition time is accepted by the built-in WMI provider on
         // this HP panel; zero can be rejected by firmware-backed providers.
         let mut timeout = uint32_variant(1);
-        unsafe { in_params.Put(w!("Brightness"), 0, &brightness, CIM_UINT8) }
-            .map_err(|error| format!("Could not set the brightness value: {error}"))?;
-        unsafe { in_params.Put(w!("Timeout"), 0, &timeout, CIM_UINT32) }
-            .map_err(|error| format!("Could not set the brightness timeout: {error}"))?;
+        // IWbemClassObject::Put requires Type=0 for an existing property on an
+        // instance; the property's CIM type is already fixed by the signature.
+        unsafe { in_params.Put(w!("Brightness"), 0, &brightness, 0) }
+            .map_err(|error| hresult_error("Could not set the brightness value", &error))?;
+        unsafe { in_params.Put(w!("Timeout"), 0, &timeout, 0) }
+            .map_err(|error| hresult_error("Could not set the brightness timeout", &error))?;
 
         let mut output: Option<IWbemClassObject> = None;
         let result = unsafe {
@@ -782,7 +829,7 @@ mod platform {
                 None,
             )
         }
-        .map_err(|error| format!("Windows could not apply the brightness change: {error}"));
+        .map_err(|error| hresult_error("Windows could not apply the brightness change", &error));
 
         unsafe {
             let _ = VariantClear(&mut brightness);
@@ -791,21 +838,19 @@ mod platform {
         result?;
         if let Some(output) = output {
             let mut value = VARIANT::default();
-            unsafe { output.Get(w!("ReturnValue"), 0, &mut value, None, None) }.map_err(
-                |error| format!("Windows did not confirm the brightness change: {error}"),
-            )?;
-            let code = variant_to_u32(&value);
-            unsafe {
-                let _ = VariantClear(&mut value);
+            if unsafe { output.Get(w!("ReturnValue"), 0, &mut value, None, None) }.is_ok() {
+                let succeeded = brightness_method_succeeded(&value);
+                unsafe {
+                    let _ = VariantClear(&mut value);
+                }
+                if succeeded == Some(false) {
+                    return Err("Windows rejected the brightness change.".into());
+                }
             }
-            if code != Some(0) {
-                return Err(format!(
-                    "Windows rejected the brightness change ({code:?})."
-                ));
-            }
-        } else {
-            return Err("Windows did not confirm the brightness change.".into());
         }
+        // Some laptop WMI providers apply the request but omit ReturnValue from
+        // the output object. A successful ExecMethod HRESULT is sufficient in
+        // that case; the caller reads the effective level back for synchronization.
         Ok(())
     }
 
@@ -1363,8 +1408,53 @@ mod platform {
 
     #[cfg(test)]
     mod tests {
-        use super::{power_mode_name, BEST_EFFICIENCY};
+        use super::{
+            brightness_method_succeeded, power_mode_name, uint32_variant, uint8_variant,
+            BEST_EFFICIENCY,
+        };
+        use std::mem::ManuallyDrop;
         use windows::core::GUID;
+        use windows::Win32::Foundation::{VARIANT_BOOL, VARIANT_TRUE};
+        use windows::Win32::System::Variant::{
+            VARIANT, VARIANT_0_0, VARIANT_0_0_0, VT_BOOL, VT_I4, VT_UI1,
+        };
+
+        fn bool_variant(value: VARIANT_BOOL) -> VARIANT {
+            let mut variant = VARIANT::default();
+            variant.Anonymous.Anonymous = ManuallyDrop::new(VARIANT_0_0 {
+                vt: VT_BOOL,
+                wReserved1: 0,
+                wReserved2: 0,
+                wReserved3: 0,
+                Anonymous: VARIANT_0_0_0 { boolVal: value },
+            });
+            variant
+        }
+
+        #[test]
+        fn brightness_method_accepts_boolean_and_numeric_wmi_success() {
+            assert_eq!(
+                brightness_method_succeeded(&bool_variant(VARIANT_TRUE)),
+                Some(true)
+            );
+            assert_eq!(
+                brightness_method_succeeded(&bool_variant(VARIANT_BOOL(0))),
+                Some(false)
+            );
+            assert_eq!(brightness_method_succeeded(&uint32_variant(0)), Some(true));
+            assert_eq!(brightness_method_succeeded(&uint32_variant(5)), Some(false));
+        }
+
+        #[test]
+        fn brightness_input_variants_match_wmi_automation_types() {
+            let brightness = uint8_variant(73);
+            assert_eq!(unsafe { brightness.Anonymous.Anonymous.vt }, VT_UI1);
+            assert_eq!(unsafe { brightness.Anonymous.Anonymous.Anonymous.bVal }, 73);
+
+            let timeout = uint32_variant(1);
+            assert_eq!(unsafe { timeout.Anonymous.Anonymous.vt }, VT_I4);
+            assert_eq!(unsafe { timeout.Anonymous.Anonymous.Anonymous.lVal }, 1);
+        }
 
         #[test]
         fn known_power_modes_map_to_labels() {
@@ -1406,6 +1496,45 @@ mod platform {
                 bluetooth.enabled,
                 power.active_name
             );
+        }
+
+        #[test]
+        #[ignore = "Windows hardware smoke check; moves brightness by one point and restores it"]
+        fn brightness_setter_round_trip_restores_original_level() {
+            use super::{brightness_status, set_brightness};
+            use std::thread;
+            use std::time::Duration;
+
+            let current = brightness_status()
+                .level
+                .expect("active display should expose a brightness level");
+            let target = if current < 100 {
+                current + 1
+            } else {
+                current - 1
+            };
+            let changed = set_brightness(target).and_then(|_| {
+                for _ in 0..20 {
+                    if brightness_status().level == Some(target) {
+                        return Ok(());
+                    }
+                    thread::sleep(Duration::from_millis(100));
+                }
+                Err(format!("brightness did not reach {target}%"))
+            });
+
+            // Restore even when the target could not be verified.
+            let restored = set_brightness(current).and_then(|_| {
+                for _ in 0..20 {
+                    if brightness_status().level == Some(current) {
+                        return Ok(());
+                    }
+                    thread::sleep(Duration::from_millis(100));
+                }
+                Err(format!("brightness did not return to {current}%"))
+            });
+            restored.expect("restore original display brightness");
+            changed.expect("verify the one-point brightness change");
         }
 
         #[test]

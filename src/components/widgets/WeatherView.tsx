@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
 import { ChevronDown, CloudOff, CloudSun } from 'lucide-solid'
 import { cmd, type WeatherLocation, type WeatherSnapshot } from '../../lib/ipc'
-import { flushSettings, patchSettings } from '../../state/settings'
+import { flushSettings, patchSettings, settings } from '../../state/settings'
 import { requestWidgetDetail } from '../../state/panel'
 import './widgets.css'
 import './WeatherView.css'
@@ -40,6 +40,41 @@ function aqiColor(aqi: number): string {
   if (aqi <= 200) return '#f87171'
   if (aqi <= 300) return '#a78bfa'
   return '#ef4444'
+}
+
+function localNight(latitude: number | null | undefined, longitude: number | null | undefined, now: number): boolean {
+  if (latitude == null || longitude == null || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    const hour = new Date(now).getHours()
+    return hour < 6 || hour >= 19
+  }
+  const date = new Date(now)
+  const n = Math.floor((Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - Date.UTC(date.getUTCFullYear(), 0, 0)) / 86400000)
+  const declination = (hour: number) => {
+    const mean = 0.9856 * (n + (hour - longitude / 15) / 24) - 3.289
+    const longitudeSun = mean + 1.916 * Math.sin(mean * Math.PI / 180) + 0.02 * Math.sin(2 * mean * Math.PI / 180) + 282.634
+    const rightAscension = ((Math.atan(0.91764 * Math.tan(longitudeSun * Math.PI / 180)) * 180 / Math.PI + 360) % 360)
+    const quadrant = Math.floor(longitudeSun / 90) * 90
+    const raQuadrant = Math.floor(rightAscension / 90) * 90
+    const ra = (rightAscension + quadrant - raQuadrant) / 15
+    const sinDec = 0.39782 * Math.sin(longitudeSun * Math.PI / 180)
+    const cosDec = Math.cos(Math.asin(sinDec))
+    const cosHourAngle = (Math.cos(90.833 * Math.PI / 180) - sinDec * Math.sin(latitude * Math.PI / 180)) / (cosDec * Math.cos(latitude * Math.PI / 180))
+    return { ra, sinDec, cosDec, cosHourAngle }
+  }
+  const utcHour = (angle: number, hour: number) => {
+    const values = declination(hour)
+    const t = n + (hour - longitude / 15) / 24
+    const mean = 0.9856 * t - 3.289
+    const localMean = angle / 15 + values.ra - 0.06571 * t - 6.622
+    return (localMean - longitude / 15 + 24) % 24
+  }
+  const values = declination(6)
+  if (values.cosHourAngle < -1) return false
+  if (values.cosHourAngle > 1) return true
+  const sunrise = utcHour(360 - Math.acos(values.cosHourAngle) * 180 / Math.PI, 6)
+  const sunset = utcHour(Math.acos(values.cosHourAngle) * 180 / Math.PI, 18)
+  const current = date.getUTCHours() + date.getUTCMinutes() / 60
+  return sunrise <= sunset ? current < sunrise || current >= sunset : current >= sunset && current < sunrise
 }
 
 function WeatherIcon(props: { code: number; night: boolean }) {
@@ -174,6 +209,8 @@ export default function WeatherView() {
   const [pinned, setPinned] = createSignal(false)
   const [now, setNow] = createSignal(Date.now())
   const [meterReady, setMeterReady] = createSignal(false)
+  const [sceneActive, setSceneActive] = createSignal(false)
+  let cardElement: HTMLElement | undefined
   let searchRequest = 0
   let weatherRequest = 0
   let active = true
@@ -183,10 +220,7 @@ export default function WeatherView() {
     const snapshot = weather()
     return snapshot?.ok ? conditionGroup(snapshot.code) : 'clear'
   })
-  const night = createMemo(() => {
-    const hour = new Date(now()).getHours()
-    return hour < 6 || hour >= 19
-  })
+  const night = createMemo(() => localNight(settings.weatherLat, settings.weatherLon, now()))
 
   const load = async () => {
     const current = ++weatherRequest
@@ -252,20 +286,36 @@ export default function WeatherView() {
 
   onMount(() => {
     void load()
-    const refresh = window.setInterval(() => void load(), 10 * 60 * 1000)
-    const tick = window.setInterval(() => setNow(Date.now()), 30 * 1000)
+    let intersecting = true
+    const syncVisibility = () => setSceneActive(document.visibilityState === 'visible' && intersecting)
+    syncVisibility()
+    document.addEventListener('visibilitychange', syncVisibility)
+    const observer = typeof IntersectionObserver === 'undefined' ? undefined : new IntersectionObserver(([entry]) => {
+      intersecting = entry.isIntersecting
+      syncVisibility()
+    }, { threshold: 0.05 })
+    if (observer && cardElement) observer.observe(cardElement)
+    else if (document.visibilityState === 'visible') setSceneActive(true)
+    const refresh = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load()
+    }, 10 * 60 * 1000)
+    const tick = window.setInterval(() => {
+      if (document.visibilityState === 'visible') setNow(Date.now())
+    }, 30 * 1000)
     onCleanup(() => {
       active = false
       weatherRequest++
       searchRequest++
       clearInterval(refresh)
       clearInterval(tick)
+      document.removeEventListener('visibilitychange', syncVisibility)
+      observer?.disconnect()
     })
   })
 
   createEffect(() => {
     const snapshot = weather()
-    if (!snapshot?.ok) {
+    if (!snapshot?.ok || !sceneActive()) {
       setMeterReady(false)
       return
     }
@@ -276,9 +326,9 @@ export default function WeatherView() {
     onCleanup(() => window.cancelAnimationFrame(frame))
   })
 
-  const sourceLabel = () => weather()?.locationSource === 'approximate'
-    ? 'Approximate location'
-    : weather()?.locationSource === 'manual' ? 'Your selected city' : ''
+  const sourceLabel = () => `Open-Meteo · ${weather()?.locationSource === 'approximate'
+    ? 'approximate location'
+    : weather()?.locationSource === 'manual' ? 'selected city' : 'nearby forecast'}`
 
   return (
     <section
@@ -286,11 +336,19 @@ export default function WeatherView() {
       classList={{
         [`weather-card--${group()}`]: true,
         'weather-card--night': night(),
+        'weather-card--animated': sceneActive(),
         'weather-card--revealed': revealed(),
       }}
       aria-label="Local weather"
+      ref={cardElement}
     >
       <div class="weather__atmos" aria-hidden="true" />
+      <div class="weather__scene" aria-hidden="true">
+        <div class="weather__orb"/><div class="weather__halo"/>
+        <div class="weather__cloud weather__cloud--one"/><div class="weather__cloud weather__cloud--two"/><div class="weather__cloud weather__cloud--three"/>
+        <div class="weather__particles"><For each={Array.from({length:18},(_,i)=>i)}>{i=><i style={{'--particle-x':`${(i*37+11)%100}%`,'--particle-delay':`${-i*.73}s`,'--particle-size':`${1+i%3}px`,'--particle-y':`${(i*23+7)%92}%`}}/>}</For></div>
+        <div class="weather__horizon"/>
+      </div>
 
       <header class="widget__head">
         <span class="widget__title">
@@ -360,19 +418,12 @@ export default function WeatherView() {
           <span class="weather-empty__glyph" aria-hidden="true">
             <CloudOff size={26} strokeWidth={1.5} />
           </span>
-          <strong class="weather-empty__title">
-            {weather()?.label || (failed() ? 'Weather unavailable' : 'Finding nearby weather')}
-          </strong>
-          <p class="weather-empty__copy">
-            {failed()
-              ? 'We could not reach the weather service. We will keep trying.'
-              : 'Hang tight while we locate a nearby area.'}
-          </p>
-          <Show when={!weather()?.city && !editingLocation()}>
-            <button type="button" class="weather-empty__action" onClick={() => setEditingLocation(true)}>
-              Choose a city
-            </button>
-          </Show>
+          <div class="weather-empty__message"><strong class="weather-empty__title">
+            {weather()?.label || (failed() ? 'Weather unavailable' : 'Finding local weather')}
+          </strong><p class="weather-empty__copy">{failed() ? 'Live conditions will retry automatically.' : 'Checking the nearest forecast.'}</p></div>
+          <button type="button" class="weather-empty__action" onClick={() => setEditingLocation(true)}>
+            {weather()?.city ? 'Change city' : 'Choose city'}
+          </button>
         </div>
       }>
         {(snapshot) => (
@@ -396,6 +447,7 @@ export default function WeatherView() {
             </div>
 
             <div class="weather__range">
+              <span class="weather__range-label">Today</span>
               <span class="weather__range-item"><em>H</em>{Math.round(snapshot().hiC)}°</span>
               <span class="weather__range-item"><em>L</em>{Math.round(snapshot().loC)}°</span>
             </div>

@@ -1,5 +1,5 @@
 /** Keep slider feedback immediate while serializing native writes, latest value wins. */
-export function createSliderCommitter(send: (value: number) => Promise<void>, onError: (error: unknown) => void, interval = 80) {
+export function createSliderCommitter(send: (value: number) => Promise<void>, onError: (error: unknown) => void, interval = 80, onSettled?: () => void) {
   let timer: ReturnType<typeof setTimeout> | undefined
   let pending: number | undefined
   let inFlight = false
@@ -19,10 +19,11 @@ export function createSliderCommitter(send: (value: number) => Promise<void>, on
       if (pending !== undefined) {
         if (urgent) void drain()
         else timer = setTimeout(() => void drain(), interval)
-      }
+      } else if (current === generation) onSettled?.()
     }
   }
   return {
+    isPending: () => inFlight || pending !== undefined,
     push(value: number) {
       pending = value
       if (!timer && !inFlight) timer = setTimeout(() => void drain(), interval)

@@ -11,9 +11,9 @@ use std::time::{Duration, Instant};
 use tauri::Emitter;
 use windows::core::GUID;
 use windows::Win32::Media::Audio::{
-    eConsole, eRender, IAudioCaptureClient, IAudioClient, IMMDeviceEnumerator, MMDeviceEnumerator,
-    AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK,
-    WAVEFORMATEX,
+    eMultimedia, eRender, IAudioCaptureClient, IAudioClient, IMMDeviceEnumerator,
+    MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
+    AUDCLNT_STREAMFLAGS_LOOPBACK, WAVEFORMATEX,
 };
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_MULTITHREADED,
@@ -107,7 +107,9 @@ fn capture_loop(app: &tauri::AppHandle, active: &AtomicBool) -> Result<(), Strin
     };
     let device = unsafe {
         enumerator
-            .GetDefaultAudioEndpoint(eRender, eConsole)
+            // Music playback normally uses the Multimedia role. Console can
+            // point at a different endpoint after per-role device setup.
+            .GetDefaultAudioEndpoint(eRender, eMultimedia)
             .map_err(|e| format!("no default audio output is available: {e}"))?
     };
     let client: IAudioClient = unsafe {
@@ -405,6 +407,29 @@ mod tests {
     }
 
     #[test]
+    fn quiet_loopback_tones_remain_visible_in_the_emitted_bands() {
+        let sample_rate = 48_000.0;
+        let tone_hz = 1500.0;
+        let peak_band = |amplitude: f32| {
+            let samples: Vec<_> = (0..FFT_SIZE)
+                .map(|i| {
+                    amplitude * (std::f32::consts::TAU * tone_hz * i as f32 / sample_rate).sin()
+                })
+                .collect();
+            spectrum(&samples, sample_rate)
+                .into_iter()
+                .fold(0.0f32, f32::max)
+        };
+        let quiet = peak_band(0.0065);
+        let louder = peak_band(0.026);
+        assert!(quiet > 0.1, "quiet loopback tone collapsed to {quiet}");
+        assert!(
+            louder > quiet,
+            "band response did not rise with input level"
+        );
+    }
+
+    #[test]
     fn silence_produces_quiet_zero_bands() {
         assert!(spectrum(&[0.0; FFT_SIZE], 48_000.0)
             .iter()
@@ -412,7 +437,31 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires a Windows default output endpoint; reads and discards loopback samples for one second"]
+    fn loopback_float_samples_preserve_signal_and_reject_non_finite_values() {
+        assert_eq!(
+            decode_sample(&0.25f32.to_le_bytes(), SampleFormat::Float),
+            0.25
+        );
+        assert_eq!(
+            decode_sample(&2.0f32.to_le_bytes(), SampleFormat::Float),
+            1.0
+        );
+        assert_eq!(
+            decode_sample(&f32::NAN.to_le_bytes(), SampleFormat::Float),
+            0.0
+        );
+    }
+
+    #[test]
+    fn loopback_pcm_samples_preserve_signed_values() {
+        let positive = decode_sample(&16_384i16.to_le_bytes(), SampleFormat::Pcm);
+        assert!((positive - 0.5).abs() < 0.0001);
+        let negative = decode_sample(&(-268_435_456i32).to_le_bytes(), SampleFormat::Pcm);
+        assert!((negative + 0.125).abs() < 0.0001);
+    }
+
+    #[test]
+    #[ignore = "reads current system render loopback for one second; does not start audio playback"]
     fn default_render_loopback_opens_reads_and_stops() {
         unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.expect("initialize COM");
         let _com = ComApartment;
@@ -421,7 +470,7 @@ mod tests {
         };
         let device = unsafe {
             enumerator
-                .GetDefaultAudioEndpoint(eRender, eConsole)
+                .GetDefaultAudioEndpoint(eRender, eMultimedia)
                 .expect("get default render endpoint")
         };
         let client: IAudioClient = unsafe {
@@ -430,6 +479,19 @@ mod tests {
                 .expect("activate default render endpoint")
         };
         let format = unsafe { client.GetMixFormat().expect("get output format") };
+        assert!(!format.is_null(), "default output returned no mix format");
+        let fmt = unsafe { format.read_unaligned() };
+        let sample_format = unsafe { sample_format(format, &fmt) }
+            .expect("default render format should be PCM or IEEE float");
+        let channels = usize::from(fmt.nChannels);
+        let bytes_per_sample = usize::from(fmt.wBitsPerSample / 8);
+        let frame_bytes = usize::from(fmt.nBlockAlign);
+        assert!(
+            channels > 0
+                && bytes_per_sample > 0
+                && frame_bytes >= channels * bytes_per_sample
+                && fmt.nSamplesPerSec > 0
+        );
         unsafe {
             client
                 .Initialize(
@@ -449,6 +511,10 @@ mod tests {
         let _running = RunningStream(client);
         let deadline = Instant::now() + Duration::from_secs(1);
         let mut packet_queries = 0usize;
+        let mut packets_read = 0usize;
+        let mut frames_read = 0usize;
+        let mut peak = 0.0f32;
+        let mut samples = Vec::with_capacity(FFT_SIZE);
         while Instant::now() < deadline {
             let packet = unsafe { capture.GetNextPacketSize().expect("query loopback packet") };
             packet_queries += 1;
@@ -460,7 +526,32 @@ mod tests {
                     capture
                         .GetBuffer(&mut data, &mut frames, &mut flags, None, None)
                         .expect("read loopback packet");
-                    // Deliberately inspect no audio contents; the test only proves the read path.
+                }
+                if flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32 == 0 && !data.is_null() {
+                    let byte_count = frames as usize * frame_bytes;
+                    let raw = unsafe { std::slice::from_raw_parts(data, byte_count) };
+                    for frame in raw.chunks_exact(frame_bytes) {
+                        let mut mixed = 0.0;
+                        for channel in 0..channels {
+                            let begin = channel * bytes_per_sample;
+                            mixed += decode_sample(
+                                &frame[begin..begin + bytes_per_sample],
+                                sample_format,
+                            );
+                        }
+                        let sample = mixed / channels as f32;
+                        peak = peak.max(sample.abs());
+                        samples.push(sample);
+                    }
+                } else {
+                    samples.extend(std::iter::repeat(0.0).take(frames as usize));
+                }
+                frames_read += frames as usize;
+                packets_read += 1;
+                if samples.len() > FFT_SIZE {
+                    samples.drain(..samples.len() - FFT_SIZE);
+                }
+                unsafe {
                     capture
                         .ReleaseBuffer(frames)
                         .expect("release loopback packet");
@@ -471,6 +562,19 @@ mod tests {
         assert!(
             packet_queries > 10,
             "loopback read loop did not make progress"
+        );
+        let max_band = if samples.len() >= FFT_SIZE {
+            spectrum(
+                &samples[samples.len() - FFT_SIZE..],
+                fmt.nSamplesPerSec as f32,
+            )
+            .into_iter()
+            .fold(0.0f32, f32::max)
+        } else {
+            0.0
+        };
+        println!(
+            "WASAPI multimedia loopback: packets={packets_read}, frames={frames_read}, sample_peak={peak:.5}, max_band={max_band:.5}; zero levels mean no active system playback during the sample window"
         );
     }
 }

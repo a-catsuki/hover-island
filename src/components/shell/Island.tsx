@@ -49,7 +49,7 @@ export default function Island() {
   let dropFeedbackTimer: ReturnType<typeof setTimeout> | undefined
   const [pointerInside, setPointerInside] = createSignal(false)
   const [viewport, setViewport] = createSignal({ width: window.innerWidth, height: window.innerHeight })
-  const [fileDrop, setFileDrop] = createSignal<(FileDropPreviewState & { message?: string }) | null>(null)
+  const [fileDrop, setFileDrop] = createSignal<(FileDropPreviewState & { message?: string; phase?: 'pending' | 'complete' | 'error' | 'cancelled' }) | null>(null)
   const beginFileDrag = () => {
     if (!fileDragActive) { dropRevision++; clearTimeout(dropFeedbackTimer) }
     fileDragActive = true
@@ -60,7 +60,7 @@ export default function Island() {
     clearTimeout(dropFeedbackTimer)
     setFileDrop(null)
   }
-  const dropFeedback = (revision: number, state: FileDropPreviewState & { message?: string }, delay = 1700) => {
+  const dropFeedback = (revision: number, state: FileDropPreviewState & { message?: string; phase?: 'pending' | 'complete' | 'error' | 'cancelled' }, delay = 1700) => {
     if (disposed || revision !== dropRevision) return
     setFileDrop(state)
     clearTimeout(dropFeedbackTimer)
@@ -272,24 +272,24 @@ export default function Island() {
           const cssPoint = physicalDragPositionToCss(position, window.devicePixelRatio)
           const target = fileDropActionAtRelease(targetAt(cssPoint.x, cssPoint.y), paths)
           if (target === 'recycle' && paths.length) {
-            setFileDrop({ paths, count: paths.length, target, message: 'Moving to Recycle Bin…' })
+            setFileDrop({ paths, count: paths.length, target, phase: 'pending', message: 'Moving to Recycle Bin…' })
             void cmd.recycleDroppedPaths(paths).then((result) => {
-              dropFeedback(revision, { paths, count: paths.length, target, message: result.cancelled
+              dropFeedback(revision, { paths, count: paths.length, target, phase: result.cancelled ? 'cancelled' : result.failed ? 'error' : 'complete', message: result.cancelled
                 ? 'Cancelled'
                 : result.failed
                   ? `${result.recycled} recycled · ${result.failed} failed`
                   : `${result.recycled} moved to Recycle Bin` })
             }).catch((error) => {
-              dropFeedback(revision, { paths, count: paths.length, target, message: 'Could not recycle files' }, 2000)
+              dropFeedback(revision, { paths, count: paths.length, target, phase: 'error', message: 'Could not recycle files' }, 2000)
               reportError('Could not move dropped items to the Recycle Bin', error)
             })
           } else if (target === 'beam' && paths.length) {
-            setFileDrop({ paths, count: paths.length, target, message: 'Adding to Beam bucket…' })
+            setFileDrop({ paths, count: paths.length, target, phase: 'pending', message: 'Adding to Beam bucket…' })
             void cmd.transferStageDroppedPaths(paths).then(async () => {
               await refreshTransfer()
-              dropFeedback(revision, { paths, count: paths.length, target, message: 'Added to Beam bucket' })
+              dropFeedback(revision, { paths, count: paths.length, target, phase: 'complete', message: 'Added to Beam bucket' })
             }).catch((error) => {
-              dropFeedback(revision, { paths, count: paths.length, target, message: 'Could not add to Beam bucket' }, 2000)
+              dropFeedback(revision, { paths, count: paths.length, target, phase: 'error', message: 'Could not add to Beam bucket' }, 2000)
               reportError('Could not add dropped items to the Beam bucket', error)
             })
           } else {
@@ -444,6 +444,8 @@ export default function Island() {
           count={drop().count}
           target={drop().target}
           message={drop().message}
+          phase={drop().phase}
+          progress={drop().target==='beam' && drop().phase==='pending' && peek()?.phase==='staging' ? peek()?.progress : null}
           edge={settings.placement.edge}
           mode={settings.placement.mode}
         />}</Show>

@@ -8,7 +8,7 @@ import { dismissFeedback, feedback, reportError } from '../state/feedback'
 import { Field, Group, Slider, Toggle } from './controls'
 import WidgetManager from './WidgetManager'
 import ConnectionsPanel from './ConnectionsPanel'
-import { createPanelLayout, MAX_PANEL_COUNT, removePanelLayout, renamePanelLayout, SIZE_PRESETS } from '../lib/panels'
+import { SIZE_PRESETS } from '../lib/panels'
 import { COMPACT_ITEMS, compactItemLimit, normalizeCompactItems, toggleCompactItem } from '../lib/compactConfig'
 import { VISUALIZER_STYLES, normalizeVisualizerStyle } from '../lib/visualizerStyles'
 import WebsiteConnectionsPanel from '../components/settings/WebsiteConnectionsPanel'
@@ -183,7 +183,7 @@ export default function SettingsApp() {
                     <div class="clock-face-picks" role="radiogroup" aria-label="Collapsed clock face"><For each={[['digital', 'Digital'], ['analog', 'Analog']] as const}>{([key, label]) => <button type="button" role="radio" aria-checked={settings.compactClockStyle === key} classList={{ 'clock-face-picks__item': true, 'clock-face-picks__item--active': settings.compactClockStyle === key }} onClick={() => set({ compactClockStyle: key })}>{label}</button>}</For></div>
                   </Group>
                   <Group title="Atmosphere" description="Soft light that follows your pointer and the sound playing on your PC.">
-                    <div class="viz-picker" role="radiogroup" aria-label="Music visualizer style"><For each={VISUALIZER_STYLES}>{item => { const active = () => normalizeVisualizerStyle(settings.visualizer.style) === item.id; return <button type="button" role="radio" aria-checked={active()} class="viz-picker__item" classList={{ 'viz-picker__item--active': active() }} onClick={() => set({ visualizer: { ...settings.visualizer, style: item.id } })}><span class={`viz-picker__swatch viz-picker__swatch--${item.id}`} aria-hidden="true"/><span class="viz-picker__label">{item.label}</span><small>{item.hint}</small></button> }}</For></div>
+                    <div class="viz-picker" role="radiogroup" aria-label="Music visualizer style"><For each={VISUALIZER_STYLES}>{item => { const active = () => normalizeVisualizerStyle(settings.visualizer.style) === item.id; return <button type="button" role="radio" aria-checked={active()} class="viz-picker__item" classList={{ 'viz-picker__item--active': active() }} onClick={() => set({ visualizer: { ...settings.visualizer, style: item.id }, modules: { ...settings.modules, visualizer: item.id !== 'off' } })}><span class={`viz-picker__swatch viz-picker__swatch--${item.id}`} aria-hidden="true"/><span class="viz-picker__label">{item.label}</span><small>{item.hint}</small></button> }}</For></div>
                     <Slider label="Intensity" hint={`${Math.round(settings.visualizer.intensity * 100)}% · how far it moves`} min={0.1} max={1.6} step={0.05} value={settings.visualizer.intensity} onInput={value => set({ visualizer: { ...settings.visualizer, intensity: value } })} />
                     <Slider label="Reactivity" hint="How quickly it follows the music" min={0} max={1} step={0.05} value={settings.visualizer.reactivity} onInput={value => set({ visualizer: { ...settings.visualizer, reactivity: value } })} />
                     <div class="set-subhead"><strong>Background scene</strong><small>Ambient light and patterns inside the open notch</small></div>
@@ -196,35 +196,10 @@ export default function SettingsApp() {
             </Match>
 
             <Match when={section() === 'widgets'}>
-              <Group title="Your panels" description="Each panel is a single dashboard surface. Add as many spaces as you need; overflow widgets move into extra panels automatically.">
-                <For each={settings.panelOrder}>{(panel, index) => <Field label={`Panel ${index() + 1}`} hint={`${settings.panels[panel]}`}>
-                  <div style={{ display: 'flex', gap: '7px', 'align-items': 'center', 'min-width': '0' }}>
-                    <input aria-label={`${settings.panels[panel]} panel name`} maxlength={24} value={settings.panels[panel]} onChange={event => patchSettings(renamePanelLayout(settings, panel, event.currentTarget.value))}/>
-                    <button type="button" class="icon-button" aria-label={`Remove panel ${settings.panels[panel]}`} title="Remove panel" disabled={settings.panelOrder.length <= 1} onClick={() => patchSettings(removePanelLayout(settings, panel))}><Trash2 size={14}/></button>
-                  </div>
-                </Field>}</For>
-                <button type="button" class="button button--secondary" disabled={settings.panelOrder.length >= MAX_PANEL_COUNT} onClick={() => patchSettings(createPanelLayout(settings))}><Plus size={14}/>Add panel</button>
-              </Group>
-              <Group title="Notch widgets" description="Shown in the expanded panel, top to bottom.">
+              <Group title="Notch widgets" description="Arrange your pages, choose your widgets, and make each space yours.">
                 <WidgetManager />
               </Group>
-              <Group title="Activity" description="Choose which information the notch collects and displays.">
-                <For
-                  each={
-                    [
-                      ['media', 'Media controls'],
-                      ['visualizer', 'Audio visualizer'],
-                      ['dock', 'Pinned apps'],
-                      ['usage', 'AI usage'],
-                      ['notifications', 'Notification inbox'],
-                    ] as const
-                  }
-                >
-                  {([key, label]) => (
-                    <Toggle label={label} checked={settings.modules[key]} onChange={(value) => module(key, value)} />
-                  )}
-                </For>
-              </Group>
+
             </Match>
 
             <Match when={section() === 'connections'}>

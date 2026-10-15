@@ -6,6 +6,7 @@ mod calendar_sources;
 mod connections;
 mod devices;
 mod media;
+mod lyrics;
 mod memory_reclaim;
 mod nearby;
 mod notes;
@@ -523,6 +524,7 @@ pub fn run() {
             nearby::nearby_send,
             airdrop::airdrop_capability,
             media::media_get,
+            lyrics::lyrics_lookup,
             audio::audio_loopback_start,
             audio::audio_loopback_stop,
             devices::devices_get,

@@ -131,6 +131,8 @@ body,
   gap: 26px;
   max-width: 720px;
 }
+.settings__content:has(.wmp) { gap: 14px; padding-bottom: 24px; }
+.settings__content:has(.wmp) .set-group__head { margin-bottom: 8px; }
 
 /* ================================================================ groups */
 

@@ -274,10 +274,13 @@ fn flat_panel_groups(widgets: &[WidgetConfig]) -> Vec<Vec<String>> {
         .iter()
         .filter(|widget| widget.enabled && widget.kind != "airdrop")
     {
-        let full = matches!(
-            widget.kind.as_str(),
-            "nearby" | "controls" | "usage" | "web-alerts" | "clock" | "calendar"
-        );
+        let minimum_full = matches!(widget.kind.as_str(), "nearby" | "controls" | "calendar");
+        let size = widget.size.as_deref().unwrap_or_else(|| {
+            if matches!(widget.kind.as_str(), "usage" | "web-alerts" | "clock") { "full" }
+            else if widget.kind == "dock" { "wide" }
+            else { "compact" }
+        });
+        let full = minimum_full || size == "full";
         let rows = if full { 2 } else { 1 };
         if (full && rows_used > 0) || rows_used + rows > 2 {
             if !group.is_empty() {
@@ -371,6 +374,8 @@ fn default_widgets() -> Vec<WidgetConfig> {
         order,
         panel: Some(default_panel(kind).into()),
         clock_style: None,
+        size: None,
+        show_lyrics: None,
     })
     .collect()
 }
@@ -613,6 +618,15 @@ impl Settings {
             } else {
                 None
             };
+            widget.size = match widget.size.as_deref() {
+                Some("compact" | "wide" | "full") => widget.size.clone(),
+                _ => None,
+            };
+            widget.show_lyrics = if widget.kind == "media" {
+                Some(widget.show_lyrics.unwrap_or(false))
+            } else {
+                None
+            };
         }
         // Convert overflow from legacy paginated panels into ordinary named panels.
         // Disabled widgets stay assigned to their visible panel and are never discarded.
@@ -655,6 +669,22 @@ impl Settings {
                     }
                 }
             }
+        }
+        let empty_overflow: Vec<_> = self
+            .panel_order
+            .iter()
+            .filter(|id| {
+                id.starts_with("overflow-")
+                    && !self
+                        .widgets
+                        .iter()
+                        .any(|widget| widget.panel.as_deref() == Some(id.as_str()))
+            })
+            .cloned()
+            .collect();
+        for id in empty_overflow {
+            self.panels.remove(&id);
+            self.panel_order.retain(|panel| panel != &id);
         }
         for connection in &mut self.connections {
             let mut sources = Vec::new();
@@ -855,6 +885,8 @@ mod tests {
                 order,
                 panel: Some("today".into()),
                 clock_style: None,
+                size: None,
+                show_lyrics: None,
             })
             .collect();
         let settings = Settings {
@@ -900,6 +932,8 @@ mod tests {
                     order: order as i32,
                     panel: None,
                     clock_style: None,
+                    size: None,
+                    show_lyrics: None,
                 })
                 .collect(),
             ..Settings::default()

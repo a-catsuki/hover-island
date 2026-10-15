@@ -1,6 +1,7 @@
 import { createSignal, For, onCleanup, onMount, Show } from 'solid-js'
 import { ArrowLeft, BatteryMedium, Bluetooth, ChevronRight, Leaf, LoaderCircle, MemoryStick, Moon, RefreshCw, Sun, Volume2, VolumeX } from 'lucide-solid'
-import { cmd, onMemoryReclaimProgress, type QuickControlsSnapshot } from '../../lib/ipc'
+import { cmd, listen, onMemoryReclaimProgress, type QuickControlsSnapshot, type AppNotification } from '../../lib/ipc'
+import { open as islandOpen } from '../../state/ui'
 import { reportError } from '../../state/feedback'
 import { ingestActionPeek } from '../../state/peek'
 import { createSliderCommitter } from '../../lib/sliderCommitter'
@@ -15,7 +16,14 @@ const [deviceError, setDeviceError] = createSignal('')
 const [batteryText, setBatteryText] = createSignal('Checking battery…')
 const [loading, setLoading] = createSignal(false)
 const [busy, setBusy] = createSignal(false)
-const [controlError, setControlError] = createSignal('')
+const [controlError, setControlErrorValue] = createSignal('')
+let controlErrorExpiry: ReturnType<typeof setTimeout> | undefined
+function setControlError(message: string): void {
+  clearTimeout(controlErrorExpiry)
+  setControlErrorValue(message)
+  if (message) controlErrorExpiry = setTimeout(() => setControlErrorValue(''), 6000)
+}
+let lastSliderInput = 0
 const [volumeLevel, setVolumeLevel] = createSignal(0)
 const [brightnessLevel, setBrightnessLevel] = createSignal(0)
 const [memoryOpen, setMemoryOpen] = createSignal(false)
@@ -40,16 +48,16 @@ const commitVolume = createSliderCommitter(
   error => {
     setControlError(`Could not set system volume: ${errorText(error)}`)
     reportError('Could not set the system volume', error)
-    void restoreSliderReadback('volume')
   },
+  80, () => void restoreSliderReadback('volume'),
 )
 const commitBrightness = createSliderCommitter(
   value => cmd.setBrightness(value),
   error => {
     setControlError(`Could not set display brightness: ${errorText(error)}`)
     reportError('Could not set the display brightness', error)
-    void restoreSliderReadback('brightness')
   },
+  80, () => void restoreSliderReadback('brightness'),
 )
 
 function patchControl<K extends ControlKey>(key: K, value: QuickControlsSnapshot[K]): void {
@@ -57,8 +65,10 @@ function patchControl<K extends ControlKey>(key: K, value: QuickControlsSnapshot
 }
 
 async function restoreSliderReadback(key: 'volume' | 'brightness'): Promise<void> {
+  const inputRevision = lastSliderInput
   try {
     const latest = await cmd.quickControlsGet()
+    if (inputRevision !== lastSliderInput) return
     const control = latest[key]
     patchControl(key, control)
     if (typeof control?.level === 'number') {
@@ -70,7 +80,7 @@ async function restoreSliderReadback(key: 'volume' | 'brightness'): Promise<void
   }
 }
 
-async function refresh(): Promise<void> {
+async function refresh(quiet = false): Promise<void> {
   if (refreshInFlight) return refreshInFlight
   setLoading(true)
   refreshInFlight = Promise.all([cmd.quickControlsGet(), cmd.devicesGet()])
@@ -85,8 +95,7 @@ async function refresh(): Promise<void> {
       setControlError('')
     })
     .catch(error => {
-      setControlError(errorText(error))
-      reportError('Could not read Windows quick controls', error)
+      if (!quiet) { setControlError(errorText(error)); reportError('Could not read Windows quick controls', error) }
     })
     .finally(() => { setLoading(false); refreshInFlight = undefined })
   return refreshInFlight
@@ -126,6 +135,8 @@ async function runToggle(key: ControlKey, next: boolean, apply: () => Promise<un
 }
 
 function onVolumeInput(raw: string): void {
+  lastSliderInput = Date.now()
+  setControlError('')
   const value = Math.round(Number(raw))
   if (!Number.isFinite(value)) return
   setVolumeLevel(value)
@@ -138,6 +149,8 @@ function onVolumeInput(raw: string): void {
 }
 
 function onBrightnessInput(raw: string): void {
+  lastSliderInput = Date.now()
+  setControlError('')
   const value = Math.round(Number(raw))
   if (!Number.isFinite(value)) return
   setBrightnessLevel(value)
@@ -280,6 +293,17 @@ export default function QuickSettingsView() {
       setMemoryTotal(progress.total)
     }).then(stop => disposed ? stop() : unlisten = stop).catch(() => {})
     onCleanup(() => { disposed = true; unlisten?.() })
+    let stateRefresh: ReturnType<typeof setTimeout> | undefined
+    let stopControls: (()=>void) | undefined
+    const sync = () => { if (!disposed && islandOpen() && !busy() && !commitBrightness.isPending() && !commitVolume.isPending() && Date.now()-lastSliderInput>1800) void refresh(true) }
+    void listen<AppNotification>('device://event', event => {
+      if (!['Brightness','Volume'].includes(event.payload.app)) return
+      clearTimeout(stateRefresh)
+      stateRefresh = setTimeout(sync, 300)
+    }).then(stop => disposed ? stop() : stopControls=stop).catch(()=>{})
+    const poll = setInterval(sync, 5000)
+    window.addEventListener('focus', sync)
+    onCleanup(() => { clearInterval(poll);clearTimeout(stateRefresh);stopControls?.();window.removeEventListener('focus',sync);setControlError('') })
     void refresh()
     void cmd.systemStats().then(stats => {
       setBatteryText(stats.batteryPercent === null

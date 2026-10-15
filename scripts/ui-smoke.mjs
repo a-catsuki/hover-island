@@ -162,19 +162,18 @@ try {
  await settings.getByRole('group',{name:'Preview notch state',exact:true}).getByRole('button',{name:'Expanded',exact:true}).click()
  assert.equal(await settings.locator('.appearance-preview__island--expanded').count(),1)
  await settings.getByRole('button',{name:'Widgets',exact:true}).click()
- const firstPanelInput=settings.getByRole('textbox',{name:/panel name/}).first();const firstPanelId=await page.locator('.panel-tabs [role="tab"]').first().getAttribute('data-panel-id');await firstPanelInput.fill('Studio');await firstPanelInput.press('Tab')
+ const firstPanelInput=settings.getByRole('textbox',{name:/Page 1 name/}).first();const firstPanelId=await page.locator('.panel-tabs [role="tab"]').first().getAttribute('data-panel-id');await firstPanelInput.fill('Studio');await firstPanelInput.press('Tab')
  await page.getByRole('tab',{name:'Studio panel'}).waitFor()
- await settings.getByRole('button',{name:'World clock',exact:true}).click()
- const deskPreview=settings.locator(`[data-drop-panel="${firstPanelId}"]`);const clockCard=settings.locator('.wmp__mini').filter({hasText:'World clock'}).first();await clockCard.waitFor();await clockCard.click()
+ const clockTile=settings.locator('.wmp__tile').filter({hasText:'World clock'}).first();if(await clockTile.count())await clockTile.click();else {await settings.locator('.wmp__hidden').getByRole('button',{name:'World clock',exact:true}).click();await settings.getByRole('switch',{name:'Show World clock',exact:true}).click()}
  await page.getByRole('tab',{name:'Studio panel'}).click()
  await findWidget('clock')
  await page.getByText('World clock',{exact:true}).waitFor()
  await page.locator('.clock-dial').waitFor()
  await shot('desk-panel')
- await settings.getByRole('group',{name:'Clock appearance',exact:true}).getByRole('button',{name:'Digital',exact:true}).click()
+ await settings.getByRole('region',{name:'World clock settings',exact:true}).getByRole('button',{name:'Digital',exact:true}).click()
  await page.locator('.clock-widget--digital').waitFor()
  assert.equal(await page.locator('.clock-dial').count(),0)
- await settings.getByRole('group',{name:'Clock appearance',exact:true}).getByRole('button',{name:'Analog',exact:true}).click()
+ await settings.getByRole('region',{name:'World clock settings',exact:true}).getByRole('button',{name:'Analog',exact:true}).click()
  await page.locator('.clock-dial').waitFor()
  await page.getByRole('button',{name:'Add city',exact:true}).click()
  await page.getByRole('listbox',{name:'Available cities',exact:true}).waitFor()
@@ -275,6 +274,8 @@ try {
  await writeFile(new URL('browser-smoke.json',out),JSON.stringify({testedAt:new Date().toISOString(),mode:'browser preview with sample data, not native integration proof',results,errors},null,2))
  console.log(JSON.stringify({results,errors},null,2))
 } catch(error) { console.error(JSON.stringify({errors,body:await page.locator('body').innerText(),settings:await page.evaluate(()=>JSON.parse(localStorage.getItem('hover-island.preview.settings')??'null')),dom:await page.evaluate(()=>({island:document.querySelector('.island')?.className,stage:document.querySelector('.island-stage')?.getBoundingClientRect().toJSON(),hovered:[...document.querySelectorAll(':hover')].map(node=>node.className),focused:document.activeElement?.outerHTML.slice(0,300)}))},null,2)); await shot('failure'); throw error } finally { await browser.close() }
+
+
 
 
 

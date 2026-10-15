@@ -1,23 +1,38 @@
-import { createEffect, createMemo, createSignal, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-js'
 import { Music, Pause, Play, SkipBack, SkipForward } from 'lucide-solid'
 import { mediaControl, mediaBusy, mediaError, nowPlaying } from '../../state/media'
 import { patchSettings, settings } from '../../state/settings'
-import type { NowPlaying } from '../../lib/ipc'
+import type { LyricsLine, NowPlaying, WidgetConfig } from '../../lib/ipc'
 import Visualizer from './Visualizer'
 import { normalizeVisualizerStyle, VISUALIZER_STYLES } from '../../lib/visualizerStyles'
 import './MediaView.css'
 import { open } from '../../state/ui'
 import { audioCaptureStatus } from '../../state/audio'
 import { syntheticAudioSpectrum } from '../../lib/syntheticAudioPreview'
+import { browserPreview, cmd } from '../../lib/ipc'
 
 const formatTime = (seconds: number) => {
   const safe = Number.isFinite(seconds) ? Math.max(0, seconds) : 0
   return `${Math.floor(safe / 60)}:${Math.floor(safe % 60).toString().padStart(2, '0')}`
 }
 
-export default function MediaView(props: { compact?: boolean }) {
+export default function MediaView(props: {
+  compact?: boolean
+  showLyrics?: boolean
+  size?: WidgetConfig['size']
+  onToggleLyrics?: () => void
+}) {
   const [scrubbing, setScrubbing] = createSignal(false)
   const [scrub, setScrub] = createSignal(0)
+  const [lyrics, setLyrics] = createSignal<LyricsLine[]>([])
+  const [lyricsStatus, setLyricsStatus] = createSignal<'idle' | 'loading' | 'ok' | 'not_found' | 'no_timed_lyrics' | 'rate_limited' | 'unavailable' | 'preview'>('idle')
+  const [lyricsRetryAfter, setLyricsRetryAfter] = createSignal<number | null>(null)
+  const [lyricsRetry, setLyricsRetry] = createSignal(0)
+  const [lyricsCanFit, setLyricsCanFit] = createSignal(false)
+  let mediaElement: HTMLDivElement | undefined
+  let mediaResize: ResizeObserver | undefined
+  let lyricsRequest = 0
+  let lastLyricsKey: string | null = null
 
   const media = () => nowPlaying()
   const active = createMemo(() => {
@@ -45,6 +60,78 @@ export default function MediaView(props: { compact?: boolean }) {
     if (!duration()) return 0
     return ((scrubbing() ? scrub() : position()) / duration()) * 100
   }
+
+  const attachMediaElement = (element: HTMLDivElement) => {
+    mediaElement = element
+    mediaResize?.disconnect()
+    const measure = () => setLyricsCanFit(element.clientHeight >= 190)
+    measure()
+    if (typeof ResizeObserver !== 'undefined') {
+      mediaResize = new ResizeObserver(measure)
+      mediaResize.observe(element)
+    }
+  }
+
+  const lyricsEnabled = () => Boolean(props.showLyrics && props.size !== 'compact' && lyricsCanFit())
+  const activeLyric = createMemo(() => {
+    const lines = lyrics()
+    if (!lines.length) return -1
+    const at = position()
+    let index = -1
+    for (let cursor = 0; cursor < lines.length; cursor++) {
+      if (lines[cursor].at > at) break
+      index = cursor
+    }
+    return index
+  })
+
+  createEffect(() => {
+    const current = active()
+    const eligible = lyricsEnabled() && current && current.title?.trim() && current.artist?.trim()
+      && typeof current.duration === 'number' && Number.isFinite(current.duration) && current.duration >= 1
+    if (!eligible) {
+      lastLyricsKey = null
+      lyricsRequest++
+      setLyrics([])
+      setLyricsStatus('idle')
+      return
+    }
+    const key = `${current.title.trim()}\u0000${current.artist.trim()}\u0000${current.album ?? ''}\u0000${current.duration}\u0000${lyricsRetry()}`
+    if (key === lastLyricsKey) return
+    lastLyricsKey = key
+    const request = ++lyricsRequest
+    if (browserPreview) {
+      setLyrics([])
+      setLyricsStatus('preview')
+      return
+    }
+    setLyrics([])
+    setLyricsStatus('loading')
+    setLyricsRetryAfter(null)
+    void cmd.lyricsLookup(current.title, current.artist, current.album ?? null, current.duration!).then((result) => {
+      if (request !== lyricsRequest) return
+      setLyrics(result.status === 'ok' ? result.lines : [])
+      setLyricsRetryAfter(result.status === 'rate_limited' ? result.retryAfterSeconds ?? null : null)
+      setLyricsStatus(result.status === 'invalid_track' ? 'not_found' : result.status)
+    }).catch(() => {
+      if (request === lyricsRequest) {
+        setLyricsRetryAfter(null)
+        setLyricsStatus('unavailable')
+      }
+    })
+  })
+
+  createEffect(() => {
+    const index = activeLyric()
+    if (index < 0 || !mediaElement) return
+    const target = mediaElement.querySelector<HTMLElement>(`[data-lyrics-index="${index}"]`)
+    target?.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+  })
+
+  onCleanup(() => {
+    lyricsRequest++
+    mediaResize?.disconnect()
+  })
 
   createEffect(() => {
     media()?.title
@@ -83,7 +170,7 @@ export default function MediaView(props: { compact?: boolean }) {
           class="media__viz-select"
           aria-label="Visualizer style"
           value={normalizeVisualizerStyle(settings.visualizer.style)}
-          onChange={(event) => patchSettings({ visualizer: { ...settings.visualizer, style: event.currentTarget.value as typeof settings.visualizer.style } })}
+          onChange={(event) => patchSettings({ visualizer: { ...settings.visualizer, style: event.currentTarget.value as typeof settings.visualizer.style }, modules: { ...settings.modules, visualizer: event.currentTarget.value !== 'off' } })}
           data-no-drag
         >
           {VISUALIZER_STYLES.map((choice) => <option value={choice.id}>{choice.label}</option>)}
@@ -164,7 +251,7 @@ export default function MediaView(props: { compact?: boolean }) {
         }
       >
         {(current) => (
-          <div class="media media--tile" classList={{'media--ambient':settings.visualizer.style === 'ambient'}}>
+          <div ref={attachMediaElement} class="media media--tile" classList={{'media--ambient':settings.visualizer.style === 'ambient'}}>
             <Show when={current().thumbnail}><div class="media__backdrop" aria-hidden="true"><img src={current().thumbnail!} alt=""/></div></Show>
             <div class="media__tile-main">
               <div class="media__art media__art--sm">
@@ -183,8 +270,44 @@ export default function MediaView(props: { compact?: boolean }) {
               </div>
               <Transport size={17} />
             </div>
+            <Show when={props.size !== 'compact' && props.onToggleLyrics}>
+              <button
+                type="button"
+                class="media__lyrics-toggle media__lyrics-toggle--standalone"
+                aria-pressed={Boolean(props.showLyrics)}
+                disabled={!lyricsCanFit()}
+                title={lyricsCanFit() ? 'Show synchronized lyrics' : 'Expand this widget to make room for lyrics'}
+                onClick={props.onToggleLyrics}
+                data-no-drag
+              >{props.showLyrics ? 'Lyrics on' : 'Show lyrics'}</button>
+            </Show>
             <Show when={open() && settings.modules.visualizer && current().status === 'playing'}>
               <Visualization current={current()} compact />
+            </Show>
+            <Show when={lyricsEnabled()}>
+              <section class="media__lyrics" aria-label="Synchronized lyrics">
+                <Show when={lyricsStatus() === 'ok' && lyrics().length} fallback={
+                  <p class="media__lyrics-state" role={lyricsStatus() === 'unavailable' ? 'status' : undefined}>
+                    {lyricsStatus() === 'loading' ? 'Looking for synced lyrics…'
+                      : lyricsStatus() === 'not_found' ? 'No timed lyrics found for this track.'
+                      : lyricsStatus() === 'no_timed_lyrics' ? 'Timed lyrics are not available for this track.'
+                      : lyricsStatus() === 'rate_limited' ? `Lyrics lookup is rate-limited. Try again in about ${lyricsRetryAfter() ?? 60} seconds.`
+                      : lyricsStatus() === 'unavailable' ? 'Lyrics are temporarily unavailable.'
+                      : lyricsStatus() === 'preview' ? 'Synced lyrics are available in the desktop app.'
+                      : 'No lyrics to show.'}
+                  </p>
+                }>
+                  <div class="media__lyrics-lines" aria-live="off" aria-atomic="false">
+                    {lyrics().map((line, index) => <p
+                      class="media__lyrics-line"
+                      classList={{ 'media__lyrics-line--active': activeLyric() === index }}
+                      data-lyrics-index={index}
+                    >{line.text}</p>)}
+                  </div>
+                </Show>
+                <Show when={lyricsStatus() === 'unavailable'}><button type="button" class="media__lyrics-retry" onClick={() => setLyricsRetry(value => value + 1)}>Try again</button></Show>
+                <a class="media__lyrics-source" href="https://lrclib.net" target="_blank" rel="noreferrer">Timed lyrics · LRCLIB</a>
+              </section>
             </Show>
             <Seek />
             <Show when={mediaError()}>
@@ -199,7 +322,7 @@ export default function MediaView(props: { compact?: boolean }) {
   }
 
   return (
-    <div class="media">
+    <div ref={attachMediaElement} class="media">
       <Show
         when={media()}
         fallback={
@@ -242,6 +365,31 @@ export default function MediaView(props: { compact?: boolean }) {
             </Show>
             <Show when={open() && settings.modules.visualizer && current().status === 'playing'}>
               <Visualization current={current()} />
+            </Show>
+            <Show when={lyricsEnabled()}>
+              <section class="media__lyrics" aria-label="Synchronized lyrics">
+                <Show when={lyricsStatus() === 'ok' && lyrics().length} fallback={
+                  <p class="media__lyrics-state">
+                    {lyricsStatus() === 'loading' ? 'Looking for synced lyrics…'
+                      : lyricsStatus() === 'not_found' ? 'No timed lyrics found for this track.'
+                      : lyricsStatus() === 'no_timed_lyrics' ? 'Timed lyrics are not available for this track.'
+                      : lyricsStatus() === 'rate_limited' ? `Lyrics lookup is rate-limited. Try again in about ${lyricsRetryAfter() ?? 60} seconds.`
+                      : lyricsStatus() === 'unavailable' ? 'Lyrics are temporarily unavailable.'
+                      : lyricsStatus() === 'preview' ? 'Synced lyrics are available in the desktop app.'
+                      : 'No lyrics to show.'}
+                  </p>
+                }>
+                  <div class="media__lyrics-lines" aria-live="off" aria-atomic="false">
+                    {lyrics().map((line, index) => <p
+                      class="media__lyrics-line"
+                      classList={{ 'media__lyrics-line--active': activeLyric() === index }}
+                      data-lyrics-index={index}
+                    >{line.text}</p>)}
+                  </div>
+                </Show>
+                <Show when={lyricsStatus() === 'unavailable'}><button type="button" class="media__lyrics-retry" onClick={() => setLyricsRetry(value => value + 1)}>Try again</button></Show>
+                <a class="media__lyrics-source" href="https://lrclib.net" target="_blank" rel="noreferrer">Timed lyrics · LRCLIB</a>
+              </section>
             </Show>
           </>
         )}

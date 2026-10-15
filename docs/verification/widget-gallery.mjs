@@ -94,13 +94,13 @@ const metrics = async (kind, coreSelector, controlNames) => {
     buttonBounds.push({ name, ...rect })
   }
   const visibleButtons = card.locator('button:visible')
-  for (let index = 0; index < await visibleButtons.count(); index++) {
-    const button = visibleButtons.nth(index)
-    const name = (await button.getAttribute('aria-label')) || (await button.innerText()).trim().replace(/\s+/g, ' ')
-    const rect = await button.boundingBox()
-    if (!rect) continue
-    buttonBounds.push({ name, ...rect })
-  }
+  buttonBounds.push(...await visibleButtons.evaluateAll(nodes => nodes.map(button => {
+    const rect = button.getBoundingClientRect()
+    return {
+      name: button.getAttribute('aria-label') || button.innerText.trim().replace(/\s+/g, ' '),
+      x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+    }
+  })))
   for (const button of buttonBounds) {
     if (button.x < bounds.x - 1 || button.y < bounds.y - 1 || button.x + button.width > bounds.x + bounds.width + 1 || button.y + button.height > bounds.y + bounds.height + 1) clipping.push(button.name)
   }
@@ -172,6 +172,13 @@ try {
     assert.ok(controlsInfo.coreFontPx >= 10, `${label} PC controls labels remain readable`)
     await screenshot(controls, `widget-gallery-controls-${label.toLowerCase()}.png`)
     records.push({ widget: 'controls', size: label, ...controlsInfo })
+
+    const weather = await findWidget('weather')
+    await weather.locator('.weather__temp').waitFor()
+    const weatherInfo = await metrics('weather', '.weather__temp', ['Location', 'Details'])
+    assert.ok(weatherInfo.coreFontPx >= 20, `${label} weather temperature remains readable`)
+    await screenshot(weather, `widget-gallery-weather-${label.toLowerCase()}.png`)
+    records.push({ widget: 'weather', size: label, ...weatherInfo })
   }
 
   const settingsPage = await context.newPage()
@@ -189,9 +196,9 @@ try {
   assert.ok(appearance.preview.width > 0 && appearance.preview.bottom <= 700, 'Appearance preview fits the 960×700 settings viewport')
   const widgetSection = settingsPage.getByRole('button', { name: 'Widgets', exact: true })
   await widgetSection.click()
-  await settingsPage.getByRole('list', { name: 'Widget panels' }).waitFor()
-  const previews = settingsPage.locator('.wmp__device')
-  assert.ok(await previews.count() > 0, 'Settings exposes editable panel previews')
+  await settingsPage.getByRole('list', { name: 'Widget pages' }).waitFor()
+  const previews = settingsPage.locator('.wmp__page')
+  assert.ok(await previews.count() > 0, 'Settings exposes editable phone-style page previews')
   for (let index = 0; index < await previews.count(); index++) {
     const preview = previews.nth(index)
     await preview.scrollIntoViewIfNeeded()
@@ -199,9 +206,64 @@ try {
     const gridScroll = await grid.evaluate(node => ({ client: node.clientHeight, content: node.scrollHeight }))
     assert.ok(gridScroll.content <= gridScroll.client + 2, `Settings panel preview ${index + 1} has no inner scroll`)
     const box = await preview.boundingBox()
-    assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= 960 + 1 && box.y + box.height <= 700 + 1, `Settings panel preview ${index + 1} fits the viewport`)
+    const strip = preview.locator('.wmp__phone')
+    const phone = await strip.boundingBox()
+    assert.ok(phone && phone.width > 0 && phone.height > 0, `Settings page ${index + 1} phone preview is visible`)
+    assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= 960 + 1 && box.y + box.height <= 700 + 1, `Settings page preview ${index + 1} fits the viewport`)
+    const namedControls = preview.locator('button:visible, input:visible')
+    for (let controlIndex = 0; controlIndex < await namedControls.count(); controlIndex++) {
+      const control = namedControls.nth(controlIndex)
+      const controlName = await control.getAttribute('aria-label') || await control.getAttribute('title') || await control.innerText().catch(() => '') || await control.inputValue().catch(() => '')
+      assert.ok(controlName, `Settings page ${index + 1} control ${controlIndex + 1} has an accessible name`)
+    }
   }
-  await screenshot(settingsPage.locator('.wmp'), 'widget-gallery-settings-panels-960x700.png')
+  const initialPageCount = await previews.count()
+  await screenshot(settingsPage.locator('.wmp'), 'widget-gallery-settings-widgets-960x700.png')
+
+  // Exercise the complete editor workflow using its user-facing controls.
+  await settingsPage.getByRole('button', { name: 'Add page', exact: true }).click()
+  const pageTwo = settingsPage.getByRole('textbox', { name: `Page ${initialPageCount + 1} name`, exact: true })
+  await pageTwo.fill('Research')
+  await pageTwo.press('Tab')
+  const connectionsChip = settingsPage.locator('.wmp__chip').filter({ hasText: 'Connections' })
+  assert.equal(await connectionsChip.count(), 1, 'Connections can be added as a widget')
+  await connectionsChip.click()
+  const connectionSize = settingsPage.getByRole('group', { name: 'Connections size', exact: true })
+  await connectionSize.getByRole('button', { name: /Wide/ }).click()
+  const connectionsPage = settingsPage.getByRole('combobox', { name: 'Page for Connections', exact: true })
+  await connectionsPage.selectOption({ label: 'Research' })
+  await settingsPage.getByRole('button', { name: /Connections, wide size/ }).waitFor()
+
+  const researchPage = settingsPage.locator('.wmp__page[aria-label="Research page preview"]')
+  assert.equal(await researchPage.count(), 1, 'Renamed page remains available')
+  const notesInOriginalPage = settingsPage.getByRole('button', { name: /Notes, compact size/ }).first()
+  await notesInOriginalPage.click()
+  const notesWidgetId = await notesInOriginalPage.getAttribute('data-widget-id')
+  const notesPage = settingsPage.getByRole('combobox', { name: 'Page for Notes', exact: true })
+  const notesOriginalPage = await notesPage.inputValue()
+  assert.ok(notesWidgetId, 'Notes tile exposes its stable widget identity for drag validation')
+  await notesInOriginalPage.dragTo(settingsPage.getByRole('button', { name: 'Research page drop target', exact: true }))
+  const dragState = await settingsPage.evaluate(() => [...document.querySelectorAll('.wmp__tile')].map(tile => ({ id: tile.getAttribute('data-widget-id'), label: tile.getAttribute('aria-label'), page: tile.closest('.wmp__page')?.getAttribute('aria-label') })))
+  assert.ok(dragState.some(tile => tile.id === notesWidgetId && tile.page === 'Research page preview'), 'Drag and drop moves Notes onto the Research page')
+  await settingsPage.getByRole('button', { name: /Notes, compact size, position 2 of 2/ }).waitFor()
+  await settingsPage.getByRole('button', { name: /Connections, wide size/ }).dragTo(settingsPage.getByRole('button', { name: /Notes, compact size, position 2 of 2/ }))
+  await settingsPage.getByRole('button', { name: /Connections, wide size, position 2 of 2/ }).waitFor()
+  await settingsPage.getByRole('button', { name: /Notes, compact size, position 1 of 2/ }).click()
+  await settingsPage.getByRole('combobox', { name: 'Page for Notes', exact: true }).selectOption(notesOriginalPage)
+  await settingsPage.getByRole('button', { name: /Connections, wide size/ }).click()
+  await settingsPage.getByRole('button', { name: 'Remove', exact: true }).click()
+  await settingsPage.getByRole('button', { name: 'Delete Research page', exact: true }).click()
+  assert.equal(await settingsPage.getByRole('textbox', { name: /Research/ }).count(), 0, 'Deleting a page removes its editor surface')
+  assert.equal(await settingsPage.locator('.wmp__page').count(), initialPageCount, 'Add and delete page controls restore the original page count')
+
+  const editorLayout = await settingsPage.evaluate(() => {
+    const content = document.querySelector('.settings__content')
+    const editor = document.querySelector('.wmp')
+    const rect = node => node ? { top: node.getBoundingClientRect().top, bottom: node.getBoundingClientRect().bottom, height: node.getBoundingClientRect().height } : null
+    return { viewport: { width: innerWidth, height: innerHeight }, content: content ? { clientHeight: content.clientHeight, scrollHeight: content.scrollHeight } : null, editor: rect(editor) }
+  })
+  records.push({ widget: 'settings-editor', ...editorLayout, actions: ['add page', 'rename page', 'add widget', 'resize widget', 'drag widget between pages', 'drag reorder within page', 'remove widget', 'delete page'] })
+  assert.ok(editorLayout.editor && editorLayout.editor.top >= 0 && editorLayout.editor.bottom <= 700, 'Widget editor and its controls fit in the 960×700 viewport')
   await screenshot(settingsPage.locator('body'), 'widget-gallery-settings-appearance-960x700.png')
   records.push({ widget: 'settings-appearance', ...appearance })
 

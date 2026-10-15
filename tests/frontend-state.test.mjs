@@ -44,6 +44,25 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
+test('repeated polling failures expire instead of extending or resurrecting their banner', async () => {
+  let now=100, next=0
+  const timers=new Map()
+  const module=await importTs('src/state/feedback.ts',{'solid-js':{createSignal:signal}}, {
+    Date:{now:()=>now},setTimeout:fn=>{timers.set(++next,fn);return next},clearTimeout:id=>timers.delete(id),
+  })
+  module.reportError('Brightness','Unavailable')
+  assert.equal(timers.size,1)
+  const first=[...timers.values()][0]
+  now+=3000;module.reportError('Brightness','Unavailable')
+  assert.equal([...timers.values()][0],first)
+  now+=3000;first();assert.equal(module.feedback(),'')
+  module.reportError('Brightness','Unavailable');assert.equal(module.feedback(),'')
+  module.reportError('Volume','Unavailable');assert.match(module.feedback(),/^Volume/)
+  module.reportError('Brightness','Unavailable');assert.match(module.feedback(),/^Volume/)
+  module.dismissFeedback();module.reportError('Volume','Unavailable');assert.equal(module.feedback(),'')
+  now+=30001;module.reportError('Volume','Unavailable');assert.match(module.feedback(),/^Volume/)
+})
+
 test('native slider writes serialize and the final drag value wins', async () => {
   const { createSliderCommitter } = await importTs('src/lib/sliderCommitter.ts', {})
   const writes = [], first = deferred(), second = deferred(), errors = []
@@ -210,6 +229,26 @@ test('ambient audio drive amplifies real broadband energy while rejecting isolat
   assert.ok(metrics.audioFrequencyMetrics(Array(24).fill(0.08)).mids > 0.1, 'midrange output should drive its own ambient field')
   const invalid = metrics.audioMetrics([Number.NaN, ...Array(23).fill(0.08)])
   assert.ok(Number.isFinite(invalid.energy) && invalid.energy < syntheticMusic.energy)
+})
+
+test('visualizer gate and bounded adaptive gain preserve quiet music and reject silence or a lone bin', async () => {
+  const metrics = await importTs('src/lib/audioMetrics.ts', {})
+  const quiet = Array(24).fill(0.00598)
+  const louder = Array(24).fill(0.026)
+  const silence = Array(24).fill(0)
+  const loneBin = [0.8, ...Array(23).fill(0)]
+  assert.equal(metrics.isMeaningfulSpectrum(quiet), true, 'quiet broadband output remains live')
+  assert.equal(metrics.isMeaningfulSpectrum(louder), true)
+  assert.equal(metrics.isMeaningfulSpectrum(silence), false)
+  assert.equal(metrics.isMeaningfulSpectrum(loneBin), false, 'an isolated hot FFT bin is treated as noise')
+  const quietLevels = metrics.adaptSpectrumLevels(quiet, Array(24).fill(0.008), true).levels
+  const loudLevels = metrics.adaptSpectrumLevels(louder, Array(24).fill(0.008), true).levels
+  const rejectedLevels = metrics.adaptSpectrumLevels(loneBin, Array(24).fill(0.008), false).levels
+  const mean = values => values.reduce((sum, value) => sum + value, 0) / values.length
+  assert.ok(mean(quietLevels) > 0.1, 'valid quiet audio gets bounded makeup gain')
+  assert.ok(mean(loudLevels) > mean(quietLevels), 'louder audio remains perceptibly stronger')
+  assert.ok(mean(loudLevels) < 0.7, 'soft knee limits gain on louder output')
+  assert.equal(mean(rejectedLevels), 0)
 })
 
 test('synthetic visualizer previews are locally labeled data and never change native capture status', async () => {

@@ -17,6 +17,7 @@ import { onboardingOpen } from '../../state/onboarding'
 
 export default function ExpandedPanel() {
   const panel = activePanel, setPanel = setActivePanel
+  createEffect(() => { const id=panel(); queueMicrotask(() => document.getElementById('panel-tab-'+id)?.scrollIntoView({block:'nearest',inline:'nearest'})) })
   let grid: HTMLDivElement | undefined
   let body: HTMLElement | undefined
   const [columns, setColumns] = createSignal(2)
@@ -204,8 +205,8 @@ export default function ExpandedPanel() {
   }
   return <div class="island__panel">
     <header class="panel__head">
-      <nav class="panel-tabs" role="tablist" aria-label="Panels" style={{ flex: '1 1 0', 'min-width': '0', 'overflow-x': 'auto', 'scrollbar-width': 'none' }} onKeyDown={event => { const order=settings.panelOrder; const index=order.indexOf(panel()); const next=event.key==='ArrowRight' ? (index+1)%order.length : event.key==='ArrowLeft' ? (index+order.length-1)%order.length : event.key==='Home' ? 0 : event.key==='End' ? order.length-1 : -1; if(next<0)return;event.preventDefault();setPanel(order[next]);(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next])?.focus() }}><For each={settings.panelOrder}>{id => <button role="tab" id={'panel-tab-'+id} data-panel-id={id} aria-controls="island-content" tabIndex={panel()===id ? 0 : -1} aria-selected={panel() === id} aria-label={settings.panels[id] + ' panel'} classList={{ selected: panel() === id, 'panel-tabs__drop': over() === id }} onClick={() => setPanel(id)} onDragOver={event => { if (browserPreview && arranging()) { event.preventDefault(); setOver(id) } }} onDragLeave={() => { if(browserPreview)setOver(null) }} onDrop={event => previewDrop(event, undefined, id)}>{settings.panels[id]}<Show when={arranging()}><small>{all().filter(widget => widgetPanel(widget, settings.panelOrder) === id).length}</small></Show></button>}</For></nav>
-      <span class="panel__spacer"/>
+      <div class="panel-navigation"><button type="button" class="panel-navigation__step" aria-label="Previous panel" onClick={() => {const order=settings.panelOrder;setPanel(order[(order.indexOf(panel())-1+order.length)%order.length])}}><ArrowUp size={12} style={{transform:'rotate(-90deg)'}}/></button><nav class="panel-tabs" role="tablist" aria-label="Panels" style={{ flex: '1 1 0', 'min-width': '0', 'overflow-x': 'auto', 'scrollbar-width': 'none' }} onKeyDown={event => { const order=settings.panelOrder; const index=order.indexOf(panel()); const next=event.key==='ArrowRight' ? (index+1)%order.length : event.key==='ArrowLeft' ? (index+order.length-1)%order.length : event.key==='Home' ? 0 : event.key==='End' ? order.length-1 : -1; if(next<0)return;event.preventDefault();setPanel(order[next]);(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next])?.focus() }}><For each={settings.panelOrder}>{id => <button role="tab" id={'panel-tab-'+id} data-panel-id={id} aria-controls="island-content" tabIndex={panel()===id ? 0 : -1} aria-selected={panel() === id} aria-label={settings.panels[id] + ' panel'} classList={{ selected: panel() === id, 'panel-tabs__drop': over() === id }} onClick={() => setPanel(id)} onDragOver={event => { if (browserPreview && arranging()) { event.preventDefault(); setOver(id) } }} onDragLeave={() => { if(browserPreview)setOver(null) }} onDrop={event => previewDrop(event, undefined, id)}><span class="panel-tabs__label">{settings.panels[id]}</span><Show when={arranging()}><small>{all().filter(widget => widgetPanel(widget, settings.panelOrder) === id).length}</small></Show></button>}</For></nav><button type="button" class="panel-navigation__step" aria-label="Next panel" onClick={() => {const order=settings.panelOrder;setPanel(order[(order.indexOf(panel())+1)%order.length])}}><ArrowDown size={12} style={{transform:'rotate(-90deg)'}}/></button></div>
+
       <div class="panel__tools">
         <button class="beam-button" type="button" aria-label="Open file beam" title="Beam files to your phone" onClick={showFileBucket}><FolderUp size={15}/><span>Beam</span></button>
         <button class="icon-button panel__quick-controls" type="button" aria-label="Open quick controls" title="Quick controls" onClick={showControls}><SlidersHorizontal size={16}/></button>
@@ -249,6 +250,3 @@ export default function ExpandedPanel() {
       <footer class="panel__foot" classList={{'panel__foot--quiet':!savingSettings()&&!settings.dnd&&!arranging()&&!pinned()}}><span>{savingSettings() ? 'Saving…' : settings.dnd ? 'Do Not Disturb' : arranging() ? 'Arrange widgets' : pinned() ? 'Pinned open' : ''}</span></footer>
   </div>
 }
-
-
-

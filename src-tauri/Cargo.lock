@@ -1638,7 +1638,7 @@ dependencies = [
 
 [[package]]
 name = "hover-island"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -1646,6 +1646,7 @@ dependencies = [
  "flate2",
  "futures-util",
  "hostname",
+ "httpdate",
  "plist",
  "qrcode",
  "reqwest 0.12.28",

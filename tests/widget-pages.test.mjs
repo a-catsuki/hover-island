@@ -25,3 +25,27 @@ test('Calendar has readable full-page space; companion widgets grow and disabled
  assert.equal(pages[1][0].rows,2)
  assert.equal(pages[0][0].columns,2, 'A lone widget fills its row rather than leaving a blank half')
 })
+
+test('explicit Compact, Wide and Full sizes keep their requested geometry',()=>{
+ const items=[
+  {...widget('notes',0),size:'compact'},
+  {...widget('weather',1),size:'compact'},
+  {...widget('dock',2),size:'wide'},
+  {...widget('ai',3),size:'full'},
+ ]
+ const pages=widgetPages(items)
+ assert.deepEqual(pages[0].map(({column,row,columns,rows})=>({column,row,columns,rows})),[
+  {column:1,row:1,columns:1,rows:1},
+  {column:2,row:1,columns:1,rows:1},
+  {column:1,row:2,columns:2,rows:1},
+ ])
+ assert.deepEqual(pages[1].map(({column,row,columns,rows})=>({column,row,columns,rows})),[
+  {column:1,row:1,columns:2,rows:2},
+ ])
+})
+
+test('legacy unsized single-row layouts still fill their available row',()=>{
+ const pages=widgetPages([widget('media',0),widget('weather',1)])
+ assert.deepEqual(pages[0].map(slot=>slot.rows),[2,2])
+ assert.deepEqual(pages[0].map(slot=>slot.columns),[1,1])
+})

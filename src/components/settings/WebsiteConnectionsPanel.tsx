@@ -43,8 +43,8 @@ export default function WebsiteConnectionsPanel() {
     <Show when={websiteConnections().length < 12}>
       <form class="website-connections__form" onSubmit={submit}>
         <h3><Plus size={15}/>Add a website</h3>
-        <label>Connection type<select value={type()} onChange={event => setType(event.currentTarget.value as 'erp' | 'website')}><option value="erp">Store Inventory ERP</option><option value="website">Website with an alert feed</option></select></label>
-        <label>Display name<input required maxlength="80" autocomplete="organization" placeholder={type() === 'erp' ? 'Store Inventory ERP' : 'My website'} value={name()} onInput={event => setName(event.currentTarget.value)}/></label>
+        <label>Connection type<select value={type()} onChange={event => setType(event.currentTarget.value as 'erp' | 'website')}><option value="website">Website with an alert feed</option></select></label>
+        <label>Display name<input required maxlength="80" autocomplete="organization" placeholder="My website" value={name()} onInput={event => setName(event.currentTarget.value)}/></label>
         <label>Website address<input type="url" required autocomplete="url" placeholder="https://example.com" value={serverUrl()} onInput={event => setServerUrl(event.currentTarget.value)}/></label>
         <Show when={type() === 'erp'}>
           <label>ERP connection key<input type="password" required autocomplete="off" maxlength="256" value={authToken()} onInput={event => setAuthToken(event.currentTarget.value)}/></label>

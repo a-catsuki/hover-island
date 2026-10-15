@@ -44,6 +44,19 @@ export interface NowPlaying {
   seekMax?: number | null
 }
 
+export interface LyricsLine {
+  /** Playback time in seconds. */
+  at: number
+  text: string
+}
+
+export interface LyricsResult {
+  status: 'ok' | 'not_found' | 'no_timed_lyrics' | 'invalid_track' | 'rate_limited' | 'unavailable'
+  provider: string
+  lines: LyricsLine[]
+  retryAfterSeconds?: number
+}
+
 export type MediaAction = 'play' | 'pause' | 'toggle' | 'next' | 'previous' | 'seek'
 
 export interface AppNotification {
@@ -292,6 +305,8 @@ export const cmd = {
   mediaGet: () => invoke<NowPlaying | null>('media_get'),
   mediaControl: (action: MediaAction, value?: number) =>
     invoke<void>('media_control', { action, value: value ?? null }),
+  lyricsLookup: (trackName: string, artistName: string, albumName: string | null, duration: number) =>
+    invoke<LyricsResult>('lyrics_lookup', { trackName, artistName, albumName, duration }),
 
   // notifications
   notificationsGet: () => invoke<AppNotification[]>('notifications_get'),
@@ -470,6 +485,8 @@ export interface WidgetConfig {
   order: number
   panel?: string
   clockStyle?: 'analog' | 'digital'
+  size?: 'compact' | 'wide' | 'full'
+  showLyrics?: boolean
 }
 
 /** A "connected" web app (WhatsApp Web, Gmail, Instagram, …). */
