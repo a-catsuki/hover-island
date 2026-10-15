@@ -82,9 +82,10 @@ try {
   assert.equal(markerStatus, 200, 'Completion marker upload should succeed.');
   await context.close();
   console.log('Phone pairing browser smoke passed.');
-} catch {
+} catch (error) {
   // Do not print the fixture URL: it contains the temporary session token.
   console.error('Phone pairing browser smoke failed.');
+  console.error(String(error).replace(/https?:\/\/[^\s"']+/g, '[local fixture URL]'));
   process.exitCode = 1;
 } finally {
   await browser.close();

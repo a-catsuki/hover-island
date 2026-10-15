@@ -1,5 +1,5 @@
 {
-  "testedAt": "2026-10-15T08:15:00.948Z",
+  "testedAt": "2026-10-15T13:04:32.725Z",
   "mode": "browser preview with sample data, not native integration proof",
   "results": [
     "Media and weather have room to breathe; the interactive month calendar has a readable page",
@@ -11,7 +11,7 @@
     "Analog/digital clock choice synchronizes; Files shortcut exposes the bucket and preview honestly gates native sharing",
     "Separate settings synchronize three sizes, atmosphere, panel names, added widgets and app sources",
     "Rapid hardware events coalesce, file receipt expands temporarily, and adopting a peek preserves the panel after expiry",
-    "DND, notification and compact device peeks, fixed host bounds and maximized-window reveal remain stable",
+    "DND and whole-notch activities dismiss with Escape or a tap; fixed host bounds and maximized-window reveal remain stable",
     "Search and controls remain reachable at 720, 480 and 360px"
   ],
   "errors": []

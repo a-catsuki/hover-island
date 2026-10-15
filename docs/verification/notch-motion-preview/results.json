@@ -15,28 +15,17 @@
       },
       "collapsed": {
         "x": 0,
-        "y": 300,
+        "y": 328,
         "width": 56,
-        "height": 200
+        "height": 144
       },
       "itemCount": 4,
-      "beam": {
-        "x": 15.5,
-        "y": 417.09375,
-        "width": 25,
-        "height": 25
-      },
-      "handle": {
-        "x": 16,
-        "y": 469,
-        "width": 24,
-        "height": 28
-      },
       "motion": {
-        "x": 2.63,
-        "y": -2.11,
+        "x": 1.4,
+        "y": -1.12,
         "open": false
-      }
+      },
+      "collapsedActions": "none"
     },
     {
       "edge": "right",
@@ -48,28 +37,17 @@
       },
       "collapsed": {
         "x": 1144,
-        "y": 300,
+        "y": 328,
         "width": 56,
-        "height": 200
+        "height": 144
       },
       "itemCount": 4,
-      "beam": {
-        "x": 1159.5,
-        "y": 417.09375,
-        "width": 25,
-        "height": 25
-      },
-      "handle": {
-        "x": 1160,
-        "y": 469,
-        "width": 24,
-        "height": 28
-      },
       "motion": {
-        "x": 0.78,
-        "y": -0.63,
+        "x": 0.8,
+        "y": -0.64,
         "open": false
-      }
+      },
+      "collapsedActions": "none"
     }
   ],
   "pageErrors": [],
