@@ -1,17 +1,17 @@
 # Hover Island handover
 
-Updated 15 October 2026. This supersedes the earlier debug/unsigned build notes. Final artifact paths, hashes and verification results are recorded in `docs/verification/current-build.json`. No Git metadata is present; the initial source snapshot remains in `backups/before-revamp-20261013.zip`.
+Updated 15 October 2026. This supersedes the earlier debug/unsigned build notes. Final artifact paths, hashes and verification results are recorded in `docs/verification/current-build.json`. Private GitHub backup: https://github.com/a-catsuki/hover-island. The initial source snapshot remains in `backups/before-revamp-20261013.zip`.
 
 ## Interface and behavior
 
-- Small, Medium and Large presets replace raw sizing controls. Named panels use fixed-height pages, with paging rather than outer scrolling. The month calendar has its own readable page; a lone row of companion widgets fills the available height. Separate Settings offers draggable panel previews, cross-panel moves, keyboard alternatives and widget options.
+- Small, Medium and Large presets replace raw sizing controls. Named panels are flat fixed-height grids. Overflow migrates into additional editable panels rather than nested pages. The month calendar has its own readable page; a lone row of companion widgets fills the available height. Separate Settings offers draggable panel previews, cross-panel moves, keyboard alternatives and widget options.
 - Appearance uses five complete scene presets, a collapsed/expanded configuration preview and primary compact-item selection. Clock, visualizer and fine material settings remain available under Advanced appearance. Fresh installs use Graphite; existing saved preferences are retained.
 - Deeper blacks, nine scene choices including contours, dots, grids and waves, functional widget colors and higher opacity give the surface its character. Width, height and radius springs retain velocity when interrupted; the native host stays fixed during hover. Reduced motion disables elasticity and parallax.
 - The closed island supports configurable clock, media with/without controls, weather, battery and usage combinations. Country/city clocks offer analog/digital presentation and typography choices.
 - Maximized/fullscreen veiling retains external-window context when our own window receives focus. The edge region reveals the collapsed island; sustained hover expands it. Dragging snaps to monitor edge centers.
 - Dock style and screen edge are separate choices. Notch keeps the compact pill, Bar uses a monitor-wide top/bottom shelf, and Sidebar uses a full-height 72 px rail that opens into a narrow workspace. Native hit testing follows the visible shelf/rail; crossing horizontal/vertical edges while dragging converts Bar/Sidebar appropriately.
-- A side-attached Notch becomes a 56 by 200 px vertical capsule, retaining space for compact essentials, Beam and the drag handle. A small collapsed cursor attraction uses interruptible X/Y springs; proximity updates reuse the existing native cursor worker. It resets on open, drag, reduced motion and leaving range.
-- Beam is directly accessible from the closed notch and expanded toolbar; Ctrl+Shift+B opens the same bucket while the app has keyboard focus.
+- A side-attached Notch becomes a 56 by 144 px vertical capsule. The entire noninteractive collapsed surface is draggable; no extra Beam icon or handle occupies it. A small collapsed cursor attraction uses interruptible X/Y springs; proximity updates reuse the existing native cursor worker. It resets on open, drag, reduced motion and leaving range.
+- Beam is directly accessible from the expanded toolbar and the temporary file-drag chooser; Ctrl+Shift+B opens the same bucket while the app has keyboard focus.
 - Device, power, media, focus, website and transfer events share bounded temporary peeks, burst coalescing, adoption on deliberate interaction and DND-aware sounds. DND uses a neutral crescent. Connected-alert badges expire with the temporary peek unless the user opens them first.
 - The first-run introduction explains the island and can request native notification access.
 - The former scratchpad is a compact to-do list: add, complete, reopen and delete items; existing scratchpad lines migrate into open tasks.
@@ -32,7 +32,7 @@ Calendar supports local editing plus optional read-only Google/Outlook/other ICS
 
 Weather offers approximate public-IP location, persistent manual location, forecast and modeled US AQI with stale/offline states. Usage prioritizes remaining allowance, maps 168 hours to Weekly and shows report age/reset countdown. A passed reset timestamp does not manufacture a quota refill.
 
-Reset Radar prioritizes the next official personal reset time and one latest linked announcement. Feed history opens deliberately in a detail view; counts, repeated quota percentages and the feed-status footer are removed from the compact card. Report provenance and stale state remain accessible. It polls a credited public feed every 15 minutes, validates original X source links, distinguishes explicit forthcoming announcements, quietly establishes its baseline and surfaces new eligible posts through DND-aware peeks. It does not know the user's credit balance, redeem grants or change account limits.
+Reset Radar shows one latest linked global/banked announcement from codex-resets.com, credited to Tibo. It does not repeat personal quota clocks, history counts or news panels. UTC publication/estimated landing times are parsed separately; passing an estimate requires confirmation rather than inventing a landing. New announcements produce DND-aware full-notch activities after a quiet baseline. It does not redeem grants or modify quotas.
 
 ## Phone sharing
 
@@ -49,3 +49,4 @@ For another installation, use the final signed personal MSIX kit linked by `docs
 Verification logs and screenshots live in `docs/verification`. They distinguish frontend/native regression tests, read-only Windows control/audio smokes, simulated browser event checks and a phone browser using the real Rust HTTP router. Live notification consent/delivery, physical Bluetooth/charging transitions, a music signal, actual memory reclamation, account pairing and physical phone networking remain separate device/runtime checks.
 
 The Windows build keeps the Common Controls v6 resource needed by native tests, uses ThinLTO for the optimized release, excludes debug-only devtools from production and uses the GUI subsystem. Native test linking disables PDB generation to avoid the linker type-table limit. Luna subagents reviewed interface/media behavior, source inspiration and installation contracts; review notes accompany the verification records.
+

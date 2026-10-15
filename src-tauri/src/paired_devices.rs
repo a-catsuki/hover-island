@@ -153,6 +153,7 @@ impl PairedDeviceStore {
                 "You can remember up to 16 phones. Remove one before adding another.".into(),
             );
         }
+        let previous = self.devices.clone();
         self.devices.retain(|device| device.id != id);
         self.devices.push(PairedDevice {
             id,
@@ -160,7 +161,11 @@ impl PairedDeviceStore {
             cookie_hash: hash_cookie(cookie),
             last_seen: None,
         });
-        self.save()
+        if let Err(error) = self.save() {
+            self.devices = previous;
+            return Err(error);
+        }
+        Ok(())
     }
 
     pub fn touch(&mut self, id: &str, now_ms: u64) -> Result<(), String> {
@@ -178,12 +183,16 @@ impl PairedDeviceStore {
     }
 
     pub fn remove(&mut self, id: &str) -> Result<bool, String> {
+        let previous = self.devices.clone();
         let old_len = self.devices.len();
         self.devices.retain(|device| device.id != id);
         if old_len == self.devices.len() {
             return Ok(false);
         }
-        self.save()?;
+        if let Err(error) = self.save() {
+            self.devices = previous;
+            return Err(error);
+        }
         Ok(true)
     }
 
@@ -203,12 +212,37 @@ impl PairedDeviceStore {
             .map_err(|error| format!("Could not create saved phone storage: {error}"))?;
         let temp = path.with_extension(format!("tmp-{}", uuid::Uuid::new_v4().simple()));
         fs::write(&temp, bytes).map_err(|error| format!("Could not save phones: {error}"))?;
-        if path.exists() {
-            fs::remove_file(path)
-                .map_err(|error| format!("Could not update saved phones: {error}"))?;
+        let result = replace_store(&temp, path);
+        if result.is_err() {
+            let _ = fs::remove_file(&temp);
         }
-        fs::rename(&temp, path).map_err(|error| format!("Could not save phones: {error}"))
+        result.map_err(|error| format!("Could not save phones: {error}"))
     }
+}
+
+#[cfg(windows)]
+fn replace_store(source: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
+    }
+    let source: Vec<u16> = source.as_os_str().encode_wide().chain(Some(0)).collect();
+    let destination: Vec<u16> = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect();
+    if unsafe { MoveFileExW(source.as_ptr(), destination.as_ptr(), 0x1 | 0x8) } == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(not(windows))]
+fn replace_store(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::rename(source, destination)
 }
 
 impl PendingPairs {
@@ -477,6 +511,63 @@ mod tests {
         assert_eq!(reloaded.authenticated_id(&cookie), Some(id.clone()));
         assert!(reloaded.remove(&id).unwrap());
         assert_eq!(reloaded.authenticated_id(&cookie), None);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn failed_store_replacement_preserves_saved_and_in_memory_devices() {
+        use std::io::{Read, Seek, SeekFrom};
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let root = std::env::temp_dir().join(format!("hover-pair-test-{}", uuid::Uuid::new_v4()));
+        let path = storage_path(&root);
+        let mut store = PairedDeviceStore::load(path.clone()).unwrap();
+        let original_cookie = new_cookie();
+        let original_id = uuid::Uuid::new_v4().simple().to_string();
+        store
+            .remember(
+                original_id.clone(),
+                "Original phone".into(),
+                &original_cookie,
+            )
+            .unwrap();
+        let original_bytes = std::fs::read(&path).unwrap();
+
+        let mut locked_file = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(&path)
+            .unwrap();
+        assert!(store.remove(&original_id).is_err());
+        let replacement_cookie = new_cookie();
+        let replacement_id = uuid::Uuid::new_v4().simple().to_string();
+        assert!(store
+            .remember(
+                replacement_id.clone(),
+                "Replacement phone".into(),
+                &replacement_cookie,
+            )
+            .is_err());
+
+        assert_eq!(
+            store.authenticated_id(&original_cookie),
+            Some(original_id.clone())
+        );
+        assert_eq!(store.authenticated_id(&replacement_cookie), None);
+        let mut locked_bytes = Vec::new();
+        locked_file.seek(SeekFrom::Start(0)).unwrap();
+        locked_file.read_to_end(&mut locked_bytes).unwrap();
+        assert_eq!(locked_bytes, original_bytes);
+
+        drop(locked_file);
+        assert_eq!(std::fs::read(&path).unwrap(), original_bytes);
+        let reloaded = PairedDeviceStore::load(path).unwrap();
+        assert_eq!(
+            reloaded.authenticated_id(&original_cookie),
+            Some(original_id)
+        );
+        assert_eq!(reloaded.authenticated_id(&replacement_cookie), None);
         let _ = std::fs::remove_dir_all(root);
     }
 }

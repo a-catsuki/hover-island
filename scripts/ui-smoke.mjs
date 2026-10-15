@@ -230,19 +230,21 @@ try {
  assert.equal(await page.locator('.live-activity .peek button').count(),0,'activity has no close button layer')
  await page.locator('.live-activity .peek').focus();await page.keyboard.press('Escape')
  await page.locator('.live-activity .peek').waitFor({state:'detached'})
+ await page.mouse.move(20,650);await page.evaluate(()=>window.dispatchEvent(new CustomEvent('island://hover',{detail:false})))
  await page.waitForFunction(()=>!document.querySelector('.island--open'),{},{timeout:10000})
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('device://event',{detail:{id:'power-test',app:'Battery',title:'Power connected',body:'76% battery',timestamp:Date.now()}})))
  await page.locator('.island--device-peek .peek__title').waitFor()
  await page.waitForTimeout(250); await shot('device-peek')
  await page.locator('.live-activity .peek').click()
  await page.locator('.live-activity .peek').waitFor({state:'detached'})
+ await page.mouse.move(20,650);await page.evaluate(()=>window.dispatchEvent(new CustomEvent('island://hover',{detail:false})))
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('device://event',{detail:{id:'bluetooth-test',app:'Bluetooth',title:'AirPods connected',body:'AirPods Pro',timestamp:Date.now()}})))
  await page.getByText('AirPods connected',{exact:true}).waitFor()
  assert.equal(await page.locator('.peek').count(),1)
  await page.waitForFunction(()=>!document.querySelector('.island--open'),{},{timeout:10000})
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('transfer://event',{detail:{id:'transfer-test',app:'Phone bucket',title:'File received',body:'Design.png · Saved to Downloads',timestamp:Date.now()}})))
  await page.locator('.island--peek').waitFor()
- await page.getByText('File received',{exact:true}).waitFor()
+ await page.locator('.live-activity').getByText('Transfer complete',{exact:true}).waitFor()
  await shot('transfer-peek')
  await dismissActivity()
  await open()
@@ -273,6 +275,8 @@ try {
  await writeFile(new URL('browser-smoke.json',out),JSON.stringify({testedAt:new Date().toISOString(),mode:'browser preview with sample data, not native integration proof',results,errors},null,2))
  console.log(JSON.stringify({results,errors},null,2))
 } catch(error) { console.error(JSON.stringify({errors,body:await page.locator('body').innerText(),settings:await page.evaluate(()=>JSON.parse(localStorage.getItem('hover-island.preview.settings')??'null')),dom:await page.evaluate(()=>({island:document.querySelector('.island')?.className,stage:document.querySelector('.island-stage')?.getBoundingClientRect().toJSON(),hovered:[...document.querySelectorAll(':hover')].map(node=>node.className),focused:document.activeElement?.outerHTML.slice(0,300)}))},null,2)); await shot('failure'); throw error } finally { await browser.close() }
+
+
 
 
 
