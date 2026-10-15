@@ -1,0 +1,157 @@
+{
+  "recordedAt": "2026-10-15T07:41:25.9607201Z",
+  "sourceFingerprint": "49ea3d7b1f2c7504cc9ecc946a09e99418d74322d54b42ed8e6c8fb4364e6955",
+  "sourceFileCount": 168,
+  "assets": [
+    {
+      "path": "icon.png",
+      "bytes": 21105,
+      "sha256": "6a27e50fa3505ab5c26cb8c2bc074de0e20b5ff0d66651e1d974808f44587c5a"
+    },
+    {
+      "path": "index.html",
+      "bytes": 591,
+      "sha256": "3c644c6a7b277aeb0892177f466d76933d503d4dd5f69e60bd1b9291d6537133"
+    },
+    {
+      "path": "settings.html",
+      "bytes": 612,
+      "sha256": "ddda40dde19f1c047deaf8ec08e5cf8d60f898eaad80a79a26e9ddd8d5de4fd5"
+    },
+    {
+      "path": "assets/base-BqhIru5r.css",
+      "bytes": 137570,
+      "sha256": "d49f5423da1e2a983fa303d4a301d4a46edaff055515722de899476f9faf7886"
+    },
+    {
+      "path": "assets/base-C2VywkQH.js",
+      "bytes": 342840,
+      "sha256": "b2626c62a998e58f00cf1ced065747d0c09083190e36e29c04c3e042dc6e98cc"
+    },
+    {
+      "path": "assets/inter-cyrillic-ext-wght-normal-BOeWTOD4.woff2",
+      "bytes": 25960,
+      "sha256": "ca157063339ac4ad418f214f3abfed119b0798ab4d377386ce5c9e5a7a435ebd"
+    },
+    {
+      "path": "assets/inter-cyrillic-wght-normal-DqGufNeO.woff2",
+      "bytes": 18748,
+      "sha256": "71d5ee93cc1e9f1d520a3a8b66456de18c7879d8df09d57fcd2eaff75fef0075"
+    },
+    {
+      "path": "assets/inter-greek-ext-wght-normal-DlzME5K_.woff2",
+      "bytes": 11232,
+      "sha256": "6e9e020a25f9b56d418f2c085b1d3c09725a4da23fe693a5b463064606732190"
+    },
+    {
+      "path": "assets/inter-greek-wght-normal-CkhJZR-_.woff2",
+      "bytes": 18996,
+      "sha256": "1be3448e292fbf05ffe176fe1e43f135013d50b1e7d324ad1a558f623d3bb6f6"
+    },
+    {
+      "path": "assets/inter-latin-ext-wght-normal-DO1Apj_S.woff2",
+      "bytes": 85068,
+      "sha256": "34b9c504cab7a73e37b746343a449132e56cf7b5481af2cb81dc74dcff25c956"
+    },
+    {
+      "path": "assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+      "bytes": 48256,
+      "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62"
+    },
+    {
+      "path": "assets/inter-vietnamese-wght-normal-CBcvBZtf.woff2",
+      "bytes": 10252,
+      "sha256": "5c66f9e07e90c6d4ac4922cc68d60de26c17b1858e677fb5e603fce3952b3ff2"
+    },
+    {
+      "path": "assets/main-Dpat5PZ3.js",
+      "bytes": 69304,
+      "sha256": "53f769dcf6b6b9be2d0cb04c1a0271ee788a5e84785d832ac93ab8460f970fe0"
+    },
+    {
+      "path": "assets/main-eBWisx86.css",
+      "bytes": 86537,
+      "sha256": "10aa1709ba4fa5708c2c3a3cb36b73c0323e3fd330603dbc4fc2b78a55e139f9"
+    },
+    {
+      "path": "assets/settings-BjxYy23A.css",
+      "bytes": 49800,
+      "sha256": "f3aa6fe432d940fb5c9e510f67818cb68b7cb9b513376054cf6652c4e7a344b6"
+    },
+    {
+      "path": "assets/settings-BNsjf7_Q.js",
+      "bytes": 63181,
+      "sha256": "48a698caa59bd285033782961fd71e9aa94de5931540fba6ab46ca1fd8133930"
+    },
+    {
+      "path": "brands/claude.svg",
+      "bytes": 1936,
+      "sha256": "97f1f57a5c4be9dfa64298ad715e085a1a2e9655dc16241cf4d63821af47b738"
+    },
+    {
+      "path": "brands/cursor.svg",
+      "bytes": 469,
+      "sha256": "b26a0cf5a5c2eb4085419c317f1987c19e66ebf72b81d959db00e32e14692c15"
+    },
+    {
+      "path": "brands/discord.svg",
+      "bytes": 1389,
+      "sha256": "a17784d42f29596db1e0fd6aa6295610aa4610b595882ee62abc877e402b1059"
+    },
+    {
+      "path": "brands/gmail.svg",
+      "bytes": 354,
+      "sha256": "21b263638deb769267d610a85382792624bdae2fc47c1bc2f8ae6fb6a50413e9"
+    },
+    {
+      "path": "brands/instagram.svg",
+      "bytes": 2116,
+      "sha256": "9007b995b5d7f7de899ceac41e619e8c0caa1e3faec7eee70fe2b3584bcc4a21"
+    },
+    {
+      "path": "brands/NOTICE.md",
+      "bytes": 432,
+      "sha256": "9d450e390bb4e5de3d0199ac8f850722c02274147a8ecdddea752d096031683e"
+    },
+    {
+      "path": "brands/openai.svg",
+      "bytes": 1585,
+      "sha256": "516025d16a213baca93618440857b5a076d305ef07f7216c4caae704135603b2"
+    },
+    {
+      "path": "brands/outlook.svg",
+      "bytes": 1034,
+      "sha256": "427c24461c34a9fe4a4d5b5b89f0f17db58ef185f8fe0c4eee92ac5df12a7a6f"
+    },
+    {
+      "path": "brands/telegram.svg",
+      "bytes": 757,
+      "sha256": "4435c9a57e165a1c3b7f27e0b5b11b82b10d674ea4fff7f6748cb67b7fcb994e"
+    },
+    {
+      "path": "brands/whatsapp.svg",
+      "bytes": 1231,
+      "sha256": "3e197e0e1f3e679ee09823c75e1c7bad3a19da9bd1ba01df395268b9ae91816f"
+    },
+    {
+      "path": "patterns/contours.svg",
+      "bytes": 645,
+      "sha256": "3bf47fa8495af0e7615c3042c93da59171fbd66e352f2741e71346227b3c3690"
+    },
+    {
+      "path": "patterns/dots.svg",
+      "bytes": 464,
+      "sha256": "576da20712838342184bdd4cb882c596f3bf68b76b0abd05eac03b6ecef0e7f5"
+    },
+    {
+      "path": "patterns/grid.svg",
+      "bytes": 233,
+      "sha256": "f366e98b67794d45617087fd697ba639db0087d1806386509b6aa5a49ae8eecf"
+    },
+    {
+      "path": "patterns/waves.svg",
+      "bytes": 341,
+      "sha256": "5543b991b98936954206443d1705aebeaf1f006d105e1d597253b68d934028aa"
+    }
+  ]
+}

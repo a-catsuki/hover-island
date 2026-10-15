@@ -1,0 +1,9 @@
+{
+    "identity":  "com.hoverisland.app",
+    "version":  "0.1.0.0",
+    "publisher":  "CN=Hover Island",
+    "signed":  true,
+    "signerThumbprint":  "B695B47BAE4B74B294B3E9C184F2C0A8394C9AF6",
+    "sha256":  "d4034b3cd098f8f1c6d88442a5305baa1bee5ad316a43888b297b422ce7e3016",
+    "package":  "HoverIsland.msix"
+}

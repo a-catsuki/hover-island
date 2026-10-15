@@ -1,0 +1,15 @@
+{
+  "testedAt": "2026-10-14T15:54:25.011Z",
+  "mode": "Browser preview, sample data; native actions separately verified",
+  "results": [
+    "First-run tour completes and persists; closed playback controls work without opening the island",
+    "Do Not Disturb confirms the preference change while incoming notifications stay muted",
+    "Visualizer styles, real HTML rearranging and the full calendar editor remain interactive",
+    "Every panel and overflow page, including empty Website alerts, fits Small, Medium and Large without outer scrolling or clipped widget content; AirDrop is hidden",
+    "Populated app dock, alerts and calendar expose every item through paging and fit the Small preset",
+    "Website alerts stays optional and empty by default; its empty view fits and Settings defaults to generic website selection",
+    "Quick controls and explicit memory preview are reachable; browser preview never fakes hardware or cleanup actions",
+    "Compact clock/weather/battery combination persists without clipping and the tour does not return"
+  ],
+  "errors": []
+}

@@ -1,0 +1,15 @@
+{
+  "testedAt": "2026-10-14T16:05:40.000Z",
+  "mode": "Browser preview; native OS signals and phone transfer events are simulated",
+  "results": [
+    "Compact media controls respond without opening the panel",
+    "Foreground veiling reveals on hover, expands only after sustained hover, and restores after leave/collapse",
+    "Reset Radar Small shows one readable linked announcement with source retained accessibly",
+    "Reset Radar Medium shows one readable linked announcement with source retained accessibly",
+    "Reset Radar Large shows two readable announcements",
+    "Do Not Disturb confirmation uses a neutral crescent and suppresses the incoming alert peek",
+    "Synthetic staging, sending, receiving, sent and error phases render their matching transfer state",
+    "Urgent website peeks retain their urgency label and remain inside the island at all four placement edges"
+  ],
+  "errors": []
+}

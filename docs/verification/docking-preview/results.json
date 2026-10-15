@@ -1,0 +1,175 @@
+{
+  "url": "http://127.0.0.1:1420/",
+  "viewport": {
+    "width": 1000,
+    "height": 700
+  },
+  "cases": [
+    {
+      "mode": "sidebar",
+      "edge": "left",
+      "collapsed": {
+        "x": 0,
+        "y": 0,
+        "width": 72,
+        "height": 700
+      },
+      "expanded": {
+        "x": 0,
+        "y": 0,
+        "width": 420,
+        "height": 700
+      },
+      "springFrame": {
+        "width": 420,
+        "height": 700,
+        "clipPath": "inset(max(0px, 50% - 350px) max(0px, 100% - 420px) max(0px, 50% - 350px) 0px round 0px 26px 26px 0px)",
+        "host": {
+          "x": 0,
+          "y": 0,
+          "width": 420,
+          "height": 700
+        }
+      },
+      "compactItemRects": [
+        {
+          "x": 25.984375,
+          "y": 319.734375,
+          "width": 20,
+          "height": 20
+        },
+        {
+          "x": 15.578125,
+          "y": 353.734375,
+          "width": 40.828125,
+          "height": 14.515625
+        }
+      ]
+    },
+    {
+      "mode": "sidebar",
+      "edge": "right",
+      "collapsed": {
+        "x": 928,
+        "y": 0,
+        "width": 72,
+        "height": 700
+      },
+      "expanded": {
+        "x": 580,
+        "y": 0,
+        "width": 420,
+        "height": 700
+      },
+      "springFrame": {
+        "width": 420,
+        "height": 700,
+        "clipPath": "inset(max(0px, 50% - 350px) 0px max(0px, 50% - 350px) max(0px, 100% - 420px) round 26px 0px 0px 26px)",
+        "host": {
+          "x": 580,
+          "y": 0,
+          "width": 420,
+          "height": 700
+        }
+      },
+      "compactItemRects": [
+        {
+          "x": 953.984375,
+          "y": 319.734375,
+          "width": 20,
+          "height": 20
+        },
+        {
+          "x": 943.578125,
+          "y": 353.734375,
+          "width": 40.828125,
+          "height": 14.515625
+        }
+      ]
+    },
+    {
+      "mode": "bar",
+      "edge": "top",
+      "collapsed": {
+        "x": 0,
+        "y": 0,
+        "width": 1000,
+        "height": 38
+      },
+      "expanded": {
+        "x": 0,
+        "y": 0,
+        "width": 1000,
+        "height": 560
+      },
+      "springFrame": {
+        "width": 1000,
+        "height": 560,
+        "clipPath": "inset(0px 0px max(0px, 100% - 560px) round 0px 0px 26px 26px)",
+        "host": {
+          "x": 0,
+          "y": 0,
+          "width": 1000,
+          "height": 560
+        }
+      },
+      "compactItemRects": [
+        {
+          "x": 157,
+          "y": 5.984375,
+          "width": 622.171875,
+          "height": 26
+        },
+        {
+          "x": 787.171875,
+          "y": 5.796875,
+          "width": 40.828125,
+          "height": 26.390625
+        }
+      ]
+    },
+    {
+      "mode": "bar",
+      "edge": "bottom",
+      "collapsed": {
+        "x": 0,
+        "y": 662,
+        "width": 1000,
+        "height": 38
+      },
+      "expanded": {
+        "x": 0,
+        "y": 140,
+        "width": 1000,
+        "height": 560
+      },
+      "springFrame": {
+        "width": 1000,
+        "height": 560,
+        "clipPath": "inset(max(0px, 100% - 560px) 0px 0px round 26px 26px 0px 0px)",
+        "host": {
+          "x": 0,
+          "y": 140,
+          "width": 1000,
+          "height": 560
+        }
+      },
+      "compactItemRects": [
+        {
+          "x": 157,
+          "y": 667.984375,
+          "width": 622.171875,
+          "height": 26
+        },
+        {
+          "x": 787.171875,
+          "y": 667.796875,
+          "width": 40.828125,
+          "height": 26.390625
+        }
+      ]
+    }
+  ],
+  "pageErrors": [],
+  "nativeHostValidation": "not covered by browser preview"
+}

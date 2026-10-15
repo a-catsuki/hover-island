@@ -1,0 +1,44 @@
+# Dynamic_island reference review
+
+## 0.1.2 interface and motion pass
+
+The public repository and raw source URLs returned 404 during this pass. The available MIT v7.0.6 snapshot in the local reference checkout was inspected instead; no source or artwork was copied. The relevant design lessons were the compact hierarchy, edge-specific mechanics and restrained artwork lighting.
+
+The side-attached Notch now has a 56 by 200 logical-pixel capsule, distinct from the full-height Sidebar mode. Its magnetic pull is capped at 6 logical pixels and reuses the native cursor worker. Opening, dragging, leaving proximity and reduced motion reset it. Native hit/reveal rectangles use the same side geometry; regression tests cover the attraction and hit-target invariant. The browser motion checks exercise both sides, four compact items, Beam and the drag handle. They do not exercise the physical Windows cursor worker.
+
+The month calendar gets a dedicated dashboard page instead of being compressed beneath two other cards. The six-week grid and agenda remain interactive at Small, Medium and Large. Reset Radar shows the next personal quota reset and one linked announcement; history is deliberate, rather than permanent count chips, paging and status chrome. Beam is directly reachable in both collapsed and expanded states.
+
+Settings now groups primary choices into five complete scene presets, three sizes, compact items and a live collapsed/expanded configuration preview. Advanced clock, material and visualizer controls remain available. Quick controls route unavailable native features to the corresponding real Windows settings page. Notch DND saves independently of Windows DND, so a failed compatibility toggle cannot prevent local alert suppression.
+
+The production-browser gallery contains ten captures, covering the three widget sizes and the Appearance window. Its assertions check outer scrolling and clipped primary actions. The main production smoke and side-motion preview report no page errors. These are browser and native-code checks, not claims of physical hardware, live music or phone testing.
+
+## 15 October continuation
+
+Revisited the available v7.0.6 source snapshot, including `main.js` window bounds and `system_control.ps1` Core Audio callbacks and `MemOptimizer`. The reference implements distinct screen-wide bar and full-height sidebar hosts, rather than rotating the notch layout. Hover Island now follows that mechanical distinction with native monitor-aware geometry, edge snapping and matching interaction rectangles. A browser screenshot caught a later shared CSS rule overriding the edge clip; the docking check now records rendered edge clipping as well as geometry.
+
+The reference's memory tool uses `EmptyWorkingSet`, an 8 MB threshold and progress messages. Hover Island uses the same Windows operation with stricter owner/session, visible-window, critical-process and app-child protection, eight-app bounds and identity revalidation. The UI now shows measured released working-set bytes and checked-app counts as work completes. This is a working-set trim, not a promise of faster performance or permanent free RAM.
+
+Volume changes use a native endpoint callback; internal-display brightness uses a bounded WMI event subscription, with backoff on unavailable hardware. These generate compact event peeks independently of Windows toast-listener permission. Windows desktop toast capture is delivered in the signed MSIX and still requires explicit Windows user consent.
+
+Reviewed 2026-10-14 against the public `main` source of [Avenger11764/Dynamic_island](https://github.com/Avenger11764/Dynamic_island), including its media glow, background effects, audio-reactive utility, waveform, and license. This is an implementation comparison, not a claim that Hover Island copied the project.
+
+## What the reference does
+
+- [audioReactive.js](https://github.com/Avenger11764/Dynamic_island/blob/main/src/utils/audioReactive.js#L22-L27) shares one 33 ms meter across subscribed elements, consumes left/right output peaks, smooths them with a fast attack and slower release, and stops the meter when no visual subscriber remains. If data stops for 700 ms, it clears live values and lets idle CSS motion resume ([lines 143–165](https://github.com/Avenger11764/Dynamic_island/blob/main/src/utils/audioReactive.js#L143-L165), [meter lifecycle](https://github.com/Avenger11764/Dynamic_island/blob/main/src/utils/audioReactive.js#L173-L207)). Its beat is a derived peak-level heuristic, not frequency analysis.
+- [AmbientGlow.jsx](https://github.com/Avenger11764/Dynamic_island/blob/main/src/components/ui/AmbientGlow.jsx#L399-L431) places a blurred album image, bottom light flood, and two colored corner lights behind the media card. CSS keyframes animate transform and opacity; playback pause freezes the animation, missing artwork suppresses the generic glow, and a dark top gradient protects title contrast ([lines 433–519](https://github.com/Avenger11764/Dynamic_island/blob/main/src/components/ui/AmbientGlow.jsx#L433-L519)).
+- [BackgroundEffects.jsx](https://github.com/Avenger11764/Dynamic_island/blob/main/src/components/background/BackgroundEffects.jsx#L16-L35) offers ten distinct background treatments. Reactive patterns use the same shared level variables, while album colors fall back to the configured accent ([palette helper](https://github.com/Avenger11764/Dynamic_island/blob/main/src/components/background/BackgroundEffects.jsx#L60-L64)). Slow motion uses stepped CSS easing to reduce needless intermediate frames ([steppedEase.js](https://github.com/Avenger11764/Dynamic_island/blob/main/src/utils/steppedEase.js#L265-L329)).
+- The repository includes an [MIT license](https://github.com/Avenger11764/Dynamic_island/blob/main/LICENSE), copyright 2026 Smart Notch. No source from it was copied into this change; no dependency or license action is needed for the design comparison. If code is copied later, retain the license notice and permission text.
+
+## Comparison with Hover Island
+
+Hover Island takes a different technical route: its [audio state](../../src/state/audio.ts) owns one shared native output-loopback subscription and retries capture after endpoint errors; [audioMetrics.ts](../../src/lib/audioMetrics.ts) derives energy and bass from a real 24-band spectrum; [Visualizer.tsx](../../src/components/views/Visualizer.tsx) renders ten canvas scenes with a 30 fps cap, visibility cleanup, and reduced-motion handling. The media card has a full-card visualizer layer and a truthful live/ambient/synthetic status in [MediaView.tsx](../../src/components/views/MediaView.tsx). The separate shell [AmbientBackground.tsx](../../src/components/shell/AmbientBackground.tsx) acquires audio only for a reactive scene while the island is open, visible, and media is playing; idle breathing remains clearly distinct from live response.
+
+The strongest design lesson is the reference's artwork-matched light and explicit contrast treatment. Hover Island's canvas media visualizer still draws from global theme accents rather than the active cover's extracted palette, so colors can feel detached from the track. The original high-energy Ambient frame had a near-white center. The canvas now uses two source-over radial fields painted across the whole Ambient canvas from beyond opposite card edges, capped audio-driven opacity, an Ambient-only dark veil, and a clipped 20 px blur. The apparent concentric rings in earlier captures came from the media tile backdrop, not the canvas: the backdrop enlarged a sample avatar with circular facial features while the wrapper disabled its blur. Root clipped that thumbnail to the tile, reduced backdrop opacity, and blurred/scaled the image within the bounds. Final [low](visualizer-ambient-low.png) and [high](visualizer-ambient-high.png) synthetic captures now show a soft wash without avatar rings or center washout. Hiding the backdrop temporarily made the rings disappear, confirming their source; the normal backdrop was restored for the final captures.
+
+### Remaining follow-up
+
+If desired after this release, feed artwork-derived colors to the media Ambient scene with theme accents as fallback; the current visualizer has no cached cover-palette extraction path. The present fix uses only existing theme accents and does not add a new image-processing subsystem.
+
+## Verification boundary
+
+Low/high captures are synthetic browser previews, not proof of live WASAPI capture. Hover Island's status text keeps that distinction explicit. Typecheck passed after the final presentation changes. Reduced-motion and pause handling remain unchanged; only Ambient drawing and its stage/backdrop presentation changed. The reference source was inspected directly; its README claims were not treated as evidence for implementation behavior. No release-blocking defect was found in this review.

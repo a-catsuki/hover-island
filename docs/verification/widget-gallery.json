@@ -1,0 +1,2040 @@
+{
+  "baseUrl": "http://127.0.0.1:1421",
+  "generatedAt": "2026-10-15T07:24:28.577Z",
+  "screenshots": [
+    {
+      "widget": "calendar",
+      "size": "Small",
+      "card": {
+        "x": 396,
+        "y": 58,
+        "width": 608,
+        "height": 346,
+        "top": 58,
+        "right": 1004,
+        "bottom": 404,
+        "left": 396
+      },
+      "core": {
+        "x": 415.828125,
+        "y": 133.5,
+        "width": 38,
+        "height": 38,
+        "top": 133.5,
+        "right": 453.828125,
+        "bottom": 171.5,
+        "left": 415.828125
+      },
+      "coreFontPx": 12,
+      "panel": {
+        "clientHeight": 358,
+        "scrollHeight": 358
+      },
+      "grid": {
+        "x": 415,
+        "y": 132.1875,
+        "width": 289.796875,
+        "height": 253.8125
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 1000
+      },
+      "document": {
+        "clientHeight": 1000,
+        "scrollHeight": 1000
+      },
+      "buttonBounds": [
+        {
+          "name": "Previous month",
+          "x": 601,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Next month",
+          "x": 634,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Connect calendar",
+          "x": 852.578125,
+          "y": 77,
+          "width": 70.421875,
+          "height": 28
+        },
+        {
+          "name": "Import calendar file",
+          "x": 926,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Add event",
+          "x": 957,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Previous month",
+          "x": 601,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Next month",
+          "x": 634,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Today",
+          "x": 667,
+          "y": 77,
+          "width": 47.25,
+          "height": 28
+        },
+        {
+          "name": "Connect calendar",
+          "x": 852.578125,
+          "y": 77,
+          "width": 70.421875,
+          "height": 28
+        },
+        {
+          "name": "Import calendar file",
+          "x": 926,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Add event",
+          "x": 957,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Monday, September 28",
+          "x": 415,
+          "y": 132.1875,
+          "width": 39.671875,
+          "height": 40.625
+        },
+        {
+          "name": "Tuesday, September 29",
+          "x": 456.671875,
+          "y": 132.1875,
+          "width": 39.6875,
+          "height": 40.625
+        },
+        {
+          "name": "Wednesday, September 30",
+          "x": 498.359375,
+          "y": 132.1875,
+          "width": 39.6875,
+          "height": 40.625
+        },
+        {
+          "name": "Thursday, October 1",
+          "x": 540.046875,
+          "y": 132.1875,
+          "width": 39.6875,
+          "height": 40.625
+        },
+        {
+          "name": "Friday, October 2",
+          "x": 581.734375,
+          "y": 132.1875,
+          "width": 39.6875,
+          "height": 40.625
+        },
+        {
+          "name": "Saturday, October 3",
+          "x": 623.421875,
+          "y": 132.1875,
+          "width": 39.6875,
+          "height": 40.625
+        },
+        {
+          "name": "Sunday, October 4",
+          "x": 665.109375,
+          "y": 132.1875,
+          "width": 39.6875,
+          "height": 40.625
+        },
+        {
+          "name": "Monday, October 5",
+          "x": 415,
+          "y": 174.8125,
+          "width": 39.671875,
+          "height": 40.640625
+        },
+        {
+          "name": "Tuesday, October 6",
+          "x": 456.671875,
+          "y": 174.8125,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Wednesday, October 7",
+          "x": 498.359375,
+          "y": 174.8125,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Thursday, October 8",
+          "x": 540.046875,
+          "y": 174.8125,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Friday, October 9",
+          "x": 581.734375,
+          "y": 174.8125,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Saturday, October 10",
+          "x": 623.421875,
+          "y": 174.8125,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Sunday, October 11",
+          "x": 665.109375,
+          "y": 174.8125,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Monday, October 12",
+          "x": 415,
+          "y": 217.453125,
+          "width": 39.671875,
+          "height": 40.640625
+        },
+        {
+          "name": "Tuesday, October 13",
+          "x": 456.671875,
+          "y": 217.453125,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Wednesday, October 14",
+          "x": 498.359375,
+          "y": 217.453125,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Thursday, October 15, has events",
+          "x": 540.046875,
+          "y": 217.453125,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Friday, October 16",
+          "x": 581.734375,
+          "y": 217.453125,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Saturday, October 17",
+          "x": 623.421875,
+          "y": 217.453125,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Sunday, October 18",
+          "x": 665.109375,
+          "y": 217.453125,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Monday, October 19",
+          "x": 415,
+          "y": 260.09375,
+          "width": 39.671875,
+          "height": 40.625
+        },
+        {
+          "name": "Tuesday, October 20",
+          "x": 456.671875,
+          "y": 260.09375,
+          "width": 39.6875,
+          "height": 40.625
+        },
+        {
+          "name": "Wednesday, October 21",
+          "x": 498.359375,
+          "y": 260.09375,
+          "width": 39.6875,
+          "height": 40.625
+        },
+        {
+          "name": "Thursday, October 22",
+          "x": 540.046875,
+          "y": 260.09375,
+          "width": 39.6875,
+          "height": 40.625
+        },
+        {
+          "name": "Friday, October 23",
+          "x": 581.734375,
+          "y": 260.09375,
+          "width": 39.6875,
+          "height": 40.625
+        },
+        {
+          "name": "Saturday, October 24",
+          "x": 623.421875,
+          "y": 260.09375,
+          "width": 39.6875,
+          "height": 40.625
+        },
+        {
+          "name": "Sunday, October 25",
+          "x": 665.109375,
+          "y": 260.09375,
+          "width": 39.6875,
+          "height": 40.625
+        },
+        {
+          "name": "Monday, October 26",
+          "x": 415,
+          "y": 302.71875,
+          "width": 39.671875,
+          "height": 40.640625
+        },
+        {
+          "name": "Tuesday, October 27",
+          "x": 456.671875,
+          "y": 302.71875,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Wednesday, October 28",
+          "x": 498.359375,
+          "y": 302.71875,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Thursday, October 29",
+          "x": 540.046875,
+          "y": 302.71875,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Friday, October 30",
+          "x": 581.734375,
+          "y": 302.71875,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Saturday, October 31",
+          "x": 623.421875,
+          "y": 302.71875,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Sunday, November 1",
+          "x": 665.109375,
+          "y": 302.71875,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Monday, November 2",
+          "x": 415,
+          "y": 345.359375,
+          "width": 39.671875,
+          "height": 40.640625
+        },
+        {
+          "name": "Tuesday, November 3",
+          "x": 456.671875,
+          "y": 345.359375,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Wednesday, November 4",
+          "x": 498.359375,
+          "y": 345.359375,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Thursday, November 5",
+          "x": 540.046875,
+          "y": 345.359375,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Friday, November 6",
+          "x": 581.734375,
+          "y": 345.359375,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Saturday, November 7",
+          "x": 623.421875,
+          "y": 345.359375,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Sunday, November 8",
+          "x": 665.109375,
+          "y": 345.359375,
+          "width": 39.6875,
+          "height": 40.640625
+        },
+        {
+          "name": "Add",
+          "x": 930.59375,
+          "y": 113,
+          "width": 54.390625,
+          "height": 28
+        },
+        {
+          "name": "Edit Design review",
+          "x": 924.984375,
+          "y": 163.765625,
+          "width": 22,
+          "height": 22
+        },
+        {
+          "name": "Delete Design review",
+          "x": 954.984375,
+          "y": 163.765625,
+          "width": 22,
+          "height": 22
+        }
+      ],
+      "clippedActions": [],
+      "dayFontPx": 12,
+      "finalWeek": {
+        "x": 665.109375,
+        "y": 345.359375,
+        "width": 39.6875,
+        "height": 40.640625
+      }
+    },
+    {
+      "widget": "reset-watch",
+      "size": "Small",
+      "card": {
+        "x": 706,
+        "y": 237,
+        "width": 298,
+        "height": 167,
+        "top": 237,
+        "right": 1004,
+        "bottom": 404,
+        "left": 706
+      },
+      "core": {
+        "x": 733,
+        "y": 369.125,
+        "width": 244,
+        "height": 13,
+        "top": 369.125,
+        "right": 977,
+        "bottom": 382.125,
+        "left": 733
+      },
+      "coreFontPx": 10,
+      "panel": {
+        "clientHeight": 358,
+        "scrollHeight": 358
+      },
+      "grid": {
+        "x": 396,
+        "y": 58,
+        "width": 608,
+        "height": 346,
+        "top": 58,
+        "right": 1004,
+        "bottom": 404,
+        "left": 396
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 1000
+      },
+      "document": {
+        "clientHeight": 1000,
+        "scrollHeight": 1000
+      },
+      "buttonBounds": [
+        {
+          "name": "Refresh reset status",
+          "x": 959,
+          "y": 255,
+          "width": 26,
+          "height": 26
+        },
+        {
+          "name": "See announcements",
+          "x": 844.03125,
+          "y": 255,
+          "width": 107.96875,
+          "height": 23
+        },
+        {
+          "name": "See announcements",
+          "x": 844.03125,
+          "y": 255,
+          "width": 107.96875,
+          "height": 23
+        },
+        {
+          "name": "Refresh reset status",
+          "x": 959,
+          "y": 255,
+          "width": 26,
+          "height": 26
+        },
+        {
+          "name": "Global Codex reset announced. A community announcement about a global reset. Reported by Sample data. Open source post.",
+          "x": 725,
+          "y": 342.125,
+          "width": 260,
+          "height": 48
+        }
+      ],
+      "clippedActions": []
+    },
+    {
+      "widget": "controls",
+      "size": "Small",
+      "card": {
+        "x": 396,
+        "y": 58,
+        "width": 608,
+        "height": 346,
+        "top": 58,
+        "right": 1004,
+        "bottom": 404,
+        "left": 396
+      },
+      "core": {
+        "x": 462,
+        "y": 184.015625,
+        "width": 203,
+        "height": 14.515625,
+        "top": 184.015625,
+        "right": 665,
+        "bottom": 198.53125,
+        "left": 462
+      },
+      "coreFontPx": 11,
+      "panel": {
+        "clientHeight": 358,
+        "scrollHeight": 358
+      },
+      "grid": {
+        "x": 396,
+        "y": 58,
+        "width": 608,
+        "height": 346,
+        "top": 58,
+        "right": 1004,
+        "bottom": 404,
+        "left": 396
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 1000
+      },
+      "document": {
+        "clientHeight": 1000,
+        "scrollHeight": 1000
+      },
+      "buttonBounds": [
+        {
+          "name": "Refresh quick settings",
+          "x": 961,
+          "y": 76,
+          "width": 24,
+          "height": 24
+        },
+        {
+          "name": "Optimize memory",
+          "x": 415,
+          "y": 347.3125,
+          "width": 570,
+          "height": 40.390625
+        },
+        {
+          "name": "Refresh quick settings",
+          "x": 961,
+          "y": 76,
+          "width": 24,
+          "height": 24
+        },
+        {
+          "name": "Mute",
+          "x": 426,
+          "y": 115.90625,
+          "width": 30,
+          "height": 24
+        },
+        {
+          "name": "Adjust sound in Windows",
+          "x": 426,
+          "y": 145.828125,
+          "width": 268,
+          "height": 15.1875
+        },
+        {
+          "name": "Adjust display in Windows",
+          "x": 706,
+          "y": 145.828125,
+          "width": 268,
+          "height": 15.1875
+        },
+        {
+          "name": "Bluetooth Open Windows settings",
+          "x": 415,
+          "y": 176.015625,
+          "width": 282,
+          "height": 44.390625
+        },
+        {
+          "name": "Night light Adjust in Windows",
+          "x": 703,
+          "y": 176.015625,
+          "width": 282,
+          "height": 44.390625
+        },
+        {
+          "name": "Do not disturb Notch alerts on",
+          "x": 415,
+          "y": 226.40625,
+          "width": 282,
+          "height": 44.390625
+        },
+        {
+          "name": "Power mode Adjust in Windows",
+          "x": 703,
+          "y": 226.40625,
+          "width": 282,
+          "height": 44.390625
+        },
+        {
+          "name": "Energy Saver & power",
+          "x": 415,
+          "y": 317.3125,
+          "width": 279,
+          "height": 24
+        },
+        {
+          "name": "Bluetooth devices",
+          "x": 706,
+          "y": 317.3125,
+          "width": 279,
+          "height": 24
+        },
+        {
+          "name": "Optimize memory Trim eligible background apps · apps stay open",
+          "x": 415,
+          "y": 347.3125,
+          "width": 570,
+          "height": 40.390625
+        }
+      ],
+      "clippedActions": []
+    },
+    {
+      "widget": "calendar",
+      "size": "Medium",
+      "card": {
+        "x": 316,
+        "y": 58,
+        "width": 768,
+        "height": 466,
+        "top": 58,
+        "right": 1084,
+        "bottom": 524,
+        "left": 316
+      },
+      "core": {
+        "x": 341.828125,
+        "y": 143.5,
+        "width": 38,
+        "height": 38,
+        "top": 143.5,
+        "right": 379.828125,
+        "bottom": 181.5,
+        "left": 341.828125
+      },
+      "coreFontPx": 15.5016,
+      "panel": {
+        "clientHeight": 478,
+        "scrollHeight": 478
+      },
+      "grid": {
+        "x": 335,
+        "y": 132.1875,
+        "width": 373.796875,
+        "height": 373.8125
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 1000
+      },
+      "document": {
+        "clientHeight": 1000,
+        "scrollHeight": 1000
+      },
+      "buttonBounds": [
+        {
+          "name": "Previous month",
+          "x": 605,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Next month",
+          "x": 638,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Connect calendar",
+          "x": 932.578125,
+          "y": 77,
+          "width": 70.421875,
+          "height": 28
+        },
+        {
+          "name": "Import calendar file",
+          "x": 1006,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Add event",
+          "x": 1037,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Previous month",
+          "x": 605,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Next month",
+          "x": 638,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Today",
+          "x": 671,
+          "y": 77,
+          "width": 47.25,
+          "height": 28
+        },
+        {
+          "name": "Connect calendar",
+          "x": 932.578125,
+          "y": 77,
+          "width": 70.421875,
+          "height": 28
+        },
+        {
+          "name": "Import calendar file",
+          "x": 1006,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Add event",
+          "x": 1037,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Monday, September 28",
+          "x": 335,
+          "y": 132.1875,
+          "width": 51.671875,
+          "height": 60.625
+        },
+        {
+          "name": "Tuesday, September 29",
+          "x": 388.671875,
+          "y": 132.1875,
+          "width": 51.6875,
+          "height": 60.625
+        },
+        {
+          "name": "Wednesday, September 30",
+          "x": 442.359375,
+          "y": 132.1875,
+          "width": 51.6875,
+          "height": 60.625
+        },
+        {
+          "name": "Thursday, October 1",
+          "x": 496.046875,
+          "y": 132.1875,
+          "width": 51.6875,
+          "height": 60.625
+        },
+        {
+          "name": "Friday, October 2",
+          "x": 549.734375,
+          "y": 132.1875,
+          "width": 51.6875,
+          "height": 60.625
+        },
+        {
+          "name": "Saturday, October 3",
+          "x": 603.421875,
+          "y": 132.1875,
+          "width": 51.6875,
+          "height": 60.625
+        },
+        {
+          "name": "Sunday, October 4",
+          "x": 657.109375,
+          "y": 132.1875,
+          "width": 51.6875,
+          "height": 60.625
+        },
+        {
+          "name": "Monday, October 5",
+          "x": 335,
+          "y": 194.8125,
+          "width": 51.671875,
+          "height": 60.640625
+        },
+        {
+          "name": "Tuesday, October 6",
+          "x": 388.671875,
+          "y": 194.8125,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Wednesday, October 7",
+          "x": 442.359375,
+          "y": 194.8125,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Thursday, October 8",
+          "x": 496.046875,
+          "y": 194.8125,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Friday, October 9",
+          "x": 549.734375,
+          "y": 194.8125,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Saturday, October 10",
+          "x": 603.421875,
+          "y": 194.8125,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Sunday, October 11",
+          "x": 657.109375,
+          "y": 194.8125,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Monday, October 12",
+          "x": 335,
+          "y": 257.453125,
+          "width": 51.671875,
+          "height": 60.640625
+        },
+        {
+          "name": "Tuesday, October 13",
+          "x": 388.671875,
+          "y": 257.453125,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Wednesday, October 14",
+          "x": 442.359375,
+          "y": 257.453125,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Thursday, October 15, has events",
+          "x": 496.046875,
+          "y": 257.453125,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Friday, October 16",
+          "x": 549.734375,
+          "y": 257.453125,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Saturday, October 17",
+          "x": 603.421875,
+          "y": 257.453125,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Sunday, October 18",
+          "x": 657.109375,
+          "y": 257.453125,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Monday, October 19",
+          "x": 335,
+          "y": 320.09375,
+          "width": 51.671875,
+          "height": 60.625
+        },
+        {
+          "name": "Tuesday, October 20",
+          "x": 388.671875,
+          "y": 320.09375,
+          "width": 51.6875,
+          "height": 60.625
+        },
+        {
+          "name": "Wednesday, October 21",
+          "x": 442.359375,
+          "y": 320.09375,
+          "width": 51.6875,
+          "height": 60.625
+        },
+        {
+          "name": "Thursday, October 22",
+          "x": 496.046875,
+          "y": 320.09375,
+          "width": 51.6875,
+          "height": 60.625
+        },
+        {
+          "name": "Friday, October 23",
+          "x": 549.734375,
+          "y": 320.09375,
+          "width": 51.6875,
+          "height": 60.625
+        },
+        {
+          "name": "Saturday, October 24",
+          "x": 603.421875,
+          "y": 320.09375,
+          "width": 51.6875,
+          "height": 60.625
+        },
+        {
+          "name": "Sunday, October 25",
+          "x": 657.109375,
+          "y": 320.09375,
+          "width": 51.6875,
+          "height": 60.625
+        },
+        {
+          "name": "Monday, October 26",
+          "x": 335,
+          "y": 382.71875,
+          "width": 51.671875,
+          "height": 60.640625
+        },
+        {
+          "name": "Tuesday, October 27",
+          "x": 388.671875,
+          "y": 382.71875,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Wednesday, October 28",
+          "x": 442.359375,
+          "y": 382.71875,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Thursday, October 29",
+          "x": 496.046875,
+          "y": 382.71875,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Friday, October 30",
+          "x": 549.734375,
+          "y": 382.71875,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Saturday, October 31",
+          "x": 603.421875,
+          "y": 382.71875,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Sunday, November 1",
+          "x": 657.109375,
+          "y": 382.71875,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Monday, November 2",
+          "x": 335,
+          "y": 445.359375,
+          "width": 51.671875,
+          "height": 60.640625
+        },
+        {
+          "name": "Tuesday, November 3",
+          "x": 388.671875,
+          "y": 445.359375,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Wednesday, November 4",
+          "x": 442.359375,
+          "y": 445.359375,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Thursday, November 5",
+          "x": 496.046875,
+          "y": 445.359375,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Friday, November 6",
+          "x": 549.734375,
+          "y": 445.359375,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Saturday, November 7",
+          "x": 603.421875,
+          "y": 445.359375,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Sunday, November 8",
+          "x": 657.109375,
+          "y": 445.359375,
+          "width": 51.6875,
+          "height": 60.640625
+        },
+        {
+          "name": "Add",
+          "x": 1010.59375,
+          "y": 113,
+          "width": 54.390625,
+          "height": 28
+        },
+        {
+          "name": "Edit Design review",
+          "x": 1004.984375,
+          "y": 163.765625,
+          "width": 22,
+          "height": 22
+        },
+        {
+          "name": "Delete Design review",
+          "x": 1034.984375,
+          "y": 163.765625,
+          "width": 22,
+          "height": 22
+        }
+      ],
+      "clippedActions": [],
+      "dayFontPx": 15.5016,
+      "finalWeek": {
+        "x": 657.109375,
+        "y": 445.359375,
+        "width": 51.6875,
+        "height": 60.640625
+      }
+    },
+    {
+      "widget": "reset-watch",
+      "size": "Medium",
+      "card": {
+        "x": 706,
+        "y": 297.04852294921875,
+        "width": 378,
+        "height": 227.00006103515625,
+        "top": 297.04852294921875,
+        "right": 1084,
+        "bottom": 524.048583984375,
+        "left": 706
+      },
+      "core": {
+        "x": 734,
+        "y": 460.1579284667969,
+        "width": 322,
+        "height": 13,
+        "top": 460.1579284667969,
+        "right": 1056,
+        "bottom": 473.1579284667969,
+        "left": 734
+      },
+      "coreFontPx": 10,
+      "panel": {
+        "clientHeight": 478,
+        "scrollHeight": 478
+      },
+      "grid": {
+        "x": 316,
+        "y": 58.04853820800781,
+        "width": 768,
+        "height": 466.00006103515625,
+        "top": 58.04853820800781,
+        "right": 1084,
+        "bottom": 524.0485992431641,
+        "left": 316
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 1000
+      },
+      "document": {
+        "clientHeight": 1000,
+        "scrollHeight": 1000
+      },
+      "buttonBounds": [
+        {
+          "name": "Refresh reset status",
+          "x": 1039,
+          "y": 315.0030822753906,
+          "width": 26,
+          "height": 26
+        },
+        {
+          "name": "See announcements",
+          "x": 924.03125,
+          "y": 315,
+          "width": 107.96875,
+          "height": 23
+        },
+        {
+          "name": "See announcements",
+          "x": 924.03125,
+          "y": 315,
+          "width": 107.96875,
+          "height": 23
+        },
+        {
+          "name": "Refresh reset status",
+          "x": 1039,
+          "y": 315,
+          "width": 26,
+          "height": 26
+        },
+        {
+          "name": "Global Codex reset announced. A community announcement about a global reset. Reported by Sample data. Open source post.",
+          "x": 725,
+          "y": 436.109375,
+          "width": 340,
+          "height": 44
+        }
+      ],
+      "clippedActions": []
+    },
+    {
+      "widget": "controls",
+      "size": "Medium",
+      "card": {
+        "x": 316,
+        "y": 58,
+        "width": 768,
+        "height": 466,
+        "top": 58,
+        "right": 1084,
+        "bottom": 524,
+        "left": 316
+      },
+      "core": {
+        "x": 388,
+        "y": 219.640625,
+        "width": 270,
+        "height": 15.828125,
+        "top": 219.640625,
+        "right": 658,
+        "bottom": 235.46875,
+        "left": 388
+      },
+      "coreFontPx": 12,
+      "panel": {
+        "clientHeight": 478,
+        "scrollHeight": 478
+      },
+      "grid": {
+        "x": 316,
+        "y": 58,
+        "width": 768,
+        "height": 466,
+        "top": 58,
+        "right": 1084,
+        "bottom": 524,
+        "left": 316
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 1000
+      },
+      "document": {
+        "clientHeight": 1000,
+        "scrollHeight": 1000
+      },
+      "buttonBounds": [
+        {
+          "name": "Refresh quick settings",
+          "x": 1035,
+          "y": 76.015625,
+          "width": 30,
+          "height": 30
+        },
+        {
+          "name": "Optimize memory",
+          "x": 335,
+          "y": 448,
+          "width": 730,
+          "height": 58
+        },
+        {
+          "name": "Refresh quick settings",
+          "x": 1035,
+          "y": 76.015625,
+          "width": 30,
+          "height": 30
+        },
+        {
+          "name": "Mute",
+          "x": 350,
+          "y": 131.03125,
+          "width": 30,
+          "height": 30
+        },
+        {
+          "name": "Adjust sound in Windows",
+          "x": 350,
+          "y": 166.03125,
+          "width": 341,
+          "height": 15.1875
+        },
+        {
+          "name": "Adjust display in Windows",
+          "x": 709,
+          "y": 166.03125,
+          "width": 341,
+          "height": 15.1875
+        },
+        {
+          "name": "Bluetooth Open Windows settings",
+          "x": 335,
+          "y": 206.8125,
+          "width": 361,
+          "height": 58
+        },
+        {
+          "name": "Night light Adjust in Windows",
+          "x": 704,
+          "y": 206.8125,
+          "width": 361,
+          "height": 58
+        },
+        {
+          "name": "Do not disturb Notch alerts on",
+          "x": 335,
+          "y": 272.8125,
+          "width": 361,
+          "height": 58
+        },
+        {
+          "name": "Power mode Adjust in Windows",
+          "x": 704,
+          "y": 272.8125,
+          "width": 361,
+          "height": 58
+        },
+        {
+          "name": "Energy Saver & power",
+          "x": 335,
+          "y": 403.421875,
+          "width": 359,
+          "height": 34
+        },
+        {
+          "name": "Bluetooth devices",
+          "x": 706,
+          "y": 403.421875,
+          "width": 359,
+          "height": 34
+        },
+        {
+          "name": "Optimize memory Trim eligible background apps · apps stay open",
+          "x": 335,
+          "y": 448,
+          "width": 730,
+          "height": 58
+        }
+      ],
+      "clippedActions": []
+    },
+    {
+      "widget": "calendar",
+      "size": "Large",
+      "card": {
+        "x": 236,
+        "y": 58,
+        "width": 928,
+        "height": 546,
+        "top": 58,
+        "right": 1164,
+        "bottom": 604,
+        "left": 236
+      },
+      "core": {
+        "x": 267.828125,
+        "y": 150.171875,
+        "width": 38,
+        "height": 38,
+        "top": 150.171875,
+        "right": 305.828125,
+        "bottom": 188.171875,
+        "left": 267.828125
+      },
+      "coreFontPx": 17,
+      "panel": {
+        "clientHeight": 558,
+        "scrollHeight": 558
+      },
+      "grid": {
+        "x": 255,
+        "y": 132.1875,
+        "width": 457.796875,
+        "height": 453.8125
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 1000
+      },
+      "document": {
+        "clientHeight": 1000,
+        "scrollHeight": 1000
+      },
+      "buttonBounds": [
+        {
+          "name": "Previous month",
+          "x": 609,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Next month",
+          "x": 642,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Connect calendar",
+          "x": 1012.578125,
+          "y": 77,
+          "width": 70.421875,
+          "height": 28
+        },
+        {
+          "name": "Import calendar file",
+          "x": 1086,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Add event",
+          "x": 1117,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Previous month",
+          "x": 609,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Next month",
+          "x": 642,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Today",
+          "x": 675,
+          "y": 77,
+          "width": 47.25,
+          "height": 28
+        },
+        {
+          "name": "Connect calendar",
+          "x": 1012.578125,
+          "y": 77,
+          "width": 70.421875,
+          "height": 28
+        },
+        {
+          "name": "Import calendar file",
+          "x": 1086,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Add event",
+          "x": 1117,
+          "y": 77,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "name": "Monday, September 28",
+          "x": 255,
+          "y": 132.1875,
+          "width": 63.671875,
+          "height": 73.96875
+        },
+        {
+          "name": "Tuesday, September 29",
+          "x": 320.671875,
+          "y": 132.1875,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Wednesday, September 30",
+          "x": 386.359375,
+          "y": 132.1875,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Thursday, October 1",
+          "x": 452.046875,
+          "y": 132.1875,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Friday, October 2",
+          "x": 517.734375,
+          "y": 132.1875,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Saturday, October 3",
+          "x": 583.421875,
+          "y": 132.1875,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Sunday, October 4",
+          "x": 649.109375,
+          "y": 132.1875,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Monday, October 5",
+          "x": 255,
+          "y": 208.15625,
+          "width": 63.671875,
+          "height": 73.96875
+        },
+        {
+          "name": "Tuesday, October 6",
+          "x": 320.671875,
+          "y": 208.15625,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Wednesday, October 7",
+          "x": 386.359375,
+          "y": 208.15625,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Thursday, October 8",
+          "x": 452.046875,
+          "y": 208.15625,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Friday, October 9",
+          "x": 517.734375,
+          "y": 208.15625,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Saturday, October 10",
+          "x": 583.421875,
+          "y": 208.15625,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Sunday, October 11",
+          "x": 649.109375,
+          "y": 208.15625,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Monday, October 12",
+          "x": 255,
+          "y": 284.125,
+          "width": 63.671875,
+          "height": 73.96875
+        },
+        {
+          "name": "Tuesday, October 13",
+          "x": 320.671875,
+          "y": 284.125,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Wednesday, October 14",
+          "x": 386.359375,
+          "y": 284.125,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Thursday, October 15, has events",
+          "x": 452.046875,
+          "y": 284.125,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Friday, October 16",
+          "x": 517.734375,
+          "y": 284.125,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Saturday, October 17",
+          "x": 583.421875,
+          "y": 284.125,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Sunday, October 18",
+          "x": 649.109375,
+          "y": 284.125,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Monday, October 19",
+          "x": 255,
+          "y": 360.09375,
+          "width": 63.671875,
+          "height": 73.96875
+        },
+        {
+          "name": "Tuesday, October 20",
+          "x": 320.671875,
+          "y": 360.09375,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Wednesday, October 21",
+          "x": 386.359375,
+          "y": 360.09375,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Thursday, October 22",
+          "x": 452.046875,
+          "y": 360.09375,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Friday, October 23",
+          "x": 517.734375,
+          "y": 360.09375,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Saturday, October 24",
+          "x": 583.421875,
+          "y": 360.09375,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Sunday, October 25",
+          "x": 649.109375,
+          "y": 360.09375,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Monday, October 26",
+          "x": 255,
+          "y": 436.0625,
+          "width": 63.671875,
+          "height": 73.96875
+        },
+        {
+          "name": "Tuesday, October 27",
+          "x": 320.671875,
+          "y": 436.0625,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Wednesday, October 28",
+          "x": 386.359375,
+          "y": 436.0625,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Thursday, October 29",
+          "x": 452.046875,
+          "y": 436.0625,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Friday, October 30",
+          "x": 517.734375,
+          "y": 436.0625,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Saturday, October 31",
+          "x": 583.421875,
+          "y": 436.0625,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Sunday, November 1",
+          "x": 649.109375,
+          "y": 436.0625,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Monday, November 2",
+          "x": 255,
+          "y": 512.03125,
+          "width": 63.671875,
+          "height": 73.96875
+        },
+        {
+          "name": "Tuesday, November 3",
+          "x": 320.671875,
+          "y": 512.03125,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Wednesday, November 4",
+          "x": 386.359375,
+          "y": 512.03125,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Thursday, November 5",
+          "x": 452.046875,
+          "y": 512.03125,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Friday, November 6",
+          "x": 517.734375,
+          "y": 512.03125,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Saturday, November 7",
+          "x": 583.421875,
+          "y": 512.03125,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Sunday, November 8",
+          "x": 649.109375,
+          "y": 512.03125,
+          "width": 63.6875,
+          "height": 73.96875
+        },
+        {
+          "name": "Add",
+          "x": 1090.59375,
+          "y": 113,
+          "width": 54.390625,
+          "height": 28
+        },
+        {
+          "name": "Edit Design review",
+          "x": 1084.984375,
+          "y": 163.765625,
+          "width": 22,
+          "height": 22
+        },
+        {
+          "name": "Delete Design review",
+          "x": 1114.984375,
+          "y": 163.765625,
+          "width": 22,
+          "height": 22
+        }
+      ],
+      "clippedActions": [],
+      "dayFontPx": 17,
+      "finalWeek": {
+        "x": 649.109375,
+        "y": 512.03125,
+        "width": 63.6875,
+        "height": 73.96875
+      }
+    },
+    {
+      "widget": "reset-watch",
+      "size": "Large",
+      "card": {
+        "x": 706,
+        "y": 337.0031433105469,
+        "width": 458,
+        "height": 267.0000305175781,
+        "top": 337.0031433105469,
+        "right": 1164,
+        "bottom": 604.003173828125,
+        "left": 706
+      },
+      "core": {
+        "x": 736,
+        "y": 519.721923828125,
+        "width": 398,
+        "height": 14.296875,
+        "top": 519.721923828125,
+        "right": 1134,
+        "bottom": 534.018798828125,
+        "left": 736
+      },
+      "coreFontPx": 11,
+      "panel": {
+        "clientHeight": 558,
+        "scrollHeight": 558
+      },
+      "grid": {
+        "x": 236,
+        "y": 58.00314712524414,
+        "width": 928,
+        "height": 546,
+        "top": 58.00314712524414,
+        "right": 1164,
+        "bottom": 604.0031471252441,
+        "left": 236
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 1000
+      },
+      "document": {
+        "clientHeight": 1000,
+        "scrollHeight": 1000
+      },
+      "buttonBounds": [
+        {
+          "name": "Refresh reset status",
+          "x": 1119,
+          "y": 355,
+          "width": 26,
+          "height": 26
+        },
+        {
+          "name": "See announcements",
+          "x": 1004.03125,
+          "y": 355,
+          "width": 107.96875,
+          "height": 23
+        },
+        {
+          "name": "See announcements",
+          "x": 1004.03125,
+          "y": 355,
+          "width": 107.96875,
+          "height": 23
+        },
+        {
+          "name": "Refresh reset status",
+          "x": 1119,
+          "y": 355,
+          "width": 26,
+          "height": 26
+        },
+        {
+          "name": "Global Codex reset announced. A community announcement about a global reset. Reported by Sample data. Open source post.",
+          "x": 725,
+          "y": 485.71875,
+          "width": 420,
+          "height": 76.296875
+        }
+      ],
+      "clippedActions": []
+    },
+    {
+      "widget": "controls",
+      "size": "Large",
+      "card": {
+        "x": 236,
+        "y": 58,
+        "width": 928,
+        "height": 546,
+        "top": 58,
+        "right": 1164,
+        "bottom": 604,
+        "left": 236
+      },
+      "core": {
+        "x": 308,
+        "y": 239.640625,
+        "width": 350,
+        "height": 15.828125,
+        "top": 239.640625,
+        "right": 658,
+        "bottom": 255.46875,
+        "left": 308
+      },
+      "coreFontPx": 12,
+      "panel": {
+        "clientHeight": 558,
+        "scrollHeight": 558
+      },
+      "grid": {
+        "x": 236,
+        "y": 58,
+        "width": 928,
+        "height": 546,
+        "top": 58,
+        "right": 1164,
+        "bottom": 604,
+        "left": 236
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 1000
+      },
+      "document": {
+        "clientHeight": 1000,
+        "scrollHeight": 1000
+      },
+      "buttonBounds": [
+        {
+          "name": "Refresh quick settings",
+          "x": 1115,
+          "y": 76.015625,
+          "width": 30,
+          "height": 30
+        },
+        {
+          "name": "Optimize memory",
+          "x": 255,
+          "y": 528,
+          "width": 890,
+          "height": 58
+        },
+        {
+          "name": "Refresh quick settings",
+          "x": 1115,
+          "y": 76.015625,
+          "width": 30,
+          "height": 30
+        },
+        {
+          "name": "Mute",
+          "x": 270,
+          "y": 131.03125,
+          "width": 30,
+          "height": 30
+        },
+        {
+          "name": "Adjust sound in Windows",
+          "x": 270,
+          "y": 166.03125,
+          "width": 421,
+          "height": 15.1875
+        },
+        {
+          "name": "Adjust display in Windows",
+          "x": 709,
+          "y": 166.03125,
+          "width": 421,
+          "height": 15.1875
+        },
+        {
+          "name": "Bluetooth Open Windows settings",
+          "x": 255,
+          "y": 226.8125,
+          "width": 441,
+          "height": 58
+        },
+        {
+          "name": "Night light Adjust in Windows",
+          "x": 704,
+          "y": 226.8125,
+          "width": 441,
+          "height": 58
+        },
+        {
+          "name": "Do not disturb Notch alerts on",
+          "x": 255,
+          "y": 292.8125,
+          "width": 441,
+          "height": 58
+        },
+        {
+          "name": "Power mode Adjust in Windows",
+          "x": 704,
+          "y": 292.8125,
+          "width": 441,
+          "height": 58
+        },
+        {
+          "name": "Energy Saver & power",
+          "x": 255,
+          "y": 463.421875,
+          "width": 439,
+          "height": 34
+        },
+        {
+          "name": "Bluetooth devices",
+          "x": 706,
+          "y": 463.421875,
+          "width": 439,
+          "height": 34
+        },
+        {
+          "name": "Optimize memory Trim eligible background apps · apps stay open",
+          "x": 255,
+          "y": 528,
+          "width": 890,
+          "height": 58
+        }
+      ],
+      "clippedActions": []
+    },
+    {
+      "widget": "settings-appearance",
+      "viewport": {
+        "width": 960,
+        "height": 700
+      },
+      "preview": {
+        "x": 559.21875,
+        "y": 105.34375,
+        "width": 364.78125,
+        "height": 200.75,
+        "right": 924,
+        "bottom": 306.09375
+      },
+      "main": {
+        "clientWidth": 736,
+        "scrollWidth": 736,
+        "clientHeight": 700,
+        "scrollHeight": 700
+      }
+    }
+  ]
+}

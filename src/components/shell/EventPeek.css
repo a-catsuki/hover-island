@@ -1,0 +1,127 @@
+.panel__body:has(>.peek) {position:static;}
+.panel__body>.peek {z-index:12;}
+.island .panel__body>.peek {max-height:none;}
+.island--peek .panel__body {position:static;overflow:visible;}
+.island--peek .peek {top:18px;max-height:none;}
+.island--device-peek .peek {top:14px;}
+
+/* Native volume and brightness changes use a compact, glanceable control card. */
+.island.island--device-peek .peek--system {height:84px;min-height:84px;padding:0 18px;align-items:center;gap:15px;border-radius:20px;background:linear-gradient(145deg,#20242d,#111318 78%);border:1px solid #ffffff13;box-shadow:inset 0 1px 0 #ffffff0b,0 12px 34px #0008;}
+.peek-system__icon {width:42px;height:42px;flex:none;display:grid;place-items:center;border-radius:14px;color:#d8e4ff;background:linear-gradient(145deg,#ffffff16,#ffffff08);box-shadow:inset 0 0 0 1px #ffffff0b;}
+.peek--system-muted .peek-system__icon {color:#aab0bd;}
+.peek__body--system {flex:1;min-width:0;display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:14px;row-gap:4px;padding:0;}
+.peek__body--system .peek__app {grid-column:1;grid-row:1;color:#98a4ba;font-size:11px;}
+.peek__body--system .peek__title {grid-column:2;grid-row:1 / span 2;font-size:20px;font-variant-numeric:tabular-nums;}
+.peek-system__track {grid-column:1;grid-row:2;height:5px;overflow:hidden;border-radius:999px;background:#ffffff18;}
+.peek-system__track span {display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#82a5ff,#c1d1ff);transition:width 180ms cubic-bezier(.2,.8,.2,1);}
+.peek--system-muted .peek-system__track span {background:#858b98;}
+
+/* -------------------------------------------------------- transfer (AirDrop) */
+
+.island.island--transfer-peek .peek {top:19px;left:max(16px,calc((100% - 440px)/2 + 16px));width:min(408px,calc(100% - 32px));height:110px;max-height:none;padding:0 16px;align-items:center;gap:16px;border-radius:18px;background:linear-gradient(180deg,#ffffff09,#ffffff03);border:1px solid #ffffff10;box-shadow:inset 0 1px 0 #ffffff08;}
+
+.peek--transfer {align-items:center;gap:14px;}
+.peek--transfer .peek__app {color:#93a9c9;}
+
+.peek-transfer-icon {position:relative;flex:none;display:grid;place-items:center;width:88px;height:88px;border-radius:50%;color:#cfe3ff;background:radial-gradient(circle at 50% 26%,#1a3352,#0c1725 72%);box-shadow:inset 0 0 0 1px #ffffff12,inset 0 1px 0 #ffffff14,0 10px 24px #0000003d;}
+.peek-transfer-icon>svg {position:absolute;inset:0;width:100%;height:100%;fill:none;transform:rotate(-90deg);}
+.peek-transfer-icon__track {stroke:#ffffff1c;stroke-width:2.2;}
+.peek-transfer-icon__progress {stroke:#6cb0ff;stroke-width:2.2;stroke-linecap:round;stroke-dasharray:132;transition:stroke-dashoffset 320ms var(--ease);}
+.peek-transfer-icon__glyph {position:relative;display:grid;place-items:center;color:#d6e7ff;}
+
+.peek__body--transfer {flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding-top:0;}
+.peek-transfer__meta {display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.peek-transfer__pct {flex:none;font-size:12px;font-weight:600;color:#9fc6ff;font-variant-numeric:tabular-nums;}
+.peek-transfer__status {font-size:15px;font-weight:650;letter-spacing:-.3px;line-height:1.2;color:#f4f5f8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.peek-transfer__file {display:flex;align-items:baseline;gap:8px;min-width:0;}
+.peek-transfer__name {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#c7c9d1;font-size:12px;font-weight:500;}
+.peek-transfer__size {flex:none;color:#7f828c;font-size:11px;font-variant-numeric:tabular-nums;}
+.peek-transfer__action {align-self:flex-start;display:inline-flex;align-items:center;gap:6px;margin-top:6px;height:28px;padding:0 13px;border:0;border-radius:999px;background:#ffffff14;color:#cfe1ff;font:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease),transform var(--dur-fast) var(--ease);}
+.peek-transfer__action:hover {background:#6cb0ff;color:#0b0b0f;}
+.peek-transfer__action:active {transform:scale(.97);}
+
+.peek--failed .peek-transfer-icon {color:#ffd3cc;background:radial-gradient(circle at 50% 26%,#3d1a1b,#210f10 72%);box-shadow:inset 0 0 0 1px #ff7b7026,0 10px 24px #0000003d;}
+.peek--failed .peek-transfer-icon__progress {stroke:#ff7b70;}
+
+/* ---------------------------------------------------------- panel card mode */
+
+.island:not(.island--peek) .panel__body>.peek {position:absolute;top:64px;right:16px;left:auto;width:min(420px,calc(100% - 32px));max-height:none;padding:14px 16px;background:#18181cfa;border:1px solid #ffffff16;box-shadow:0 14px 45px #0009;}
+.island:not(.island--peek) .panel__body>.peek--transfer {align-items:center;gap:16px;}
+
+/* ------------------------------------------------------- non-transfer alerts */
+
+.peek__open {display:inline-flex;align-items:center;gap:6px;align-self:flex-start;margin-top:9px;height:28px;padding:0 12px;border:0;border-radius:999px;background:#ffffff14;color:#cfe1ff;font:inherit;font-size:var(--fs-11);font-weight:600;cursor:pointer;transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease),transform var(--dur-fast) var(--ease);}
+.peek__open:hover {background:#6cb0ff;color:#0b0b0f;}
+.peek__open:active {transform:scale(.97);}
+.peek__priority {margin-left:8px;padding:2px 5px;border-radius:5px;color:#ffab9a;background:#ff453a22;font-size:8px;}
+.peek {position:relative;touch-action:none;}
+.peek__dismiss {position:absolute;top:5px;right:5px;display:grid;width:24px;height:24px;place-items:center;padding:0;border:0;border-radius:8px;background:transparent;color:var(--text-2);opacity:.62;cursor:pointer;transition:opacity var(--dur-fast) var(--ease),background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease);}
+.peek__dismiss:hover,.peek__dismiss:focus-visible {background:#ffffff12;color:var(--text-1);opacity:1;}
+.peek__dismiss:focus-visible {outline:2px solid var(--accent);outline-offset:2px;}
+.peek--dragging {cursor:grabbing;user-select:none;will-change:transform;}
+@media(prefers-reduced-motion:reduce){.peek__open:active{transform:none;}.peek__dismiss{transition:none;}}
+
+/* ------------------------------------------------------------- edge anchors */
+
+.island--edge-bottom.island--peek .peek {top:auto;bottom:18px;transform-origin:bottom center;animation-name:peek-in-up;}
+@keyframes peek-in-up {0%{opacity:0;transform:translateY(14px) scale(.86)}58%{opacity:1;transform:translateY(-2px) scale(1.045)}78%{transform:translateY(1px) scale(.985)}100%{opacity:1;transform:translateY(0) scale(1)}}
+.island--edge-left.island--peek .peek {left:16px;right:auto;top:calc((100% - 112px)/2 + 18px);width:min(388px,calc(100% - 32px));}
+.island--edge-right.island--peek .peek {right:16px;left:auto;top:calc((100% - 112px)/2 + 18px);width:min(388px,calc(100% - 32px));}
+.island--edge-left.island--device-peek .peek,.island--edge-right.island--device-peek .peek {top:calc((100% - 84px)/2 + 14px);width:min(308px,calc(100% - 32px));}
+.island--edge-left.island--transfer-peek .peek,.island--edge-right.island--transfer-peek .peek {top:calc((100% - 148px)/2 + 19px);width:min(408px,calc(100% - 32px));}
+
+@media(prefers-reduced-motion:reduce){.peek-transfer-icon__progress{transition:none;}.peek-transfer__action:active{transform:none;}}
+@media(prefers-reduced-motion:reduce){.peek-system__track span{transition:none;}}
+
+/* --------------------------------------------------------------- AI activity */
+/* Calm graphite + accent. Deliberately never uses the urgent / red look. */
+
+.peek.peek--ai {
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--line-1));
+  background:
+    radial-gradient(130% 150% at 0% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 62%),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 72%),
+    color-mix(in srgb, var(--surface-1) 94%, transparent);
+}
+.island:not(.island--peek) .panel__body>.peek.peek--ai { background:#16181efa; border-color:color-mix(in srgb,var(--accent) 24%,var(--line-1)); }
+.peek--ai .peek__app--ai { display:flex; align-items:center; color:#9db6e8; }
+.peek--ai .peek__title { letter-spacing:-.3px; }
+
+.peek-ai__badge { display:inline-flex; align-items:center; margin-left:8px; padding:1px 7px; border-radius:999px; font-size:9px; font-weight:650; letter-spacing:.02em; line-height:1.5; color:#bcd0ff; background:color-mix(in srgb,var(--accent) 20%, transparent); }
+.peek-ai__badge--input { color:#f0d6a2; background:#e3b16a26; }
+
+.peek-bot { position:relative; flex:none; width:42px; height:42px; display:grid; place-items:center; border-radius:13px; background:radial-gradient(120% 120% at 50% 18%, color-mix(in srgb,var(--accent) 24%, #191c24), #0e0f13 76%); box-shadow:inset 0 0 0 1px #ffffff12,inset 0 1px 0 #ffffff16; }
+.peek-bot__svg { width:100%; height:100%; overflow:visible; }
+.peek-bot__head { fill:#1b1f28; stroke:#ffffff1e; stroke-width:1.2; }
+.peek-bot__visor { fill:color-mix(in srgb,var(--accent) 28%, #0c0e13); }
+.peek-bot__eye { fill:#dfeaff; transform-box:fill-box; transform-origin:center; }
+.peek-bot__stalk { stroke:#ffffff33; stroke-width:1.4; }
+.peek-bot__signal { fill:var(--accent); }
+.peek-bot__spark { fill:color-mix(in srgb,var(--accent) 60%, #ffffff); opacity:0; }
+
+/* Task complete: one short, under-damped pop with a spark flourish. */
+.peek-bot--complete { animation:peek-bot-pop 640ms var(--spring) both; }
+.peek-bot--complete .peek-bot__spark { animation:peek-bot-spark 900ms var(--ease-out) both; }
+.peek-bot--complete .peek-bot__spark--2 { animation-delay:90ms; }
+.peek-bot--complete .peek-bot__spark--3 { animation-delay:180ms; }
+.peek-bot--complete .peek-bot__visor { fill:color-mix(in srgb,var(--accent) 46%, #0c0e13); }
+@keyframes peek-bot-pop { 0%{transform:scale(.9)} 42%{transform:scale(1.06)} 100%{transform:scale(1)} }
+@keyframes peek-bot-spark { 0%{opacity:0;transform:translateY(3px) scale(.4)} 30%{opacity:1} 100%{opacity:0;transform:translateY(-7px) scale(1.15)} }
+
+/* Needs input: an attentive pulse, a soft blink and a gentle waiting sway. */
+.peek-bot--input { animation:peek-bot-attend 2.8s var(--ease-in-out) infinite; }
+.peek-bot--input .peek-bot__signal { animation:peek-bot-ping 1.5s var(--ease-in-out) infinite; }
+.peek-bot--input .peek-bot__eye { animation:peek-bot-blink 3.6s var(--ease-in-out) infinite; }
+@keyframes peek-bot-ping { 0%,100%{opacity:.5;transform:scale(.86)} 50%{opacity:1;transform:scale(1)} }
+@keyframes peek-bot-blink { 0%,90%,100%{transform:scaleY(1)} 94%{transform:scaleY(.12)} }
+@keyframes peek-bot-attend { 0%,100%{transform:translateY(0) rotate(0)} 30%{transform:translateY(-1.5px) rotate(-2deg)} 62%{transform:translateY(0) rotate(2deg)} }
+
+@media (prefers-reduced-motion: reduce) {
+  .peek-bot--complete,
+  .peek-bot--complete .peek-bot__spark,
+  .peek-bot--input,
+  .peek-bot--input .peek-bot__signal,
+  .peek-bot--input .peek-bot__eye { animation:none; }
+  .peek-bot--complete .peek-bot__spark { opacity:.9; }
+  .peek-bot--input .peek-bot__signal { opacity:1; }
+}

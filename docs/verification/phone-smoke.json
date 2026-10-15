@@ -1,0 +1,12 @@
+{
+  "testedAt": "2026-10-14T16:11:06.852Z",
+  "mode": "Mobile Chromium against real Rust HTTP router on loopback; physical iPhone and LAN firewall remain untested",
+  "checks": [
+    "Stage multiple files and remove before sending",
+    "One Send action uploads and saves exact bytes",
+    "PC-staged file appears and downloads with exact name and bytes",
+    "New PC files show a banner; Download all ZIP contains both exact file payloads",
+    "390px phone layout and no browser errors"
+  ],
+  "errors": []
+}

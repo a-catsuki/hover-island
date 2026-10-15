@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#050506">
+  <title>Nearby sharing</title>
+  <style>
+    :root{
+      --bg:#050506;--card:#151517;--line:rgba(255,255,255,.08);
+      --text:#f5f5f7;--muted:#9a9aa3;--muted-2:#71717b;
+      --blue:#2f7ff7;--blue-2:#5aa2ff;--green:#34c759;--danger:#ff9b91;
+      --r-lg:26px;--r-md:18px;--r-sm:13px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;min-height:100%;
+      padding:calc(30px + env(safe-area-inset-top)) 18px calc(26px + env(safe-area-inset-bottom));
+      background:radial-gradient(120% 72% at 50% -12%,#17253f,#050506 62%),var(--bg) fixed;
+      color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;
+    }
+    main{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+    .hero{text-align:center;padding:8px 4px 2px}
+    .eyebrow{display:inline-flex;align-items:center;gap:6px;color:var(--blue-2);font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+    .eyebrow i{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green)}
+    h1{font-size:30px;letter-spacing:-1px;margin:9px 0 6px;line-height:1.1}
+    .hero p{margin:0;color:var(--muted);font-size:13px}
+    .card{padding:18px;border-radius:var(--r-lg);background:var(--card);border:1px solid var(--line);box-shadow:inset 0 1px 0 #ffffff08,0 18px 46px #0006}
+    .card h2{font-size:16px;margin:0 0 12px;letter-spacing:-.2px;font-weight:600}
+    .files-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+    .files-head h2{margin:0}
+    .new-files{display:none;padding:10px 12px;margin:0 0 12px;border-radius:12px;border:1px solid #34c75955;background:#34c75913;color:#b8f4c5;font-size:13px}
+    .new-files.show{display:block}
+
+    .picker{position:relative;display:flex;align-items:center;gap:14px;min-height:98px;padding:18px;border:1.5px dashed #3b4c66;border-radius:var(--r-md);background:linear-gradient(180deg,#1b2432,#141922);cursor:pointer;transition:border-color .18s,background .18s,transform .12s}
+    .picker:active{transform:scale(.99)}
+    .picker:focus-within{outline:2px solid var(--blue-2);outline-offset:3px}
+    .picker.is-disabled{opacity:.5;pointer-events:none}
+    .picker input{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer}
+    .picker-ico{display:grid;place-items:center;width:46px;height:46px;flex:none;border-radius:14px;background:linear-gradient(145deg,var(--blue-2),#1d5cc0);color:#fff;box-shadow:0 8px 20px #2f7ff755}
+    .picker-ico svg{width:22px;height:22px}
+    .picker-text{display:flex;flex-direction:column;gap:2px}
+    .picker-text strong{font-size:16px;font-weight:600}
+    .picker-text small{font-size:12px;color:var(--muted)}
+
+    .row{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);animation:row-in .22s ease both}
+    .row:last-child{border-bottom:0}
+    .thumb{display:grid;place-items:center;width:44px;height:44px;flex:none;overflow:hidden;border-radius:12px;background:#25344a;color:#a8ccfa}
+    .thumb img{width:100%;height:100%;object-fit:cover}
+    .thumb svg{width:20px;height:20px}
+    .info{min-width:0;flex:1;display:flex;flex-direction:column;gap:5px}
+    .name{font-weight:550;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .size{font-size:12px;color:var(--muted)}
+    .progress{height:5px;border-radius:999px;background:#ffffff14;overflow:hidden}
+    .progress i{display:block;width:0;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--blue),var(--blue-2));transition:width .18s ease}
+    .remove{width:44px;height:44px;flex:none;display:grid;place-items:center;border:0;border-radius:50%;background:#242428;color:#c9c9d0;cursor:pointer}
+    .remove svg{width:16px;height:16px}
+    .remove:active{transform:scale(.94)}
+    .remove:disabled{opacity:.4}
+
+    .send{position:relative;display:block;width:100%;min-height:58px;margin-top:16px;padding:0 20px;border:0;border-radius:16px;background:linear-gradient(180deg,var(--blue-2),var(--blue));color:#fff;font:inherit;font-size:16px;font-weight:650;cursor:pointer;overflow:hidden;box-shadow:0 12px 28px #2f7ff744;transition:transform .12s,opacity .18s,background .2s}
+    .send:active{transform:scale(.98)}
+    .send:disabled{opacity:.45;box-shadow:none;cursor:default}
+    .send--busy,.send--busy:disabled{opacity:1;box-shadow:0 12px 28px #2f7ff744;cursor:progress;background:#12325e}
+    .send-fill{position:absolute;inset:0;z-index:1;width:0;background:linear-gradient(180deg,var(--green),#1f9e46);transition:width .2s ease}
+    .send-label{position:relative;z-index:2;display:inline-flex;align-items:center;gap:8px}
+    .send-label svg{width:17px;height:17px}
+
+    .status{font-size:13px;line-height:1.5;color:#a5c8ff;min-height:20px;margin-top:12px}
+    .status.error{color:var(--danger)}
+
+    .empty{color:var(--muted);font-size:14px;padding:6px 0}
+    .button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:42px;padding:0 16px;border-radius:12px;background:#25344a;color:#a8ccfa;font-size:13px;font-weight:600;text-decoration:none;transition:background .16s,color .16s}
+    .button:active{background:#2f4666}
+    .button svg{width:15px;height:15px}
+
+    .footer{font-size:12px;line-height:1.75;color:var(--muted-2);margin:2px 4px 0}
+    .footer strong{color:var(--muted);font-weight:600}
+
+    #burst{position:fixed;inset:0;z-index:9;display:grid;place-items:center;pointer-events:none;opacity:0;transition:opacity .18s ease}
+    #burst.burst-show{opacity:1}
+    .burst-check{display:grid;place-items:center;width:98px;height:98px;border-radius:50%;background:linear-gradient(180deg,#43d76a,var(--green));box-shadow:0 22px 60px #34c75966;transform:scale(.3);transition:transform .5s cubic-bezier(.2,1.5,.3,1)}
+    .burst-show .burst-check{transform:scale(1)}
+    .burst-check svg{width:52px;height:52px;fill:none;stroke:#fff;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:48;stroke-dashoffset:48}
+    .burst-show .burst-check svg{animation:burst-draw .5s .12s ease forwards}
+    .burst-particle{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--c);transform:translate(0,0) scale(0);animation:burst-pop .72s cubic-bezier(.2,.7,.3,1) forwards}
+
+    @keyframes row-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+    @keyframes burst-pop{0%{transform:translate(0,0) scale(0)}30%{transform:translate(calc(var(--x)*.5),calc(var(--y)*.5)) scale(1)}100%{transform:translate(var(--x),var(--y)) scale(0);opacity:0}}
+    @keyframes burst-draw{to{stroke-dashoffset:0}}
+
+    @media (prefers-reduced-motion: reduce){
+      .row{animation:none}
+      .progress i,.send-fill,.burst-check{transition:none}
+      .burst-check{transform:none}
+      .burst-check svg{stroke-dashoffset:0;animation:none}
+      .burst-particle{display:none}
+    }
+  </style>
+</head>
+<body><main>
+  <header class="hero">
+    <span class="eyebrow"><i></i>Nearby sharing</span>
+    <h1>Send to PC</h1>
+    <p>Move files across your Wi-Fi. No app, no account.</p>
+  </header>
+
+  <section class="card" aria-label="Send files to PC">
+    <label class="picker" for="picker">
+      <span class="picker-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
+      <span class="picker-text"><strong>Choose files or photos</strong><small>They stay on this device until you send</small></span>
+      <input id="picker" type="file" multiple aria-label="Choose files or photos">
+    </label>
+    <div id="pending"></div>
+    <button id="send" class="send" disabled>
+      <span class="send-fill" aria-hidden="true"></span>
+      <span class="send-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg><span class="send-text">Send to PC</span></span>
+    </button>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="card" aria-label="Ready to download">
+    <div class="files-head"><h2>Ready on your PC</h2><a id="download-all" class="button" href="#" hidden>Download all ZIP</a></div>
+    <div id="new-files" class="new-files" role="status" aria-live="polite"></div>
+    <div id="files" class="empty">Connecting…</div>
+  </section>
+
+  <p class="footer">Same Wi-Fi, please · up to <strong>100 MB</strong> per file · <strong>500 MB</strong> per session.<br>Saved on the PC in <strong>Downloads / Hover Island</strong>. The link closes after 30 minutes.</p>
+</main>
+<div id="burst" aria-hidden="true"></div>
+<script>
+  const base=location.pathname.replace(/\/$/,''),
+    picker=document.querySelector('#picker'),pickLabel=document.querySelector('.picker'),
+    pendingView=document.querySelector('#pending'),send=document.querySelector('#send'),
+    sendLabel=send.querySelector('.send-label'),sendText=send.querySelector('.send-text'),
+    sendFill=send.querySelector('.send-fill'),status=document.querySelector('#status'),
+    files=document.querySelector('#files'),burst=document.querySelector('#burst'),
+    downloadAll=document.querySelector('#download-all'),newFiles=document.querySelector('#new-files');
+  let pending=[],busy=false,online=true,sequence=0,sendTotal=0,completedBytes=0,activeLoaded=0;
+  let knownIds=null;
+  const ownUploadIds=new Set();
+  const big=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ICONS={
+    image:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>',
+    file:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/></svg>'
+  };
+  const size=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':n<1073741824?(n/1048576).toFixed(1)+' MB':(n/1073741824).toFixed(1)+' GB';
+  const fileIcon=name=>/\.(png|jpe?g|webp|gif|heic|heif|avif|bmp|tiff?)$/i.test(name)?ICONS.image:ICONS.file;
+  function message(text,error=false){status.textContent=text;status.classList.toggle('error',error)}
+  function updateButton(){const off=busy||!online||!pending.length;send.disabled=off;picker.disabled=busy||!online;pickLabel.classList.toggle('is-disabled',busy||!online);send.classList.toggle('send--busy',busy);if(!busy)sendText.textContent=pending.length?'Send '+pending.length+(pending.length===1?' file':' files')+' to PC':'Send to PC'}
+  function updateSendProgress(){const p=sendTotal>0?Math.min(100,Math.round((completedBytes+activeLoaded)/sendTotal*100)):0;sendFill.style.width=p+'%';if(busy)sendText.textContent='Sending… '+p+'%'}
+  function revoke(item){if(item.preview){URL.revokeObjectURL(item.preview);item.preview=null}}
+  function makePreview(item){return new Promise(resolve=>{if(!/^image\//.test(item.file.type))return resolve();const reader=new FileReader();reader.onload=()=>{item.preview=String(reader.result);resolve()};reader.onerror=()=>resolve();reader.readAsDataURL(item.file)})}
+  function renderPending(){
+    pendingView.replaceChildren();
+    for(const item of pending){
+      const row=document.createElement('div');row.className='row';row.dataset.id=item.id;
+      const thumb=document.createElement('span');thumb.className='thumb';thumb.innerHTML=item.preview?'<img src="'+item.preview+'" alt="">':fileIcon(item.file.name);
+      const info=document.createElement('div');info.className='info';
+      const name=document.createElement('div');name.className='name';name.textContent=item.file.name;
+      const detail=document.createElement('div');detail.className='size';detail.textContent=item.error||size(item.file.size);
+      const bar=document.createElement('div');bar.className='progress';const fill=document.createElement('i');bar.append(fill);
+      info.append(name,detail,bar);
+      const remove=document.createElement('button');remove.type='button';remove.className='remove';
+      remove.setAttribute('aria-label','Remove '+item.file.name);
+      remove.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+      remove.disabled=busy;
+      remove.onclick=()=>{revoke(item);pending=pending.filter(other=>other.id!==item.id);renderPending()};
+      row.append(thumb,info,remove);
+      pendingView.append(row)
+    }
+    updateButton()
+  }
+  picker.addEventListener('change',()=>{
+    let rejected=false;
+    for(const file of picker.files){
+      if(file.size>104857600||pending.length>=50){rejected=true;continue}
+      const item={id:String(++sequence),file,preview:null,error:null};
+      pending.push(item);
+      makePreview(item).then(()=>{if(pending.includes(item))renderPending()})
+    }
+    picker.value='';renderPending();
+    message(rejected?'Some files were too large, or the 50-file limit was reached.':'Ready when you are.',rejected)
+  });
+  function upload(item){
+    return new Promise((resolve,reject)=>{
+      const row=pendingView.querySelector('[data-id="'+item.id+'"]'),xhr=new XMLHttpRequest();
+      xhr.open('PUT',base+'/api/files?name='+encodeURIComponent(item.file.name));
+      xhr.setRequestHeader('Content-Type','application/octet-stream');
+      xhr.upload.onprogress=event=>{if(event.lengthComputable){activeLoaded=event.loaded;if(row){const percent=Math.round(event.loaded/event.total*100);row.querySelector('.progress i').style.width=percent+'%';row.querySelector('.size').textContent=percent+'%'}updateSendProgress()}};
+      xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300){try{const result=JSON.parse(xhr.responseText);if(result.file&&result.file.id)ownUploadIds.add(result.file.id)}catch{}resolve()}else{let reason='Upload failed';try{reason=JSON.parse(xhr.responseText).error||reason}catch{}reject(Error(reason))}};
+      xhr.onerror=()=>reject(Error('Connection lost. Try again on the same Wi-Fi.'));
+      xhr.ontimeout=()=>reject(Error('Upload timed out. Please try again.'));
+      xhr.timeout=600000;
+      xhr.send(item.file)
+    })
+  }
+  function celebrate(){
+    if(big){return}
+    burst.replaceChildren();
+    const ring=document.createElement('div');ring.className='burst-ring';
+    const colors=['#34c759','#5ac8fa','#ffd60a','#ff9f0a','#ff375f','#bf5af2'];
+    for(let i=0;i<16;i++){
+      const p=document.createElement('i');p.className='burst-particle';
+      const angle=(i/16)*Math.PI*2,dist=74+Math.random()*62;
+      p.style.setProperty('--x',Math.cos(angle)*dist+'px');
+      p.style.setProperty('--y',Math.sin(angle)*dist+'px');
+      p.style.setProperty('--c',colors[i%colors.length]);
+      p.style.animationDelay=(i*10)+'ms';
+      ring.append(p)
+    }
+    const check=document.createElement('div');check.className='burst-check';
+    check.innerHTML='<svg viewBox="0 0 52 52"><path d="M14 27l8 8 16-18"/></svg>';
+    burst.append(ring,check);
+    burst.classList.add('burst-show');
+    setTimeout(()=>{burst.classList.remove('burst-show');burst.replaceChildren()},1700)
+  }
+  send.addEventListener('click',async()=>{
+    if(busy||!pending.length||!online)return;
+    busy=true;sendTotal=pending.reduce((sum,item)=>sum+item.file.size,0);completedBytes=0;activeLoaded=0;
+    renderPending();message('Sending to your PC…');updateSendProgress();
+    let sent=0;
+    for(const item of [...pending]){
+      try{await upload(item);revoke(item);pending=pending.filter(other=>other.id!==item.id);completedBytes+=item.file.size;activeLoaded=0;sent++}
+      catch(error){item.error=error.message}
+      renderPending();updateSendProgress()
+    }
+    busy=false;completedBytes=0;activeLoaded=0;sendTotal=0;sendFill.style.width='0';renderPending();
+    message(sent?(sent===1?'1 file saved on your PC.':sent+' files saved on your PC.')+(pending.length?' Some files need another try.':''):'Could not send. Check the connection and try again.',pending.length>0);
+    if(sent&&!pending.length)celebrate();
+    await refresh()
+  });
+  async function refresh(){
+    if(busy)return;
+    try{
+      const response=await fetch(base+'/api/files',{cache:'no-store'});
+      if(!response.ok)throw Error(response.status===410?'This session has closed. Start another one on your PC.':'This bucket is unavailable.');
+      const data=await response.json();
+      const previous=knownIds;
+      const incoming=previous?data.files.filter(file=>!previous.has(file.id)&&!ownUploadIds.has(file.id)):[];
+      knownIds=new Set(data.files.map(file=>file.id));
+      online=true;files.replaceChildren();
+      const isEmpty=!data.files.length;
+      files.className=isEmpty?'empty':'';
+      if(isEmpty)files.textContent='Files you send from this phone, or that your PC adds, appear here.';
+      downloadAll.hidden=isEmpty;
+      downloadAll.href=base+'/api/bucket.zip';
+      if(incoming.length){
+        const names=incoming.slice(0,3).map(file=>file.name).join(', ');
+        newFiles.textContent='New from your PC: '+names+(incoming.length>3?' and '+(incoming.length-3)+' more':'');
+        newFiles.classList.add('show');
+      }
+      for(const file of data.files){
+        const row=document.createElement('div');row.className='row';
+        const thumb=document.createElement('span');thumb.className='thumb';thumb.innerHTML=fileIcon(file.name);
+        const info=document.createElement('div');info.className='info';
+        const name=document.createElement('div');name.className='name';name.textContent=file.name;
+        const detail=document.createElement('div');detail.className='size';detail.textContent=size(file.size);
+        info.append(name,detail);
+        const link=document.createElement('a');link.className='button';link.href=base+'/api/files/'+encodeURIComponent(file.id);
+        link.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>Download';
+        link.setAttribute('aria-label','Download '+file.name);
+        row.append(thumb,info,link);files.append(row)
+      }
+    }catch(error){online=false;files.className='empty';files.textContent=error.message||'Connection lost. Check the Wi-Fi and try again.';downloadAll.hidden=true}
+    updateButton()
+  }
+  refresh();setInterval(refresh,4000);
+</script></body></html>

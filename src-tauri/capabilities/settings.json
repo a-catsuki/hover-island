@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "settings-window",
+  "description": "Settings WebView permissions",
+  "windows": ["settings"],
+  "permissions": [
+    "core:event:default",
+    "core:window:allow-destroy"
+  ]
+}

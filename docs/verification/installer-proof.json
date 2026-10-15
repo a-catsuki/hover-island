@@ -1,0 +1,17 @@
+{
+  "kit": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.2.0-x64-20261015-073929-521-019b0489",
+  "zip": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.2.0-x64-20261015-073929-521-019b0489.zip",
+  "executableSha256": "ba768be6d97c183323bcde8eb3649f55e1ccfce0bcb1baca1c2f11df21fa37fd",
+  "packagedExecutableMatches": true,
+  "installedExecutableMatches": true,
+  "capabilities": [
+    "internetClient",
+    "privateNetworkClientServer",
+    "userNotificationListener",
+    "runFullTrust",
+    "bluetooth",
+    "radios"
+  ],
+  "signatureVerified": true,
+  "privateKeyShipped": false
+}

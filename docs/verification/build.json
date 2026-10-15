@@ -1,0 +1,38 @@
+{
+  "checkedAtUtc": "2026-10-13T17:42:28.6390321Z",
+  "typecheck": "passed",
+  "frontendTestsPassed": 17,
+  "rustTestsPassed": 53,
+  "browserFlowsPassed": 8,
+  "browserMode": "browser preview, sample data; not native device proof",
+  "productionFrontendBuild": "passed",
+  "nativeBuild": "cargo build --features tauri/custom-protocol --offline --locked; dev profile",
+  "executable": {
+    "path": "C:\\Users\\HP\\source\\hover-island\\src-tauri\\target\\debug\\hover-island.exe",
+    "bytes": 27832832,
+    "modifiedUtc": "2026-10-13T17:39:59.8268749Z",
+    "sha256": "D6DAE01B90E477117BD036392CBD3E0E7FBB447BD71E6A9AEF533CDC2B9F8EBB"
+  },
+  "msix": {
+    "path": "C:\\Users\\HP\\source\\hover-island\\src-tauri\\target\\msix\\HoverIsland-0.1.0.0-x64-20261013-174046-922-f55e7b7b.msix",
+    "bytes": 9106474,
+    "sha256": "8511F90B8C65A9AA02F87701744D69188A754924008B244E252F692FCA1AAE5F",
+    "validation": "MakeAppx SDK 10.0.26100.8249 pack succeeded",
+    "signed": false,
+    "installed": false
+  },
+  "nativeStartup": {
+    "processId": 12964,
+    "responding": true,
+    "title": "Hover Island",
+    "scope": "Process startup and Windows responsiveness only; native UI automation unavailable"
+  },
+  "unverified": [
+    "Native hover and multi-monitor behavior",
+    "Live media providers and seek",
+    "Signed-in service windows and actual notifications",
+    "MSIX installation and user notification grant",
+    "Genuine iPhone AirDrop; Windows AWDL and network runtime absent",
+    "Release profile resource measurements"
+  ]
+}

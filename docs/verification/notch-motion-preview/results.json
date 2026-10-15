@@ -1,0 +1,77 @@
+{
+  "url": "http://127.0.0.1:1421/",
+  "viewport": {
+    "width": 1200,
+    "height": 800
+  },
+  "cases": [
+    {
+      "edge": "left",
+      "host": {
+        "x": 0,
+        "y": 120,
+        "width": 800,
+        "height": 560
+      },
+      "collapsed": {
+        "x": 0,
+        "y": 300,
+        "width": 56,
+        "height": 200
+      },
+      "itemCount": 4,
+      "beam": {
+        "x": 15.5,
+        "y": 417.09375,
+        "width": 25,
+        "height": 25
+      },
+      "handle": {
+        "x": 16,
+        "y": 469,
+        "width": 24,
+        "height": 28
+      },
+      "motion": {
+        "x": 2.63,
+        "y": -2.11,
+        "open": false
+      }
+    },
+    {
+      "edge": "right",
+      "host": {
+        "x": 400,
+        "y": 120,
+        "width": 800,
+        "height": 560
+      },
+      "collapsed": {
+        "x": 1144,
+        "y": 300,
+        "width": 56,
+        "height": 200
+      },
+      "itemCount": 4,
+      "beam": {
+        "x": 1159.5,
+        "y": 417.09375,
+        "width": 25,
+        "height": 25
+      },
+      "handle": {
+        "x": 1160,
+        "y": 469,
+        "width": 24,
+        "height": 28
+      },
+      "motion": {
+        "x": 0.78,
+        "y": -0.63,
+        "open": false
+      }
+    }
+  ],
+  "pageErrors": [],
+  "nativeCursorWorker": "not covered by browser preview"
+}

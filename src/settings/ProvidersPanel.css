@@ -1,0 +1,144 @@
+/* Providers panel — detected AI tools, custom tracker and AI alert preview. */
+
+.providers {
+  display: flex;
+  flex-direction: column;
+}
+
+.providers__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.providers__summary {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.providers__rescan {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+}
+
+.providers__spin {
+  animation: providers-spin 0.9s linear infinite;
+}
+
+@keyframes providers-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.providers__error {
+  margin: 10px 0;
+  font-size: var(--fs-12);
+  color: var(--warn);
+}
+
+.providers__empty {
+  margin: 14px 0;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+
+.providers__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.providers__row:last-of-type {
+  border-bottom: 0;
+}
+
+.providers__row--off {
+  opacity: 0.62;
+}
+
+.providers__icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  box-shadow: var(--ring);
+}
+
+.providers__meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.providers__name-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.providers__name-line strong {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+}
+
+.providers__kind {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line-1);
+  background: var(--surface-1);
+  font-size: 9px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.providers__cap {
+  font-size: var(--fs-11);
+  color: var(--accent);
+}
+
+.providers__cap--none {
+  color: var(--text-3);
+}
+
+.providers__evidence {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.providers__note {
+  margin: 10px 0 8px;
+  font-size: var(--fs-11);
+  line-height: var(--lh-relaxed);
+  color: var(--text-3);
+  max-width: 60ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .providers__spin {
+    animation: none;
+  }
+}

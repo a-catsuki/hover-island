@@ -1,0 +1,43 @@
+/* Shared desktop material and spacing. Widget-specific layouts own their content. */
+.island::before {background:linear-gradient(150deg,color-mix(in srgb,var(--notch-bg-1) 60%,#000),var(--notch-bg-0) 72%);}
+.island .ambient--pattern .ambient__pattern {opacity:.28;}
+.island .ambient__grain {opacity:.055;}
+.island .panel__head {height:54px;min-height:54px;padding:0 18px;gap:10px;}
+.island .panel-tabs {gap:2px;padding:3px;border-radius:13px;background:#ffffff06;box-shadow:inset 0 0 0 1px #ffffff04;}
+.island .panel-tabs button {padding:8px 13px;border-radius:10px;font-size:12px;font-weight:550;color:var(--text-3);}
+.island .panel-tabs button.selected {color:var(--text-1);background:#ffffff10;box-shadow:0 2px 7px #0002,inset 0 1px 0 #ffffff09;}
+.island .panel__tools {gap:5px;flex:none;}
+.island .panel__tools .icon-button {width:29px;height:30px;min-width:29px;border-radius:10px;color:var(--text-2);}
+.island .search-button {height:30px;gap:6px;padding:0 9px;background:transparent;border:0;border-radius:10px;font-size:11px;}
+.island .search-button kbd {display:none;}
+.beam-button {height:30px;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;border:1px solid color-mix(in srgb,var(--accent) 19%,#ffffff05);border-radius:10px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:color-mix(in srgb,var(--accent) 55%,#fff);font:inherit;font-size:11px;font-weight:550;cursor:pointer;transition:background 140ms,transform 140ms;}
+.beam-button:hover {background:color-mix(in srgb,var(--accent) 23%,transparent);}
+.beam-button:active {transform:scale(.96);}
+.beam-button:focus-visible {outline:2px solid var(--accent);outline-offset:2px;}
+.island .panel__body {padding:4px 16px 8px;}
+.island .widget-grid {gap:12px;}
+.island .widget-grid>.widget {padding:17px 18px;border-radius:23px;background:linear-gradient(145deg,#ffffff06,#ffffff02),color-mix(in srgb,var(--notch-bg-0) 86%,#121214);box-shadow:inset 0 0 0 1px #ffffff07,inset 0 1px 0 #ffffff03;}
+.island .widget-grid>.widget--media {background:linear-gradient(145deg,#ffffff08,#ffffff02),#101113;}
+.island .widget__title {color:var(--text-2);font-size:12px;font-weight:550;letter-spacing:-.12px;}
+.island .widget__title>svg {width:15px;height:15px;stroke-width:1.7;}
+.island .panel__foot {height:28px;min-height:28px;padding:3px 18px;color:var(--text-3);font-size:9px;}
+.island .panel__foot--quiet {height:8px;min-height:8px;padding:0;}
+.panel__foot--quiet>span {display:none;}
+.island .panel-pager {gap:4px;}
+.island .panel-pager .icon-button {width:23px;height:23px;}
+.island .panel-pager>span {font-size:10px;min-width:30px;}
+.island .panel-more__menu {padding:7px;border-radius:16px;background:#17171bf7;box-shadow:inset 0 0 0 1px #ffffff10,0 14px 45px #0008;backdrop-filter:blur(24px);}
+.island .panel-more__menu button {min-height:34px;border-radius:9px;font-size:12px;gap:10px;}
+.island .widget--controls {container-type:size;container-name:controls;}
+@container dashboard (max-width:560px) {
+ .island .panel__head {padding:0 9px;gap:4px;height:48px;min-height:48px;}
+ .island .panel-tabs button {padding:7px 8px;font-size:11px;}
+ .island .panel__tools {gap:1px;}
+ .island .panel__tools .icon-button {width:25px;min-width:25px;height:29px;}
+ .island .search-button,.beam-button {width:26px;min-width:26px;padding:0;}
+ .island .search-button>span,.beam-button>span {display:none;}
+ .island .panel__spacer {min-width:0;}
+ .island .panel__body {padding:3px 10px 7px;}
+ .island .widget-grid>.widget {padding:14px;border-radius:20px;}
+}
+@media(prefers-reduced-motion:reduce) {.beam-button,.pill__beam {transition:none;}.beam-button:active,.pill__beam:active {transform:none;}}

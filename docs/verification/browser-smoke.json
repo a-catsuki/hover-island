@@ -1,0 +1,18 @@
+{
+  "testedAt": "2026-10-15T08:15:00.948Z",
+  "mode": "browser preview with sample data, not native integration proof",
+  "results": [
+    "Media and weather have room to breathe; the interactive month calendar has a readable page",
+    "Seeking works for a supported timeline and is disabled for an unsupported session",
+    "HTML drag and drop reorders widgets and moves between panels; layout, notes and focus persist",
+    "Month navigation, Today and selected-day event creation work",
+    "Usage shows remaining 5-hour/Weekly quota and reset details, with separate global/banked announcements",
+    "Quick controls distinguish Windows power mode from Energy Saver and expose memory reclaim",
+    "Analog/digital clock choice synchronizes; Files shortcut exposes the bucket and preview honestly gates native sharing",
+    "Separate settings synchronize three sizes, atmosphere, panel names, added widgets and app sources",
+    "Rapid hardware events coalesce, file receipt expands temporarily, and adopting a peek preserves the panel after expiry",
+    "DND, notification and compact device peeks, fixed host bounds and maximized-window reveal remain stable",
+    "Search and controls remain reachable at 720, 480 and 360px"
+  ],
+  "errors": []
+}

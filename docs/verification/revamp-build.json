@@ -1,0 +1,27 @@
+{
+  "verifiedAt": "2026-10-14T06:48:46.1588854Z",
+  "executable": "C:\\Users\\HP\\source\\hover-island\\src-tauri\\target\\debug\\hover-island.exe",
+  "executableSha256": "0F7B06FD0712B0CF30505AF006B2AF0DD74DB194BD027ADCC1124DA9135B037B",
+  "executableBytes": 29206016,
+  "bundledFrontend": true,
+  "nativeBuild": "passed: cargo build --features tauri/custom-protocol --offline --locked",
+  "launch": "process 28016 stayed alive; native visual/device interactions not inspected",
+  "msix": "C:\\Users\\HP\\source\\hover-island\\src-tauri\\target\\msix\\HoverIsland-0.1.0.0-x64-20261014-064518-940-8101e951.msix",
+  "msixSigned": false,
+  "msixInstalled": false,
+  "typecheck": "passed",
+  "frontendTests": 33,
+  "nativeTestsPassed": 73,
+  "nativeTestsIgnored": 2,
+  "liveAudioSmoke": "passed",
+  "dashboardBrowserFlows": 10,
+  "phoneBrowser": "passed against real Rust HTTP router on loopback, exact bytes both directions",
+  "physicalValidationPending": [
+    "iPhone Safari and same-WiFi/firewall path",
+    "native Explorer drop",
+    "physical Bluetooth and charger transitions",
+    "packaged Windows notification consent and receipt"
+  ],
+  "airdrop": "unavailable; QR local HTTP sharing implemented as fallback",
+  "cacheCleanup": "none performed by agent; earlier review blocked deletion; build now completed with available space"
+}

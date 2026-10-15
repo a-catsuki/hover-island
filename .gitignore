@@ -1,0 +1,55 @@
+# JavaScript and frontend build output
+node_modules/
+dist/
+
+# Rust and Tauri build output
+src-tauri/target/
+/src-tauri/NONE
+*.pdb
+*.ilk
+*.obj
+*.exp
+*.dmp
+
+# Packaged installers and release artifacts
+releases/
+*.msix
+*.msi
+*.exe
+
+# Signing material and generated signing checks
+*.pfx
+*.p12
+*.pem
+*.key
+*.jks
+*.keystore
+*.cer
+docs/verification/signing-check/**/stage-*/
+docs/verification/**/*.png
+
+# Local credentials and environment files
+.env
+.env.*
+!.env.example
+!.env.sample
+*.secret
+secrets.json
+credentials.json
+
+# Runtime state, caches, and logs
+*.sqlite
+*.sqlite3
+*.db
+*.log
+*.tmp
+*.cache
+.cache/
+coverage/
+
+# Local archives and OS files
+backups/*.zip
+UsersHPsourcehover-islandmenu-check.png
+Thumbs.db
+Desktop.ini
+.DS_Store

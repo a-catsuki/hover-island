@@ -1,0 +1,105 @@
+{
+  "generatedAtUtc": "2026-10-15T07:41:26.0631331Z",
+  "version": "0.1.2.0",
+  "status": "Built, signed, verified, installed and launched. Live hardware and service validation remains separate.",
+  "executable": {
+    "path": "C:\\Users\\HP\\source\\hover-island\\src-tauri\\target\\release\\hover-island.exe",
+    "bytes": 13773824,
+    "sha256": "ba768be6d97c183323bcde8eb3649f55e1ccfce0bcb1baca1c2f11df21fa37fd",
+    "profile": "release, opt-level=s, ThinLTO, strip=true, custom-protocol",
+    "allCurrentJsCssAssetNamesEmbedded": true,
+    "matchesPackagedExecutable": true,
+    "matchesInstalledExecutable": true,
+    "log": "docs/verification/latest-release-build.log"
+  },
+  "installer": {
+    "zip": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.2.0-x64-20261015-073929-521-019b0489.zip",
+    "zipBytes": 5121089,
+    "zipSha256": "9b15a0268b58c5ce3ea88d9f098260085bf7902c239b07bd8da73719bcfb94d7",
+    "package": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.2.0-x64-20261015-073929-521-019b0489\\HoverIsland.msix",
+    "packageSha256": "7a429a0c9bd7818a41ff6f20dcf0a61c89329e1f7eaa1deb812f5e7cbf8b9905",
+    "install": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.2.0-x64-20261015-073929-521-019b0489\\Install.cmd",
+    "readme": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.2.0-x64-20261015-073929-521-019b0489\\README.txt",
+    "signed": true,
+    "publisher": "CN=Hover Island",
+    "signerThumbprint": "B695B47BAE4B74B294B3E9C184F2C0A8394C9AF6",
+    "privateSigningKeyShipped": false,
+    "verifyOnlyPassed": true,
+    "packageInstalledByThisRun": true,
+    "certificateTrustChangedByThisRun": false,
+    "installedVersion": "0.1.2.0",
+    "installedLocation": "C:\\Program Files\\WindowsApps\\com.hoverisland.app_0.1.2.0_x64__hq77z97e8bw9y",
+    "nativeProcessId": 20160,
+    "responding": true,
+    "capabilities": [
+      "internetClient",
+      "privateNetworkClientServer",
+      "userNotificationListener",
+      "runFullTrust",
+      "bluetooth",
+      "radios"
+    ],
+    "buildLog": "docs/verification/latest-package-build.log",
+    "verificationLog": "docs/verification/latest-installer-verify.log",
+    "installLog": "docs/verification/latest-install.log"
+  },
+  "source": {
+    "fingerprint": "49ea3d7b1f2c7504cc9ecc946a09e99418d74322d54b42ed8e6c8fb4364e6955",
+    "fileCount": 168,
+    "unchangedAcrossBuild": true,
+    "assetsManifest": "docs/verification/final-source-assets.json",
+    "before": "docs/verification/release-source-before.json",
+    "after": "docs/verification/release-source-after.json"
+  },
+  "verification": {
+    "typecheck": "Passed",
+    "frontendTests": {
+      "failed": 0,
+      "passed": 56,
+      "log": "docs/verification/latest-frontend-tests.log"
+    },
+    "nativeTests": {
+      "failed": 0,
+      "ignored": 5,
+      "passed": 113,
+      "log": "docs/verification/latest-native-tests.log"
+    },
+    "productionBrowser": {
+      "log": "docs/verification/latest-ui-smoke.log",
+      "mode": "browser preview with sample data, not native integration proof",
+      "passed": 11,
+      "record": "docs/verification/browser-smoke.json",
+      "pageErrors": 0
+    },
+    "widgetGallery": {
+      "boundary": "Production browser with sample data; checks card bounds and outer scrolling.",
+      "baseUrl": "http://127.0.0.1:1421",
+      "captures": 10,
+      "record": "docs/verification/widget-gallery.json",
+      "log": "docs/verification/latest-widget-gallery.log"
+    },
+    "notchMotion": {
+      "cases": 2,
+      "log": "docs/verification/latest-notch-motion.log",
+      "pageErrors": 0,
+      "boundary": "Browser side geometry and synthetic proximity; native worker covered by regression tests, physical cursor interaction remains separate.",
+      "record": "docs/verification/notch-motion-preview/results.json",
+      "baseUrl": "http://127.0.0.1:1421/"
+    }
+  },
+  "runtimeChecksRemaining": [
+    "Physical Windows dock drag/snap and multi-monitor behavior.",
+    "Live music signal, volume/brightness/Bluetooth/charging events and actual memory trimming.",
+    "Live Windows toast delivery and optional user notification consent.",
+    "Physical iPhone network/firewall and folder-drop behavior.",
+    "Optional website feeds and Google/Outlook subscriptions; no accounts auto-connected."
+  ],
+  "integrationBoundaries": [
+    "Calendar subscriptions are read-only.",
+    "Website alerts need a supported HTTPS feed; shortcuts do not connect inboxes.",
+    "AirDrop is hidden; Nearby uses the temporary local QR bucket.",
+    "Reset announcements do not redeem grants or change quota.",
+    "Energy Saver opens Windows Settings; Best power efficiency is a separate native power mode."
+  ],
+  "referenceReview": "docs/verification/dynamic-island-reference-review.md"
+}
