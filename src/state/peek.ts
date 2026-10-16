@@ -1,5 +1,5 @@
 import { createSignal, untrack } from 'solid-js'
-import type { AiEvent, AppNotification } from '../lib/ipc'
+import type { AiEvent, AppNotification, EmailCodeEvent } from '../lib/ipc'
 import { settings } from './settings'
 import { hovering, pinned as isPinned, open, closing, expandIsland, collapseIsland, temporaryExpansion } from './ui'
 import { notificationAllowed } from '../lib/connectionSources'
@@ -22,7 +22,7 @@ export function acknowledgePendingAlert(id?: string): void {
     setPendingAlert(null)
   }
 }
-export function openPendingAlert(): void { const item=pendingAlert();if(item){acknowledgePendingAlert(item.id);show(item,false);expandIsland(false)} }
+export function openPendingAlert(): void { const item=pendingAlert();if(item){acknowledgePendingAlert(item.id);if(item.category==='auth'&&item.expiresAt!=null&&item.expiresAt<=Date.now())return;show(item,false);expandIsland(false)} }
 const completedTransfers = new Set<string>()
 const seen = new Set<string>()
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -40,14 +40,14 @@ function markSeen(id: string): boolean {
 
 function show(item: AppNotification, notify = true): void {
   const progressing = ['staging','sending','receiving'].includes(item.phase ?? '')
-  const connectedAlert = item.category === 'erp' || item.category === 'website' || item.category === 'transfer' || item.app === 'Phone bucket'
+  const connectedAlert = item.category === 'erp' || item.category === 'website' || item.category === 'transfer' || item.category === 'auth' || item.app === 'Phone bucket'
   if (connectedAlert && !progressing && notify) {
     setPendingAlert(item)
     clearTimeout(pendingAlertTimer)
     pendingAlertTimer = setTimeout(() => {
       pendingAlertTimer = undefined
       if (pendingAlert()?.id === item.id) setPendingAlert(null)
-    }, PEEK_MS)
+    }, item.category === 'auth' && item.expiresAt ? Math.max(0, item.expiresAt - Date.now()) : PEEK_MS)
     if (untrack(() => settings.notifications.sound) && untrack(() => settings.notifications.sound) !== 'off') playSound?.()
   }
   const userOwnsPanel = (open() && !closing()) || isPinned() || hovering()
@@ -56,6 +56,20 @@ function show(item: AppNotification, notify = true): void {
   expandIsland(isTransient)
   clearTimeout(timer)
   timer = setTimeout(finish, PEEK_MS)
+}
+
+/** A provider-detected new sign-in code follows the same DND and notification rules as other alerts. */
+export function ingestTwoFactorPeek(event: EmailCodeEvent): void {
+  if (!event.id || !/^(?=.{4,8}$)(?=.*\d)[A-Za-z0-9]+$/.test(event.code) || !Number.isFinite(event.expiresAt) || event.expiresAt <= Date.now()) return
+  if (!markSeen(event.id) || untrack(() => settings.dnd) || !untrack(() => settings.notifications.enabled) || !untrack(() => settings.modules.notifications)) return
+  const sender = event.sender.replace(/[\r\n\u0000-\u001f]/g, '').slice(0, 160)
+  const subject = event.subject.replace(/[\r\n\u0000-\u001f]/g, '').slice(0, 120)
+  show({
+    id: event.id, app: 'Verification code', title: event.code,
+    body: [sender, subject, event.account].filter(Boolean).join(' · '),
+    timestamp: event.receivedAt, category: 'auth', code: event.code, sender,
+    subject, account: event.account, expiresAt: event.expiresAt,
+  })
 }
 
 function finish(): void {

@@ -10,6 +10,7 @@ const [websiteConnections, setWebsiteConnections] = createSignal<WebsiteConnecti
 const [websiteAlertSites, setWebsiteAlertSites] = createSignal<WebsiteConnectionSite[]>([])
 const [websiteAlertsBusy, setWebsiteAlertsBusy] = createSignal(false)
 const [websiteAlertsError, setWebsiteAlertsError] = createSignal('')
+const [websiteAlertsLastChecked, setWebsiteAlertsLastChecked] = createSignal<number>()
 const listeners = new Set<WebsiteAlertListener>()
 const knownVersions = new Map<string, string>()
 const baselinedConnections = new Set<string>()
@@ -82,6 +83,7 @@ export async function refreshWebsiteAlerts(announce = true): Promise<void> {
       }
       setWebsiteConnections(result.connections)
       setWebsiteAlertSites(normalizedSites)
+      setWebsiteAlertsLastChecked(Date.now())
       setWebsiteAlertsError('')
     } catch (error) { if (currentGeneration === generation) setWebsiteAlertsError(String(error)) }
     finally { setWebsiteAlertsBusy(false) }
@@ -139,4 +141,4 @@ export const refreshErpAlerts = refreshWebsiteAlerts
 export const erpAlerts = () => websiteAlertSites().filter(site => site.connection.adapter === 'erp').flatMap(site => site.events.map(event => ({ ...event, app: event.app ?? site.connection.displayName, connectionId: site.connection.id, serverUrl: site.connection.serverUrl })))
 export const erpBusy = websiteAlertsBusy
 export const erpError = websiteAlertsError
-export { websiteConnections, websiteAlertSites, websiteAlertsBusy, websiteAlertsError }
+export { websiteConnections, websiteAlertSites, websiteAlertsBusy, websiteAlertsError, websiteAlertsLastChecked }

@@ -46,6 +46,7 @@ async function startSharedCapture(): Promise<boolean> {
       const bands = Array.isArray(payload.bands) ? payload.bands : []
       if (bands.length !== AUDIO_BANDS || bands.some((value) => !Number.isFinite(value))) return
       setAudioCaptureStatus('active')
+      setAudioCaptureError('')
       retryCount=0;clearTimeout(retryTimer);retryTimer=undefined
       setAudioSpectrum(bands.map((value) => Math.min(1, Math.max(0, value))))
     })

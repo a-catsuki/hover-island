@@ -490,7 +490,12 @@ pub fn spawn_ignore_poll(app: AppHandle) {
             }
             let user_hidden = MAIN_HIDDEN_BY_USER.load(Ordering::Relaxed);
             let dragging = crate::placement::is_dragging();
-            let magnetic = if magnetic_enabled && !expanded && !dragging && !file_drag_active && !user_hidden {
+            let magnetic = if magnetic_enabled
+                && !expanded
+                && !dragging
+                && !file_drag_active
+                && !user_hidden
+            {
                 cursor_position().and_then(|(cx, cy)| {
                     main_window_rect(&app).and_then(|(x, y, width, height, _, scale)| {
                         crate::placement::magnetic_offset(cx, cy, (x, y, width, height), scale)

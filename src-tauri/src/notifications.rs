@@ -24,23 +24,35 @@ extern "system" {
     fn GetCurrentPackageFullName(length: *mut u32, name: *mut u16) -> i32;
 }
 
-fn require_package_identity() -> Result<(), String> {
+fn package_identity_status() -> Result<bool, String> {
     let mut length = 0;
     let status = unsafe { GetCurrentPackageFullName(&mut length, std::ptr::null_mut()) };
+    classify_package_identity_status(status)
+}
+
+fn classify_package_identity_status(status: i32) -> Result<bool, String> {
     if status == 15700 {
         // APPMODEL_ERROR_NO_PACKAGE
-        return Err("Windows notifications need the packaged Hover Island build. Install the MSIX build, then allow notification access in Settings.".into());
+        return Ok(false);
     }
     // With a null output buffer, a packaged process should report
     // ERROR_INSUFFICIENT_BUFFER (the required name length is returned). Do not
     // silently treat unrelated identity-query failures as a packaged app.
     if status == 122 {
-        Ok(())
+        Ok(true)
     } else {
         Err(format!(
             "Could not verify the Windows package identity (Windows error 0x{:08X}). Install the MSIX build to capture Windows notifications.",
             status as u32
         ))
+    }
+}
+
+fn require_package_identity() -> Result<(), String> {
+    if package_identity_status()? {
+        Ok(())
+    } else {
+        Err("Windows notifications need the packaged Hover Island build. Install the MSIX build, then allow notification access in Settings.".into())
     }
 }
 
@@ -197,6 +209,142 @@ fn texts(n: &UserNotification) -> (String, String) {
 
 /* ------------------------------- commands ------------------------------- */
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationAccess {
+    packaged: bool,
+    status: &'static str,
+}
+
+#[tauri::command]
+pub async fn notifications_access_status() -> Result<NotificationAccess, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        if !package_identity_status()? {
+            return Ok(NotificationAccess {
+                packaged: false,
+                status: "unpackaged",
+            });
+        }
+        ensure_com();
+        let status = UserNotificationListener::Current()
+            .and_then(|listener| listener.GetAccessStatus())
+            .map_err(|error| windows_error("Could not check notification access", error))?;
+        Ok(NotificationAccess {
+            packaged: true,
+            status: access_label(status),
+        })
+    })
+    .await
+    .map_err(|_| "Notification status worker stopped".to_string())?
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NotificationDiagnostics {
+    packaged: bool,
+    access: &'static str,
+    toast_count: Option<u32>,
+}
+
+/// Read-only CLI diagnostics. Toast content and identifiers are never read.
+pub(crate) fn diagnostics_json() -> (String, i32) {
+    let packaged = match package_identity_status() {
+        Ok(packaged) => packaged,
+        Err(_) => {
+            return (diagnostic_json(false, "error", None), 4);
+        }
+    };
+    if !packaged {
+        return (diagnostic_json(false, "unpackaged", None), 3);
+    }
+
+    ensure_com();
+    let result = UserNotificationListener::Current().and_then(|listener| {
+        listener.GetAccessStatus().and_then(|status| {
+            if !access_is_allowed(status) {
+                return Ok((status, None));
+            }
+            listener
+                .GetNotificationsAsync(NotificationKinds::Toast)?
+                .get()
+                .and_then(|notifications| notifications.Size())
+                .map(|count| (status, Some(count)))
+        })
+    });
+    match result {
+        Ok((status, count)) => {
+            let access = access_label(status);
+            let code = if status == UserNotificationListenerAccessStatus::Allowed {
+                0
+            } else if status == UserNotificationListenerAccessStatus::Denied {
+                2
+            } else {
+                3
+            };
+            (
+                diagnostic_json(true, access, if code == 0 { count } else { None }),
+                code,
+            )
+        }
+        Err(_) => (diagnostic_json(true, "error", None), 5),
+    }
+}
+
+fn diagnostic_json(packaged: bool, access: &'static str, toast_count: Option<u32>) -> String {
+    serde_json::to_string(&NotificationDiagnostics {
+        packaged,
+        access,
+        toast_count,
+    })
+    .unwrap_or_else(|_| {
+        format!(r#"{{"packaged":{packaged},"access":"{access}","toastCount":null}}"#)
+    })
+}
+
+fn access_label(status: UserNotificationListenerAccessStatus) -> &'static str {
+    if access_is_allowed(status) {
+        "allowed"
+    } else if status == UserNotificationListenerAccessStatus::Denied {
+        "denied"
+    } else {
+        "not-requested"
+    }
+}
+
+/// Deliberate routing test, using a saved source and the real popup event path.
+/// This verifies notch routing, not delivery by another Windows application.
+#[tauri::command]
+pub fn notifications_test_connection(
+    app: AppHandle,
+    state: State<AppState>,
+    id: String,
+) -> Result<(), String> {
+    let settings = state.settings.lock().map_err(|_| "Settings unavailable")?;
+    let connection = settings
+        .connections
+        .iter()
+        .find(|item| item.id == id)
+        .ok_or("Connection not found")?;
+    if !connection.notifications || !settings.notifications.enabled || settings.dnd {
+        return Err("Enable this connection's alerts and turn off Do Not Disturb to test.".into());
+    }
+    let item = AppNotification {
+        id: format!("routing-test:{}", uuid::Uuid::new_v4()),
+        app: connection
+            .notification_sources
+            .first()
+            .cloned()
+            .unwrap_or_else(|| connection.name.clone()),
+        title: "Connection test".into(),
+        body: "This source can reach your notch. Real alerts also need Windows permission.".into(),
+        timestamp: now_millis(),
+        icon: connection.icon.clone(),
+    };
+    drop(settings);
+    app.emit("notifications://popup", item)
+        .map_err(|_| "Could not send test alert".into())
+}
+
 #[tauri::command]
 pub fn notifications_get(state: State<AppState>) -> Vec<AppNotification> {
     state.notifications.lock().unwrap().clone()
@@ -260,7 +408,7 @@ pub async fn notifications_request_access(app: AppHandle) -> Result<bool, String
 
 #[cfg(test)]
 mod tests {
-    use super::{access_is_allowed, merge_poll, status_error};
+    use super::{access_is_allowed, classify_package_identity_status, merge_poll, status_error};
     use crate::types::AppNotification;
     use std::collections::HashSet;
     use windows::UI::Notifications::Management::UserNotificationListenerAccessStatus;
@@ -278,6 +426,13 @@ mod tests {
         ));
         assert!(status_error(UserNotificationListenerAccessStatus::Denied).contains("retry"));
         assert!(status_error(UserNotificationListenerAccessStatus::Unspecified).contains("Retry"));
+    }
+
+    #[test]
+    fn package_identity_only_calls_the_specific_no_package_code_unpacked() {
+        assert_eq!(classify_package_identity_status(122), Ok(true));
+        assert_eq!(classify_package_identity_status(15700), Ok(false));
+        assert!(classify_package_identity_status(5).is_err());
     }
 
     fn notification(id: &str, title: &str, timestamp: u64) -> AppNotification {

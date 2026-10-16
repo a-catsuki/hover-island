@@ -44,6 +44,19 @@
   transform: scale(1.08);
 }
 
+/* Album Ambient: the thumbnail supplies the hue while live bands move each light field. */
+.ambient--artwork .ambient__light--a {
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--album-a, var(--accent)) 72%, transparent), transparent 68%);
+}
+.ambient--artwork .ambient__light--b {
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--album-b, var(--accent-2)) 74%, transparent), transparent 68%);
+}
+.ambient--artwork .ambient__pulse {
+  background:
+    radial-gradient(ellipse at 42% 56%, color-mix(in srgb, var(--album-c, var(--accent-2)) 56%, transparent), transparent 48%),
+    radial-gradient(ellipse at 64% 42%, color-mix(in srgb, var(--album-a, var(--accent)) 62%, transparent), transparent 67%);
+}
+
 .ambient.ambient--ember .ambient__grain {
   opacity: 0.15;
 }
@@ -155,6 +168,21 @@
   opacity: calc(0.16 + var(--audio-bass, 0) * 0.58);
   transform: translate3d(var(--pointer-x,0px),var(--pointer-y,0px),0) scale(calc(1 + var(--audio-bass, 0) * 0.5));
   transition: opacity 75ms linear, transform 75ms linear;
+}
+.ambient.ambient--audio.ambient--awake.ambient--artwork .ambient__light--a,
+.ambient.ambient--preview.ambient--awake.ambient--artwork .ambient__light--a {
+  opacity: calc(0.12 + var(--audio-mid, 0) * 0.58 + var(--audio-punch, 0) * 0.12);
+  transform: translate3d(var(--pointer-x,0px),var(--pointer-y,0px),0) scale(calc(0.96 + var(--audio-mid, 0) * 0.3 + var(--audio-punch, 0) * 0.12));
+}
+.ambient.ambient--audio.ambient--awake.ambient--artwork .ambient__light--b,
+.ambient.ambient--preview.ambient--awake.ambient--artwork .ambient__light--b {
+  opacity: calc(0.1 + var(--audio-treble, 0) * 0.48 + var(--audio-bass, 0) * 0.12);
+  transform: translate3d(var(--pointer-x,0px),var(--pointer-y,0px),0) scale(calc(0.94 + var(--audio-treble, 0) * 0.28 + var(--audio-punch, 0) * 0.1));
+}
+.ambient.ambient--audio.ambient--awake.ambient--artwork .ambient__pulse,
+.ambient.ambient--preview.ambient--awake.ambient--artwork .ambient__pulse {
+  opacity: calc(0.08 + var(--audio-energy, 0) * 0.42 + var(--audio-punch, 0) * 0.24);
+  transform: scale(calc(0.94 + var(--audio-energy, 0) * 0.22 + var(--audio-punch, 0) * 0.12));
 }
 .ambient.ambient--audio.ambient--awake .ambient__pulse,
 .ambient.ambient--audio.ambient--awake .ambient__light,

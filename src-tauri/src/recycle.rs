@@ -332,7 +332,9 @@ fn recycle_with_shell(paths: &[PathBuf]) -> Result<RecycleResult, String> {
 
         // Rust canonical paths use the extended-length prefix. Shell parsing
         // names require the regular drive path for these local items.
-        let text = path.to_str().ok_or_else(|| "The dropped path is not valid Unicode.".to_string())?;
+        let text = path
+            .to_str()
+            .ok_or_else(|| "The dropped path is not valid Unicode.".to_string())?;
         let shell_path = std::ffi::OsStr::new(text.strip_prefix(r"\\?\").unwrap_or(text));
         let mut wide: Vec<u16> = shell_path.encode_wide().collect();
         wide.push(0);
@@ -385,18 +387,32 @@ mod tests {
     #[tokio::test]
     #[ignore = "Moves one newly created disposable test file to Windows Recycle Bin"]
     async fn shell_recycles_only_an_owned_temporary_fixture() {
-        let directory = std::env::temp_dir().join(format!("hover-island-recycle-smoke-{}", uuid::Uuid::new_v4()));
+        let directory = std::env::temp_dir().join(format!(
+            "hover-island-recycle-smoke-{}",
+            uuid::Uuid::new_v4()
+        ));
         std::fs::create_dir(&directory).unwrap();
         let file = directory.join("Hover Island disposable recycle test.txt");
         std::fs::write(&file, b"Disposable Hover Island recycle test fixture.\r\n").unwrap();
         record_native_drop(&[file.clone()]);
         let paths = vec![file.to_string_lossy().to_string()];
         let result = recycle_dropped_paths(paths.clone()).await.unwrap();
-        assert_eq!(result.recycled, 1, "{result:?}; fixture still exists: {}", file.exists());
+        assert_eq!(
+            result.recycled,
+            1,
+            "{result:?}; fixture still exists: {}",
+            file.exists()
+        );
         assert_eq!(result.failed, 0);
         assert!(!result.cancelled);
-        assert!(!file.exists(), "the owned fixture should have been recycled");
-        assert!(recycle_dropped_paths(paths).await.is_err(), "drop authorization cannot be reused");
+        assert!(
+            !file.exists(),
+            "the owned fixture should have been recycled"
+        );
+        assert!(
+            recycle_dropped_paths(paths).await.is_err(),
+            "drop authorization cannot be reused"
+        );
         std::fs::remove_dir(directory).unwrap();
     }
 

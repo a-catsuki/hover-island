@@ -1,7 +1,7 @@
 {
-  "kit": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.3.0-x64-20261015-133115-847-cc7193f2",
-  "zip": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.3.0-x64-20261015-133115-847-cc7193f2.zip",
-  "executableSha256": "2dc13211c998fb197d3bc42cf9931db0a31df802407408b161e4f282080229c9",
+  "kit": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.4.0-x64-20261016-073751-660-6cfcd014",
+  "zip": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.4.0-x64-20261016-073751-660-6cfcd014.zip",
+  "executableSha256": "ca884711ff7d8ad161758d8eab801bb04d45b31aaac6ecbeb1c54fb0e110bc22",
   "packagedExecutableMatches": true,
   "installedExecutableMatches": true,
   "capabilities": [

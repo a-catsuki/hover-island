@@ -57,6 +57,30 @@ export interface LyricsResult {
   retryAfterSeconds?: number
 }
 
+export interface EmailCodeAccount {
+  id: string
+  provider: 'google' | 'microsoft'
+  address: string
+  paused: boolean
+  connectedAt: number
+  lastError?: string | null
+}
+
+export interface EmailCodesSnapshot {
+  accounts: EmailCodeAccount[]
+  lastError?: string | null
+}
+
+export interface EmailCodeEvent {
+  id: string
+  code: string
+  sender: string
+  subject: string
+  account: string
+  receivedAt: number
+  expiresAt: number
+}
+
 export type MediaAction = 'play' | 'pause' | 'toggle' | 'next' | 'previous' | 'seek'
 
 export interface AppNotification {
@@ -67,7 +91,7 @@ export interface AppNotification {
   /** epoch millis */
   timestamp: number
   icon?: string | null
-  category?: 'erp' | 'website' | 'transfer' | 'ai' | 'preference'
+  category?: 'erp' | 'website' | 'transfer' | 'ai' | 'preference' | 'auth'
   phase?: 'staging' | 'receiving' | 'sending' | 'ready' | 'sent' | 'complete' | 'error'
   progress?: number | null
   transferId?: string
@@ -75,6 +99,11 @@ export interface AppNotification {
   url?: string
   /** AI peek variant: 'complete' celebrates, 'needs-input' pulses for attention. */
   aiKind?: 'complete' | 'needs-input'
+  code?: string
+  sender?: string
+  account?: string
+  subject?: string
+  expiresAt?: number
 }
 
 export interface InstalledApp {
@@ -186,7 +215,7 @@ export interface Settings {
     dock: boolean
   }
   visualizer: {
-    style: 'ambient' | 'aurora' | 'pulse' | 'bloom' | 'silk' | 'halo' | 'orbit' | 'bars' | 'wave' | 'off'
+    style: 'ambient' | 'aurora' | 'pulse' | 'bloom' | 'silk' | 'halo' | 'orbit' | 'bars' | 'mirror' | 'radial' | 'particles' | 'wave' | 'off'
     intensity: number
     reactivity: number
   }
@@ -308,10 +337,19 @@ export const cmd = {
   lyricsLookup: (trackName: string, artistName: string, albumName: string | null, duration: number) =>
     invoke<LyricsResult>('lyrics_lookup', { trackName, artistName, albumName, duration }),
 
+  // opt-in email verification code connectors
+  emailCodesAccounts: () => invoke<EmailCodesSnapshot>('email_codes_accounts'),
+  emailCodesAuthorize: (provider: 'google' | 'microsoft', clientId: string, clientSecret?: string) =>
+    invoke<EmailCodeAccount>('email_codes_authorize', { provider, clientId, clientSecret: clientSecret || null }),
+  emailCodesRemove: (id: string) => invoke<void>('email_codes_remove', { id }),
+  emailCodesSetPaused: (id: string, paused: boolean) => invoke<EmailCodesSnapshot>('email_codes_set_paused', { id, paused }),
+
   // notifications
   notificationsGet: () => invoke<AppNotification[]>('notifications_get'),
   notificationsClear: () => invoke<void>('notifications_clear'),
   notificationsAccess: () => invoke<boolean>('notifications_request_access'),
+  notificationsAccessStatus: () => invoke<{packaged:boolean;status:'allowed'|'denied'|'not-requested'|'unpackaged'}>('notifications_access_status'),
+  notificationsTestConnection: (id:string) => invoke<void>('notifications_test_connection',{id}),
 
   // usage
   usageGet: () => invoke<UsageSnapshot[]>('usage_get'),
@@ -344,6 +382,11 @@ export const cmd = {
   openPowerSettings: () => invoke<void>('open_power_settings'),
   openWindowsSettings: (page: 'sound' | 'display' | 'notifications') => invoke<void>('open_windows_settings', { page }),
   setBluetoothRadio: (enabled: boolean) => invoke<boolean>('set_bluetooth_radio', { enabled }),
+  bluetoothDevicesList: () => invoke<BluetoothManagedDevice[]>('bluetooth_devices_list'),
+  bluetoothConnect: (deviceId: string) => invoke<BluetoothManagedDevice>('bluetooth_connect', { deviceId }),
+  bluetoothDisconnect: (deviceId: string) => invoke<BluetoothManagedDevice>('bluetooth_disconnect', { deviceId }),
+  bluetoothUnpair: (deviceId: string) => invoke<void>('bluetooth_unpair', { deviceId }),
+  bluetoothOpenSettings: () => invoke<void>('bluetooth_open_settings'),
   setBestPowerEfficiency: (enabled: boolean) => invoke<void>('set_power_saver_plan', { enabled }),
   setMasterVolume: (level: number) => invoke<void>('set_master_volume', { level }),
   setMute: (muted: boolean) => invoke<void>('set_mute', { muted }),
@@ -381,6 +424,9 @@ export const EVT = {
   usageChanged: 'usage://changed',
   spotlightOpen: 'spotlight://open',
   aiEvent: 'ai://event',
+  authCode: 'auth://code',
+  authError: 'auth://error',
+  authConnectionsChanged: 'auth://connections-changed',
 } as const
 
 export const onMediaChanged = (cb: (m: NowPlaying | null) => void): Promise<UnlistenFn> =>
@@ -408,6 +454,13 @@ export const onUsageChanged = (cb: (u: UsageSnapshot[]) => void): Promise<Unlist
 
 export const onAiEvent = (cb: (event: AiEvent) => void): Promise<UnlistenFn> =>
   listen<AiEvent>(EVT.aiEvent, (e) => cb(e.payload))
+
+export const onEmailCode = (cb: (event: EmailCodeEvent) => void): Promise<UnlistenFn> =>
+  listen<EmailCodeEvent>(EVT.authCode, event => cb(event.payload))
+export const onEmailCodesError = (cb: (message: string) => void): Promise<UnlistenFn> =>
+  listen<string>(EVT.authError, event => cb(event.payload))
+export const onEmailCodesChanged = (cb: () => void): Promise<UnlistenFn> =>
+  listen<void>(EVT.authConnectionsChanged, () => cb())
 
 /* ------------------------------------------------------------------ spotlight */
 
@@ -515,10 +568,54 @@ export interface WeatherSnapshot {
   aqiLabel?: string | null
   locationSource?: string | null
   stale?: boolean | null
+  feelsLikeC?: number | null
+  humidityPct?: number | null
+  windSpeedKmh?: number | null
+  windDirectionDeg?: number | null
+  precipitationMm?: number | null
+  isDay?: boolean | null
+  pressureHpa?: number | null
+  cloudCoverPct?: number | null
+  timezone?: string | null
+  hourly?: WeatherHour[]
+  daily?: WeatherDay[]
+  pm25?: number | null
+  pm10?: number | null
+}
+
+export interface WeatherHour {
+  time: string
+  temperatureC: number
+  code: number
+  precipitationProbability?: number | null
+}
+
+export interface WeatherDay {
+  date: string
+  code: number
+  highC: number
+  lowC: number
+  sunrise?: string | null
+  sunset?: string | null
+  precipitationProbability?: number | null
+  uvIndexMax?: number | null
+  windSpeedMaxKmh?: number | null
 }
 
 export interface ResetAnnouncement { id: string; kind: 'global' | 'banked'; title: string; publishedAt: number; sourceUrl: string; reportedBy: string; status: 'landed' | 'announced' | 'expected' | 'awaiting_confirmation'; landingAt?: number | null; upcoming?: boolean }
 export interface DeviceSnapshot { bluetooth: string[]; charging: boolean | null; error?: string | null }
+export interface BluetoothManagedDevice {
+  id: string
+  name: string
+  kind: string
+  paired: boolean
+  connected: boolean | null
+  batteryPct: number | null
+  canConnect: boolean
+  canDisconnect: boolean
+  canUnpair: boolean
+  actionReason?: string | null
+}
 export interface ResetWatchSnapshot { events: ResetAnnouncement[]; lastCheckedAt: number; sourceUpdatedAt?: number | null; source: string; stale: boolean; error?: string | null }
 
 export interface WeatherLocation {

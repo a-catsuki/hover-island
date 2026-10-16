@@ -7,6 +7,9 @@ export type VisualizerStyle =
   | 'halo'
   | 'orbit'
   | 'bars'
+  | 'mirror'
+  | 'radial'
+  | 'particles'
   | 'wave'
   | 'off'
 
@@ -26,6 +29,9 @@ export const VISUALIZER_STYLES: ReadonlyArray<VisualizerStyleOption> = [
   { id: 'halo', label: 'Halo', hint: 'Spectrum ring' },
   { id: 'orbit', label: 'Orbit', hint: 'Rotating spokes' },
   { id: 'bars', label: 'Bars', hint: 'Classic equalizer' },
+  { id: 'mirror', label: 'Mirror', hint: 'Symmetric spectrum' },
+  { id: 'radial', label: 'Radial', hint: 'Circular spectrum' },
+  { id: 'particles', label: 'Particles', hint: 'Beat-lit particle field' },
   { id: 'off', label: 'Off', hint: 'Hidden' },
 ]
 

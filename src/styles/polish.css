@@ -74,6 +74,7 @@
   box-shadow:none;
   background:transparent;
   animation:none;
+  transform:none;
   align-items:center;
   gap:14px;
 }

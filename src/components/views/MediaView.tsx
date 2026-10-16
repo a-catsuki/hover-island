@@ -26,7 +26,9 @@ export default function MediaView(props: {
   const [scrub, setScrub] = createSignal(0)
   const [lyrics, setLyrics] = createSignal<LyricsLine[]>([])
   const [lyricsStatus, setLyricsStatus] = createSignal<'idle' | 'loading' | 'ok' | 'not_found' | 'no_timed_lyrics' | 'rate_limited' | 'unavailable' | 'preview'>('idle')
-  const [lyricsRetryAfter, setLyricsRetryAfter] = createSignal<number | null>(null)
+  const [lyricsRetryAt, setLyricsRetryAt] = createSignal(0)
+  const [lyricsClock, setLyricsClock] = createSignal(Date.now())
+  const lyricsWait = () => Math.max(0, Math.ceil((lyricsRetryAt() - lyricsClock()) / 1000))
   const [lyricsRetry, setLyricsRetry] = createSignal(0)
   const [lyricsCanFit, setLyricsCanFit] = createSignal(false)
   let mediaElement: HTMLDivElement | undefined
@@ -72,7 +74,7 @@ export default function MediaView(props: {
     }
   }
 
-  const lyricsEnabled = () => Boolean(props.showLyrics && props.size !== 'compact' && lyricsCanFit())
+  const lyricsEnabled = () => Boolean(props.showLyrics && props.size !== 'compact' && lyricsCanFit() && open())
   const activeLyric = createMemo(() => {
     const lines = lyrics()
     if (!lines.length) return -1
@@ -107,18 +109,24 @@ export default function MediaView(props: {
     }
     setLyrics([])
     setLyricsStatus('loading')
-    setLyricsRetryAfter(null)
     void cmd.lyricsLookup(current.title, current.artist, current.album ?? null, current.duration!).then((result) => {
       if (request !== lyricsRequest) return
       setLyrics(result.status === 'ok' ? result.lines : [])
-      setLyricsRetryAfter(result.status === 'rate_limited' ? result.retryAfterSeconds ?? null : null)
+      setLyricsRetryAt(result.status === 'rate_limited' ? Date.now() + (result.retryAfterSeconds ?? 60) * 1000 : 0)
+      setLyricsClock(Date.now())
       setLyricsStatus(result.status === 'invalid_track' ? 'not_found' : result.status)
     }).catch(() => {
       if (request === lyricsRequest) {
-        setLyricsRetryAfter(null)
         setLyricsStatus('unavailable')
       }
     })
+  })
+
+  createEffect(() => {
+    if (lyricsStatus() !== 'rate_limited' || !open()) return
+    setLyricsClock(Date.now())
+    const clock = setInterval(() => setLyricsClock(Date.now()), 1000)
+    onCleanup(() => clearInterval(clock))
   })
 
   createEffect(() => {
@@ -291,7 +299,7 @@ export default function MediaView(props: {
                     {lyricsStatus() === 'loading' ? 'Looking for synced lyrics…'
                       : lyricsStatus() === 'not_found' ? 'No timed lyrics found for this track.'
                       : lyricsStatus() === 'no_timed_lyrics' ? 'Timed lyrics are not available for this track.'
-                      : lyricsStatus() === 'rate_limited' ? `Lyrics lookup is rate-limited. Try again in about ${lyricsRetryAfter() ?? 60} seconds.`
+                      : lyricsStatus() === 'rate_limited' ? lyricsWait() > 0 ? `Lyrics lookup is busy. Try again in ${lyricsWait()} seconds.` : 'Ready to retry lyrics.'
                       : lyricsStatus() === 'unavailable' ? 'Lyrics are temporarily unavailable.'
                       : lyricsStatus() === 'preview' ? 'Synced lyrics are available in the desktop app.'
                       : 'No lyrics to show.'}
@@ -305,7 +313,7 @@ export default function MediaView(props: {
                     >{line.text}</p>)}
                   </div>
                 </Show>
-                <Show when={lyricsStatus() === 'unavailable'}><button type="button" class="media__lyrics-retry" onClick={() => setLyricsRetry(value => value + 1)}>Try again</button></Show>
+                <Show when={lyricsStatus() === 'unavailable' || lyricsStatus() === 'rate_limited'}><button type="button" class="media__lyrics-retry" disabled={lyricsStatus() === 'rate_limited' && lyricsWait() > 0} onClick={() => setLyricsRetry(value => value + 1)}>Try again</button></Show>
                 <a class="media__lyrics-source" href="https://lrclib.net" target="_blank" rel="noreferrer">Timed lyrics · LRCLIB</a>
               </section>
             </Show>
@@ -373,7 +381,7 @@ export default function MediaView(props: {
                     {lyricsStatus() === 'loading' ? 'Looking for synced lyrics…'
                       : lyricsStatus() === 'not_found' ? 'No timed lyrics found for this track.'
                       : lyricsStatus() === 'no_timed_lyrics' ? 'Timed lyrics are not available for this track.'
-                      : lyricsStatus() === 'rate_limited' ? `Lyrics lookup is rate-limited. Try again in about ${lyricsRetryAfter() ?? 60} seconds.`
+                      : lyricsStatus() === 'rate_limited' ? lyricsWait() > 0 ? `Lyrics lookup is busy. Try again in ${lyricsWait()} seconds.` : 'Ready to retry lyrics.'
                       : lyricsStatus() === 'unavailable' ? 'Lyrics are temporarily unavailable.'
                       : lyricsStatus() === 'preview' ? 'Synced lyrics are available in the desktop app.'
                       : 'No lyrics to show.'}
@@ -387,7 +395,7 @@ export default function MediaView(props: {
                     >{line.text}</p>)}
                   </div>
                 </Show>
-                <Show when={lyricsStatus() === 'unavailable'}><button type="button" class="media__lyrics-retry" onClick={() => setLyricsRetry(value => value + 1)}>Try again</button></Show>
+                <Show when={lyricsStatus() === 'unavailable' || lyricsStatus() === 'rate_limited'}><button type="button" class="media__lyrics-retry" disabled={lyricsStatus() === 'rate_limited' && lyricsWait() > 0} onClick={() => setLyricsRetry(value => value + 1)}>Try again</button></Show>
                 <a class="media__lyrics-source" href="https://lrclib.net" target="_blank" rel="noreferrer">Timed lyrics · LRCLIB</a>
               </section>
             </Show>

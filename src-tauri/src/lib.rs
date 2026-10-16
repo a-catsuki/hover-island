@@ -1,19 +1,21 @@
 mod airdrop;
 mod apps;
 mod audio;
+mod bluetooth;
 mod calendar;
 mod calendar_sources;
 mod connections;
 mod devices;
-mod media;
+mod email_codes;
+mod erp;
 mod lyrics;
+mod media;
 mod memory_reclaim;
 mod nearby;
 mod notes;
 mod notifications;
-mod placement;
 mod paired_devices;
-mod erp;
+mod placement;
 mod quick_controls;
 mod recycle;
 mod reset_watch;
@@ -176,7 +178,7 @@ fn spawn_background(app: AppHandle) {
             if app.state::<AppState>().shutdown.load(Ordering::Relaxed) {
                 break;
             }
-            let (media_enabled, notifications_enabled, dnd) = {
+            let (media_enabled, notifications_enabled, email_enabled, dnd) = {
                 let state = app.state::<AppState>();
                 let settings = state.settings.lock().unwrap();
                 (
@@ -184,9 +186,17 @@ fn spawn_background(app: AppHandle) {
                     settings.modules.notifications
                         && settings.notifications.enabled
                         && settings.notifications.system_listener,
+                    settings.modules.notifications && settings.notifications.enabled,
                     settings.dnd,
                 )
             };
+
+            if notification_tick % 25 == 0 {
+                let email_app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = email_codes::poll(&email_app, email_enabled, dnd).await;
+                });
+            }
 
             // Diff-before-emit: only publish when the foreground posture changes.
             let foreground = window::foreground_maximized();
@@ -367,12 +377,14 @@ async fn settings_set(app: AppHandle, patch: serde_json::Value) -> Result<Settin
     if next.launch_at_login != current.launch_at_login {
         apply_autostart(&app, next.launch_at_login);
     }
-    let geometry_result =
-        if next.collapsed != current.collapsed || next.expanded != current.expanded || next.placement != current.placement {
-            window::apply_bounds(&app).map_err(|e| e.to_string())
-        } else {
-            Ok(())
-        };
+    let geometry_result = if next.collapsed != current.collapsed
+        || next.expanded != current.expanded
+        || next.placement != current.placement
+    {
+        window::apply_bounds(&app).map_err(|e| e.to_string())
+    } else {
+        Ok(())
+    };
     let _ = app.emit("settings://changed", &next);
     geometry_result?;
 
@@ -424,6 +436,14 @@ async fn settings_reset(app: AppHandle) -> Result<Settings, String> {
 }
 
 /* --------------------------------- run --------------------------------- */
+
+/// Prints a privacy-minimal notification diagnostics snapshot and returns its
+/// process exit code. Called by `main` before Tauri initializes any UI state.
+pub fn run_notification_diagnostics() -> i32 {
+    let (json, code) = notifications::diagnostics_json();
+    println!("{json}");
+    code
+}
 
 pub fn run() {
     tauri::Builder::default()
@@ -525,8 +545,17 @@ pub fn run() {
             airdrop::airdrop_capability,
             media::media_get,
             lyrics::lyrics_lookup,
+            email_codes::email_codes_accounts,
+            email_codes::email_codes_authorize,
+            email_codes::email_codes_remove,
+            email_codes::email_codes_set_paused,
             audio::audio_loopback_start,
             audio::audio_loopback_stop,
+            bluetooth::bluetooth_devices_list,
+            bluetooth::bluetooth_connect,
+            bluetooth::bluetooth_disconnect,
+            bluetooth::bluetooth_unpair,
+            bluetooth::bluetooth_open_settings,
             devices::devices_get,
             reset_watch::reset_watch_get,
             transfer::transfer_status,
@@ -542,6 +571,8 @@ pub fn run() {
             notifications::notifications_get,
             notifications::notifications_clear,
             notifications::notifications_request_access,
+            notifications::notifications_access_status,
+            notifications::notifications_test_connection,
             usage::usage_get,
             usage::usage_refresh,
             usage::usage_detect,
@@ -566,24 +597,25 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error building Hover Island")
-        .run(|_, event| {
-            match event {
-                tauri::RunEvent::WindowEvent { label, event: tauri::WindowEvent::DragDrop(drag_event), .. }
-                    if label == "main" => match drag_event {
-                        tauri::DragDropEvent::Enter { .. } | tauri::DragDropEvent::Over { .. } => {
-                            recycle::set_native_file_drag_active(true);
-                        }
-                        tauri::DragDropEvent::Leave => recycle::set_native_file_drag_active(false),
-                        tauri::DragDropEvent::Drop { paths, .. } => {
-                            recycle::record_native_drop(&paths);
-                            recycle::set_native_file_drag_active(false);
-                        }
-                        _ => {}
-                    },
-                tauri::RunEvent::Exit => {
-                    let _ = quick_controls::restore_previous_power_plan();
+        .run(|_, event| match event {
+            tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::DragDrop(drag_event),
+                ..
+            } if label == "main" => match drag_event {
+                tauri::DragDropEvent::Enter { .. } | tauri::DragDropEvent::Over { .. } => {
+                    recycle::set_native_file_drag_active(true);
+                }
+                tauri::DragDropEvent::Leave => recycle::set_native_file_drag_active(false),
+                tauri::DragDropEvent::Drop { paths, .. } => {
+                    recycle::record_native_drop(&paths);
+                    recycle::set_native_file_drag_active(false);
                 }
                 _ => {}
+            },
+            tauri::RunEvent::Exit => {
+                let _ = quick_controls::restore_previous_power_plan();
             }
+            _ => {}
         });
 }

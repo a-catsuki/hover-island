@@ -29,6 +29,7 @@ import { canExpandOnHover, fileDropActionAtRelease, fileDropDestinationAt, physi
 import { shouldExpandAfterSustainedHover } from '../../state/hover'
 import { beginIslandPlacementDrag, cancelIslandPlacementDrag, consumePlacementClick, finishIslandPlacementDrag, isPlacementDragging, isPlacementGesturePending, moveIslandPlacementDrag } from '../../state/placement'
 import { canStartIslandPlacementDrag } from '../../lib/placementPointerDrag'
+import { magneticNotchPath } from '../../lib/magneticShape'
 import './IslandPlacement.css'
 
 export default function Island() {
@@ -39,6 +40,7 @@ export default function Island() {
   let islandElement: HTMLDivElement | undefined
   let shapeSpring: ReturnType<typeof createIslandSpring> | undefined
   let magneticSpring: ReturnType<typeof createMagneticSpring> | undefined
+  let magneticOffset = { x: 0, y: 0 }
   let reduceMotion = false
   let motionPreference: MediaQueryList | undefined
   let leavePending = false
@@ -77,6 +79,7 @@ export default function Island() {
   const barDock = () => settings.placement.mode === 'bar'
   const devicePeek = () => compactPeek() && ['Bluetooth', 'Battery', 'Do Not Disturb', 'Volume', 'Brightness'].includes(peek()?.app ?? '')
   const transferPeek = () => compactPeek() && (peek()?.category === 'transfer' || peek()?.app === 'Phone bucket')
+  const authPeek = () => compactPeek() && peek()?.category === 'auth'
   const targetAt = (x: number, y: number): FileDropTarget => {
     const rect = (destination: 'recycle' | 'beam') => {
       const bounds = document.querySelector<HTMLElement>(`[data-drop-target="${destination}"]`)?.getBoundingClientRect()
@@ -174,6 +177,7 @@ export default function Island() {
     if (transferPeek()) {
       return { width: Math.min(440, settings.expanded.w), height: 148, radius: 24 }
     }
+    if (authPeek()) return { width: Math.min(420, settings.expanded.w), height: 112, radius: 22 }
     if (compactPeek()) {
       return devicePeek()
         ? { width: Math.min(340, settings.expanded.w), height: 84, radius: 20 }
@@ -195,14 +199,18 @@ export default function Island() {
   }
 
   const publishMagnet = (offset: { x: number; y: number }) => {
+    magneticOffset = offset
     islandElement?.style.setProperty('--magnet-x', `${offset.x.toFixed(2)}px`)
     islandElement?.style.setProperty('--magnet-y', `${offset.y.toFixed(2)}px`)
+    const node = islandElement
+    if (node) node.style.setProperty('--magnetic-clip', magneticNotchPath(node.clientWidth, node.clientHeight, sideNotch() ? 56 : settings.collapsed.w, sideNotch() ? 144 : settings.collapsed.h, settings.placement.edge, offset.x, offset.y))
   }
 
   createEffect(() => {
     // Read all target inputs here so a new event or user gesture retargets the
     // existing spring rather than starting a second animation from stale CSS.
     const frame = targetFrame()
+    publishMagnet(magneticOffset)
     const spring = shapeSpring
     if (spring) spring.retarget(frame)
     if (expanded() || closing() || fileDrop() || fileDropBoundsActive) {
@@ -226,6 +234,7 @@ export default function Island() {
     shapeSpring = createIslandSpring(collapsed, publishShape, () => reduceMotion)
     shapeSpring.snap(targetFrame())
     magneticSpring = createMagneticSpring(publishMagnet, () => reduceMotion)
+    publishMagnet({ x: 0, y: 0 })
     void listen<{ x: number; y: number }>('island://proximity', event => {
       const active = !reduceMotion && settings.placement.mode === 'notch' && !open() && !closing() && !isPlacementDragging() && !isPlacementGesturePending()
       magneticSpring?.retarget(active ? event.payload : { x: 0, y: 0 })
@@ -411,7 +420,7 @@ export default function Island() {
         const rect = event.currentTarget.getBoundingClientRect()
         event.currentTarget.style.setProperty('--pointer-x', `${((event.clientX - rect.left) / rect.width - .5) * 30}px`)
         event.currentTarget.style.setProperty('--pointer-y', `${((event.clientY - rect.top) / rect.height - .5) * 20}px`)
-      }} classList={{ 'island--open': open(), 'island--hover': hovering(), 'island--peek': compactPeek(), 'island--live-activity': compactPeek(), 'island--device-peek': devicePeek(), 'island--transfer-peek': transferPeek(), 'island--dragging': isPlacementDragging(), 'island--file-drop': !!fileDrop(), 'island--notch-side': sideNotch(), [`island--edge-${settings.placement.edge}`]: true, [`island--mode-${settings.placement.mode}`]: true }}>
+      }} classList={{ 'island--open': open(), 'island--hover': hovering(), 'island--peek': compactPeek(), 'island--live-activity': compactPeek(), 'island--device-peek': devicePeek(), 'island--transfer-peek': transferPeek(), 'island--auth-peek':authPeek(), 'island--dragging': isPlacementDragging(), 'island--file-drop': !!fileDrop(), 'island--notch-side': sideNotch(), [`island--edge-${settings.placement.edge}`]: true, [`island--mode-${settings.placement.mode}`]: true }}>
         <AmbientBackground/>
         <div class="island__collapsed" inert={open() || !!fileDrop() || compactPeek()} aria-hidden={open() || !!fileDrop() || compactPeek()}>
             <div

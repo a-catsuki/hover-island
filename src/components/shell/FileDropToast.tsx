@@ -18,7 +18,7 @@ export default function FileDropToast(props: Props) {
   const progressValue = () => {
     if (props.phase === 'complete') return 1
     const value = props.progress
-    return typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : undefined
+    return typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : props.phase === 'pending' ? undefined : 0
   }
 
   return (

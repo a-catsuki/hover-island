@@ -1,0 +1,32 @@
+{
+  "passed": true,
+  "mode": "Production browser with owned auth event, no real inbox access",
+  "geometry": {
+    "shell": {
+      "x": 290,
+      "y": 0,
+      "w": 420,
+      "h": 112
+    },
+    "peek": {
+      "x": 290,
+      "y": 0,
+      "w": 420,
+      "h": 112
+    },
+    "code": {
+      "x": 360,
+      "y": 42.90625,
+      "w": 249.453125,
+      "h": 27.5
+    },
+    "transform": "none"
+  },
+  "checks": [
+    "Full-notch activity matches shell",
+    "Collapsed code remains accessible",
+    "Copy writes owned fixture and dismisses",
+    "Expired event ignored"
+  ],
+  "errors": []
+}

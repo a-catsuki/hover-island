@@ -30,7 +30,20 @@ const page = await context.newPage()
 page.setDefaultTimeout(30000)
 page.on('pageerror', error => records.push({ type: 'pageerror', message: error.message }))
 
-const screenshot = async (locator, file) => locator.screenshot({ path: join(here, file) })
+const screenshot = async (locator, file) => {
+  let lastError
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await locator.waitFor({ state: 'visible', timeout: 5000 })
+      await locator.screenshot({ path: join(here, file) })
+      return
+    } catch (error) {
+      lastError = error
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 250))
+    }
+  }
+  throw lastError
+}
 const panelTabs = () => page.locator('.panel-tabs [role="tab"]')
 const assertFlatPanel = async label => {
   assert.equal(await page.locator('.panel-pager, .widget-grid--detail').count(), 0, `${label} has no nested pager or detail layer`)
@@ -175,10 +188,41 @@ try {
 
     const weather = await findWidget('weather')
     await weather.locator('.weather__temp').waitFor()
-    const weatherInfo = await metrics('weather', '.weather__temp', ['Location', 'Details'])
+    const weatherInfo = await metrics('weather', '.weather__temp', ['Location', 'Refresh weather'])
     assert.ok(weatherInfo.coreFontPx >= 20, `${label} weather temperature remains readable`)
+    assert.equal(await weather.locator('.weather-card--partly').count(), 1, `${label} fixture selects the partly-cloudy scene`)
+    assert.equal(await weather.locator('.weather-card--night').count(), 0, `${label} daytime fixture does not show a night scene`)
+    const metricButton = weather.getByRole('button', { name: 'Metric units, Celsius and kilometers per hour', exact: true })
+    const imperialButton = weather.getByRole('button', { name: 'Imperial units, Fahrenheit and miles per hour', exact: true })
+    await imperialButton.click()
+    assert.equal(await imperialButton.getAttribute('aria-pressed'), 'true', `${label} switches to imperial units`)
+    assert.match(await weather.locator('.weather__temp').innerText(), /°F/, `${label} temperatures convert to Fahrenheit`)
+    assert.equal(await page.evaluate(() => localStorage.getItem('hover-island.weather-units')), 'imperial', `${label} unit choice is stored locally`)
+    await metricButton.click()
+    assert.equal(await metricButton.getAttribute('aria-pressed'), 'true', `${label} can return to metric units`)
+    await weather.getByRole('button', { name: 'Hourly', exact: true }).click()
+    assert.equal(await weather.locator('.weather__hour').count(), 24, `${label} hourly view renders all 24 hours`)
+    const hourlyLayout = await weather.evaluate(card => {
+      const body = card.querySelector('.weather')
+      const strip = card.querySelector('.weather__hours')
+      return { body: { client: body.clientHeight, content: body.scrollHeight }, strip: { client: strip.clientWidth, content: strip.scrollWidth }, card: { client: card.clientHeight, content: card.scrollHeight } }
+    })
+    assert.ok(hourlyLayout.body.content <= hourlyLayout.body.client + 2 && weatherInfo.panel.scrollHeight <= weatherInfo.panel.clientHeight + 2, `${label} hourly data fits without vertical panel scrolling`)
+    assert.ok(hourlyLayout.strip.content >= hourlyLayout.strip.client, `${label} hourly forecast uses its dedicated horizontal strip`)
+    await screenshot(weather, `widget-gallery-weather-hourly-${label.toLowerCase()}.png`)
+    await weather.getByRole('button', { name: '7-day', exact: true }).click()
+    assert.equal(await weather.locator('.weather__day').count(), 7, `${label} week view renders seven daily rows`)
+    const weekLayout = await weather.evaluate(card => {
+      const body = card.querySelector('.weather')
+      const rows = [...card.querySelectorAll('.weather__day')].map(row => { const r = row.getBoundingClientRect(); return { top: r.top, bottom: r.bottom } })
+      const bounds = card.getBoundingClientRect()
+      return { body: { client: body.clientHeight, content: body.scrollHeight }, rowsFit: rows.every(row => row.top >= bounds.top && row.bottom <= bounds.bottom) }
+    })
+    assert.ok(weekLayout.body.content <= weekLayout.body.client + 2 && weekLayout.rowsFit && weatherInfo.panel.scrollHeight <= weatherInfo.panel.clientHeight + 2, `${label} seven-day forecast fits within the card`)
+    await screenshot(weather, `widget-gallery-weather-week-${label.toLowerCase()}.png`)
+    await weather.getByRole('button', { name: 'Now', exact: true }).click()
     await screenshot(weather, `widget-gallery-weather-${label.toLowerCase()}.png`)
-    records.push({ widget: 'weather', size: label, ...weatherInfo })
+    records.push({ widget: 'weather', size: label, ...weatherInfo, hourly: hourlyLayout, week: weekLayout })
   }
 
   const settingsPage = await context.newPage()

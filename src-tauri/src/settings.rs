@@ -276,9 +276,13 @@ fn flat_panel_groups(widgets: &[WidgetConfig]) -> Vec<Vec<String>> {
     {
         let minimum_full = matches!(widget.kind.as_str(), "nearby" | "controls" | "calendar");
         let size = widget.size.as_deref().unwrap_or_else(|| {
-            if matches!(widget.kind.as_str(), "usage" | "web-alerts" | "clock") { "full" }
-            else if widget.kind == "dock" { "wide" }
-            else { "compact" }
+            if matches!(widget.kind.as_str(), "usage" | "web-alerts" | "clock") {
+                "full"
+            } else if widget.kind == "dock" {
+                "wide"
+            } else {
+                "compact"
+            }
         });
         let full = minimum_full || size == "full";
         let rows = if full { 2 } else { 1 };
@@ -422,6 +426,7 @@ impl Settings {
         if !matches!(
             self.background.as_str(),
             "aurora"
+                | "ambient"
                 | "reactive"
                 | "artwork"
                 | "ember"
@@ -557,6 +562,9 @@ impl Settings {
                 | "pulse"
                 | "bloom"
                 | "silk"
+                | "mirror"
+                | "radial"
+                | "particles"
                 | "halo"
                 | "orbit"
                 | "bars"
@@ -1039,6 +1047,10 @@ mod tests {
         assert_eq!(repaired.placement, Placement::default());
         assert_eq!(repaired.notifications.sound, "off");
         assert_eq!(repaired.visualizer.style, "ambient");
+        for style in ["ambient", "mirror", "radial", "particles"] {
+            let saved = merge_patch(&defaults, serde_json::json!({ "visualizer": { "style": style } }));
+            assert_eq!(saved.visualizer.style, style, "selected styles must survive native settings validation");
+        }
     }
 
     #[test]

@@ -5,6 +5,7 @@ import { open as islandOpen } from '../../state/ui'
 import { reportError } from '../../state/feedback'
 import { ingestActionPeek } from '../../state/peek'
 import { createSliderCommitter } from '../../lib/sliderCommitter'
+import BluetoothView from '../widgets/BluetoothView'
 import { settings, patchSettings, flushSettings } from '../../state/settings'
 import './QuickSettingsView.css'
 
@@ -12,6 +13,7 @@ type ControlKey = 'volume' | 'brightness' | 'bluetooth' | 'powerMode' | 'nightLi
 
 const [controls, setControls] = createSignal<QuickControlsSnapshot | null>(null)
 const [devices, setDevices] = createSignal<string[]>([])
+const [bluetoothListOpen, setBluetoothListOpen] = createSignal(false)
 const [deviceError, setDeviceError] = createSignal('')
 const [batteryText, setBatteryText] = createSignal('Checking battery…')
 const [loading, setLoading] = createSignal(false)
@@ -412,7 +414,8 @@ export default function QuickSettingsView() {
 
       <div class="quick-settings__links">
         <button class="quick-settings__link" onClick={() => openSettings('power', 'Could not open Windows Power & battery')}><Leaf size={14}/> <span>Energy Saver &amp; power</span><small>Open Windows settings</small><ChevronRight size={15}/></button>
-        <button class="quick-settings__link" onClick={() => openSettings('bluetooth', 'Could not open Bluetooth settings')}><Bluetooth size={14}/> <span>Bluetooth devices</span><small>Open Windows settings</small><ChevronRight size={15}/></button>
+        <button class="quick-settings__link" aria-expanded={bluetoothListOpen()} onClick={() => setBluetoothListOpen(!bluetoothListOpen())}><Bluetooth size={14}/> <span>Bluetooth devices</span><small>{bluetoothListOpen() ? 'Hide paired devices' : 'Manage paired devices'}</small><ChevronRight size={15}/></button>
+        <Show when={bluetoothListOpen()}><BluetoothView/></Show>
       </div>
 
       <Show when={controlError()}><p class="quick-settings__error" role="alert">{controlError()}</p></Show>

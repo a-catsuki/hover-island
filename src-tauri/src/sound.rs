@@ -27,12 +27,15 @@ fn tone(kind: &str) -> Vec<u8> {
     for index in 0..count {
         let t = index as f64 / rate as f64;
         let mut sample = 0.0;
-        for (delay, multiplier, gain) in [(0.0, 1.0, 0.16), (0.075, 1.5, 0.11), (0.0, 2.01, 0.035)] {
+        for (delay, multiplier, gain) in [(0.0, 1.0, 0.16), (0.075, 1.5, 0.11), (0.0, 2.01, 0.035)]
+        {
             let age = t - delay;
             if age >= 0.0 {
                 let attack = (age / 0.008).min(1.0);
                 sample += (age * base * multiplier * std::f64::consts::TAU).sin()
-                    * (-age * 8.0).exp() * attack * gain;
+                    * (-age * 8.0).exp()
+                    * attack
+                    * gain;
             }
         }
         let fade = ((0.62 - t) / 0.04).clamp(0.0, 1.0);
@@ -43,24 +46,55 @@ fn tone(kind: &str) -> Vec<u8> {
 
 #[tauri::command]
 pub fn play_alert_sound(app: tauri::AppHandle, kind: Option<String>) -> Result<(), String> {
-    let prefs = app.state::<crate::state::AppState>().settings.lock().map_err(|_| "Sound preferences unavailable")?.clone();
-    if prefs.dnd || !prefs.notifications.enabled { return Ok(()); }
+    let prefs = app
+        .state::<crate::state::AppState>()
+        .settings
+        .lock()
+        .map_err(|_| "Sound preferences unavailable")?
+        .clone();
+    if prefs.dnd || !prefs.notifications.enabled {
+        return Ok(());
+    }
     let kind = kind.as_deref().unwrap_or(&prefs.notifications.sound);
-    if kind == "off" { return Ok(()); }
-    if !matches!(kind, "soft" | "glass") { return Err("Unknown alert sound".into()); }
+    if kind == "off" {
+        return Ok(());
+    }
+    if !matches!(kind, "soft" | "glass") {
+        return Err("Unknown alert sound".into());
+    }
     let mut last = LAST_PLAYED.lock().map_err(|_| "Sound is unavailable")?;
-    if last.is_some_and(|at| at.elapsed() < Duration::from_millis(1500)) { return Ok(()); }
+    if last.is_some_and(|at| at.elapsed() < Duration::from_millis(1500)) {
+        return Ok(());
+    }
     *last = Some(Instant::now());
-    let bytes = if kind == "glass" { GLASS.get_or_init(|| tone("glass")) } else { SOFT.get_or_init(|| tone("soft")) };
-    #[cfg(windows)] {
+    let bytes = if kind == "glass" {
+        GLASS.get_or_init(|| tone("glass"))
+    } else {
+        SOFT.get_or_init(|| tone("soft"))
+    };
+    #[cfg(windows)]
+    {
         use windows::core::PCWSTR;
         use windows::Win32::Foundation::HMODULE;
-        use windows::Win32::Media::Audio::{PlaySoundW, SND_ASYNC, SND_MEMORY, SND_NODEFAULT, SND_SYSTEM};
+        use windows::Win32::Media::Audio::{
+            PlaySoundW, SND_ASYNC, SND_MEMORY, SND_NODEFAULT, SND_SYSTEM,
+        };
         // OnceLock owns the WAV for the process lifetime, including asynchronous playback.
-        let ok = unsafe { PlaySoundW(PCWSTR(bytes.as_ptr().cast()), HMODULE::default(), SND_MEMORY | SND_ASYNC | SND_NODEFAULT | SND_SYSTEM) };
-        if !ok.as_bool() { return Err("Windows could not play the alert sound".into()); }
+        let ok = unsafe {
+            PlaySoundW(
+                PCWSTR(bytes.as_ptr().cast()),
+                HMODULE::default(),
+                SND_MEMORY | SND_ASYNC | SND_NODEFAULT | SND_SYSTEM,
+            )
+        };
+        if !ok.as_bool() {
+            return Err("Windows could not play the alert sound".into());
+        }
     }
-    #[cfg(not(windows))] { let _ = bytes; }
+    #[cfg(not(windows))]
+    {
+        let _ = bytes;
+    }
     Ok(())
 }
 
@@ -69,24 +103,41 @@ pub fn play_alert_sound(app: tauri::AppHandle, kind: Option<String>) -> Result<(
 #[tauri::command]
 pub fn send_test_alert(app: tauri::AppHandle) -> Result<(), String> {
     {
-        let prefs = app.state::<crate::state::AppState>().settings.lock().map_err(|_| "Sound preferences unavailable")?.clone();
-        if prefs.dnd { return Err("Do Not Disturb is on, so the test alert is silent".into()); }
-        if !prefs.notifications.enabled { return Err("Notifications are turned off".into()); }
+        let prefs = app
+            .state::<crate::state::AppState>()
+            .settings
+            .lock()
+            .map_err(|_| "Sound preferences unavailable")?
+            .clone();
+        if prefs.dnd {
+            return Err("Do Not Disturb is on, so the test alert is silent".into());
+        }
+        if !prefs.notifications.enabled {
+            return Err("Notifications are turned off".into());
+        }
     }
     play_alert_sound(app.clone(), None)?;
     let _ = app.emit("alert://test", ());
     Ok(())
 }
 
-#[cfg(test)] mod tests {
+#[cfg(test)]
+mod tests {
     use super::*;
-    #[test] fn original_chimes_are_bounded_pcm_waves() {
+    #[test]
+    fn original_chimes_are_bounded_pcm_waves() {
         for kind in ["soft", "glass"] {
             let bytes = tone(kind);
             assert_eq!(&bytes[..4], b"RIFF");
             assert_eq!(&bytes[8..12], b"WAVE");
-            assert_eq!(u32::from_le_bytes(bytes[40..44].try_into().unwrap()) as usize, bytes.len()-44);
-            let samples:Vec<_> = bytes[44..].chunks_exact(2).map(|s| i16::from_le_bytes([s[0],s[1]])).collect();
+            assert_eq!(
+                u32::from_le_bytes(bytes[40..44].try_into().unwrap()) as usize,
+                bytes.len() - 44
+            );
+            let samples: Vec<_> = bytes[44..]
+                .chunks_exact(2)
+                .map(|s| i16::from_le_bytes([s[0], s[1]]))
+                .collect();
             assert!(samples.iter().any(|sample| sample.abs() > 100));
             assert!(samples.iter().all(|sample| sample.abs() < i16::MAX / 2));
             assert!(samples.last().unwrap().abs() < 10);

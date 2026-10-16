@@ -63,6 +63,23 @@ test('repeated polling failures expire instead of extending or resurrecting thei
   now+=30001;module.reportError('Volume','Unavailable');assert.match(module.feedback(),/^Volume/)
 })
 
+test('a successful Beam refresh clears a prior transient connection error', async () => {
+  let failed = true
+  const module = await importTs('src/state/transfer.ts', {
+    'solid-js': { createSignal: signal },
+    '../lib/ipc': { browserPreview: false, cmd: { transferStatus: async () => {
+      if (failed) throw new Error('Temporarily offline')
+      return { active: true, files: [{id:'f',name:'Photo.jpg',size:12,createdAt:1}], error:null }
+    } } },
+  })
+  await module.refreshTransfer()
+  assert.match(module.transfer().error, /Temporarily offline/)
+  failed = false
+  await module.refreshTransfer()
+  assert.equal(module.transfer().error, null)
+  assert.equal(module.transfer().files.length, 1)
+})
+
 test('native slider writes serialize and the final drag value wins', async () => {
   const { createSliderCommitter } = await importTs('src/lib/sliderCommitter.ts', {})
   const writes = [], first = deferred(), second = deferred(), errors = []
@@ -89,6 +106,20 @@ async function until(predicate, message) {
   }
   assert.fail(message)
 }
+
+test('slider readback runs only after the last queued native write settles', async () => {
+  const {createSliderCommitter}=await importTs('src/lib/sliderCommitter.ts',{})
+  const first=deferred(),last=deferred(),writes=[]
+  let settled=0
+  const committer=createSliderCommitter(value=>{writes.push(value);return writes.length===1?first.promise:last.promise},()=>{},0,()=>settled++)
+  committer.push(20);committer.flush();committer.push(60);committer.flush()
+  assert.equal(committer.isPending(),true)
+  first.resolve();await until(()=>writes.length===2,'final slider write starts')
+  assert.equal(settled,0);assert.equal(committer.isPending(),true)
+  last.resolve();await until(()=>settled===1,'readback follows final write')
+  assert.equal(committer.isPending(),false);assert.deepEqual(writes,[20,60])
+  committer.cancel()
+})
 
 test('a status poll from before Stop cannot restore the old file session', async () => {
   const poll = deferred()
@@ -251,6 +282,47 @@ test('visualizer gate and bounded adaptive gain preserve quiet music and reject 
   assert.equal(mean(rejectedLevels), 0)
 })
 
+test('audio light drive stays quiet-to-loud, dt-stable, and detects bass onsets', async () => {
+  const metrics = await importTs('src/lib/audioMetrics.ts', {})
+  const quiet = metrics.audioMetrics(Array(24).fill(0.00598))
+  const louder = metrics.audioMetrics(Array(24).fill(0.026))
+  assert.ok(quiet.energy > 0.2, 'quiet measured loopback output still moves ambient lighting')
+  assert.ok(louder.energy > quiet.energy + 0.15, 'louder output retains a clear increase in light')
+  assert.ok(louder.energy < 1, 'ordinary playback does not pin the ambient field at maximum')
+
+  const once = metrics.adaptSpectrumLevels(Array(24).fill(0), Array(24).fill(1), false, 1 / 30).peaks[0]
+  const half = metrics.adaptSpectrumLevels(Array(24).fill(0), Array(24).fill(1), false, 1 / 60).peaks[0]
+  const twice = metrics.adaptSpectrumLevels(Array(24).fill(0), Array(24).fill(half), false, 1 / 60).peaks[0]
+  assert.ok(Math.abs(once - twice) < 1e-6, 'peak release follows elapsed time rather than frame count')
+
+  const dynamics = metrics.createAudioDynamics()
+  const quietFrame = Array(24).fill(0.006)
+  for (let i = 0; i < 60; i++) dynamics.update(quietFrame, true, 1 / 30)
+  const settledQuiet = dynamics.update(quietFrame, true, 1 / 30)
+  assert.ok(settledQuiet.energy < .5, 'makeup gain for visible geometry must not flatten the ambient light at full brightness')
+  for (let i = 0; i < 60; i++) dynamics.update(Array(24).fill(.026), true, 1 / 30)
+  const settledLoud = dynamics.update(Array(24).fill(.026), true, 1 / 30)
+  assert.ok(settledLoud.energy > settledQuiet.energy + .2, 'the complete dynamics path preserves quiet-to-loud lighting contrast')
+  assert.ok(settledLoud.energy < .8)
+  dynamics.reset()
+  for (let i = 0; i < 60; i++) dynamics.update(quietFrame, true, 1 / 30)
+  const kick = [...Array(7).fill(0.16), ...Array(17).fill(0.006)]
+  assert.ok(dynamics.update(kick, true, 1 / 30).punch > 0.2, 'bass rise produces a decaying onset pulse')
+})
+
+test('album palette extraction returns stable bounded colors from thumbnail pixels', async () => {
+  const palette = await importTs('src/lib/albumPalette.ts', {})
+  const colors = palette.paletteFromPixels([
+    28, 55, 110, 255, 28, 55, 110, 255,
+    224, 86, 72, 255, 247, 188, 96, 255,
+  ])
+  assert.ok(colors)
+  assert.match(colors.dominant, /^#[0-9a-f]{6}$/i)
+  assert.match(colors.secondary, /^#[0-9a-f]{6}$/i)
+  assert.match(colors.highlight, /^#[0-9a-f]{6}$/i)
+  assert.equal(palette.paletteFromPixels([0, 0, 0, 0]), null)
+})
+
 test('synthetic visualizer previews are locally labeled data and never change native capture status', async () => {
   let listener
   let status = 'error'
@@ -338,11 +410,14 @@ test('a user open gesture adopts a temporary event expansion', async () => {
 function peekHarness({ initiallyOpen = false, isClosing = false, dnd = false } = {}) {
   let nextTimer = 0
   const timers = new Map()
+  const timerDelays = new Map()
   let collapsed = 0
   let expanded = 0
   let temporary = false
   let panelOpen = initiallyOpen
-  const settings = { dnd, notifications: { enabled: true }, connections: [], dock: [], usage: { codex: true } }
+  let timeOffset = 0
+  const ClockDate = class extends Date { static now() { return Date.now() + timeOffset } }
+  const settings = { dnd, notifications: { enabled: true }, modules: { notifications: true }, connections: [], dock: [], usage: { codex: true } }
   const modulePromise = importTs('src/state/peek.ts', {
     'solid-js': { createSignal: signal, untrack: fn => fn() },
     './settings': { settings },
@@ -354,15 +429,17 @@ function peekHarness({ initiallyOpen = false, isClosing = false, dnd = false } =
     },
     '../lib/connectionSources': { notificationAllowed: () => true },
   }, {
-    setTimeout: fn => { const id = ++nextTimer; timers.set(id, fn); return id },
-    clearTimeout: id => timers.delete(id),
+    Date: ClockDate,
+    setTimeout: (fn, delay = 0) => { const id = ++nextTimer; timers.set(id, fn); timerDelays.set(id, delay); return id },
+    clearTimeout: id => { timers.delete(id); timerDelays.delete(id) },
   })
   return modulePromise.then(module => ({
-    module, settings, timers,
-    fireLatest() { const [id, fn] = [...timers].at(-1) ?? []; if (id !== undefined) { timers.delete(id); fn() } },
+    module, settings, timers, timerDelays,
+    fireLatest() { const [id, fn] = [...timers].at(-1) ?? []; if (id !== undefined) { timers.delete(id); timerDelays.delete(id); fn() } },
     get collapsed() { return collapsed },
     get expanded() { return expanded },
     get temporary() { return temporary },
+    advance(ms) { timeOffset += ms },
   }))
 }
 
@@ -466,6 +543,34 @@ test('connected alert badge expires after its collapsed peek', async () => {
   assert.equal(h.module.pendingAlert().id,'website-alert')
   h.fireLatest()
   assert.equal(h.module.pendingAlert(),null)
+})
+
+test('verification code alerts show the code, hold a badge only until expiry, and reject stale codes', async () => {
+  const h = await peekHarness()
+  const expiresAt = Date.now() + 10 * 60_000
+  h.module.ingestTwoFactorPeek({ id:'otp-live', code:'004291', sender:'security@example.com', subject:'Sign-in code', account:'me@example.com', receivedAt:Date.now(), expiresAt })
+  assert.equal(h.module.peek().category, 'auth')
+  assert.equal(h.module.peek().code, '004291')
+  assert.equal(h.module.pendingAlert().code, '004291')
+  assert.ok([...h.timerDelays.values()].includes(expiresAt - Date.now()) || [...h.timerDelays.values()].some(delay => delay > 9 * 60_000))
+  h.module.dismissPeek()
+  h.advance(expiresAt - Date.now() + 1)
+  h.module.openPendingAlert()
+  assert.equal(h.module.peek(), null)
+  assert.equal(h.module.pendingAlert(), null)
+  h.module.ingestTwoFactorPeek({ id:'otp-expired', code:'009911', sender:'security@example.com', subject:'Sign-in code', account:'me@example.com', receivedAt:Date.now(), expiresAt:Date.now() - 1 })
+  assert.equal(h.module.peek(), null)
+})
+
+test('verification code alerts respect Do Not Disturb and the notifications module', async () => {
+  const h = await peekHarness({ dnd:true })
+  const event={id:'otp-muted',code:'220014',sender:'security@example.com',subject:'Security code',account:'me@example.com',receivedAt:Date.now(),expiresAt:Date.now()+60_000}
+  h.module.ingestTwoFactorPeek(event)
+  assert.equal(h.module.peek(),null)
+  h.settings.dnd=false
+  h.settings.modules.notifications=false
+  h.module.ingestTwoFactorPeek({...event,id:'otp-module-off'})
+  assert.equal(h.module.peek(),null)
 })
 
 test('completed transfer ignores late progress, keeps its collapsed alert and sounds once', async () => {

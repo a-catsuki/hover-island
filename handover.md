@@ -1,6 +1,6 @@
 # Hover Island handover
 
-Updated 15 October 2026. This supersedes the earlier debug/unsigned build notes. Final artifact paths, hashes and verification results are recorded in `docs/verification/current-build.json`. Private GitHub backup: https://github.com/a-catsuki/hover-island. The initial source snapshot remains in `backups/before-revamp-20261013.zip`.
+Updated 16 October 2026. This supersedes the earlier debug/unsigned build notes. Final artifact paths, hashes and verification results are recorded in `docs/verification/current-build.json`. Private GitHub backup: https://github.com/a-catsuki/hover-island. The initial source snapshot remains in `backups/before-revamp-20261013.zip`.
 
 ## Interface and behavior
 
@@ -28,7 +28,7 @@ Website connections are opt-in and empty by default. A generic HTTPS notificatio
 
 Windows desktop alerts require installed package identity, declared notification-listener capability and the user's Windows permission. Settings allows selecting observed source applications. Merely running the raw executable does not establish this capability.
 
-Calendar supports local editing plus optional read-only Google/Outlook/other ICS subscriptions, refreshed every five minutes. Recurrence, time zones, all-day exclusive ends, exclusions and moved/cancelled instances are handled with bounded expansion. No two-way sync or inbox OAuth is claimed. See `docs/calendar-sync.md`.
+Calendar supports local editing plus optional read-only Google/Outlook/other ICS subscriptions, refreshed every five minutes. Recurrence, time zones, all-day exclusive ends, exclusions and moved/cancelled instances are handled with bounded expansion. Calendar subscriptions remain read-only. Optional Gmail/Outlook email-code OAuth is separate and requires a configured desktop client and user sign-in. See `docs/calendar-sync.md`.
 
 Weather offers approximate public-IP location, persistent manual location, forecast and modeled US AQI with stale/offline states. Usage prioritizes remaining allowance, maps 168 hours to Weekly and shows report age/reset countdown. A passed reset timestamp does not manufacture a quota refill.
 
@@ -42,12 +42,25 @@ This is local HTTP sharing on the same reachable network. Physical iPhone, Wi-Fi
 
 ## Release and validation
 
-Version 0.1.3.0 was built, signed, verified, installed and launched on this PC on 15 October. The installed binary matches the release and packaged payload, and contains the current production JS/CSS assets. The existing publisher trust was reused; this run did not change certificate trust. The frozen 176-file source passes 70 frontend tests, 129 native tests (8 ignored), 11 production-browser result groups, ten layout captures and two side-notch motion cases. The installed WindowsApps process was checked again after launch and was responding.
+Version 0.1.4.0 was built, signed, verified, installed and launched on this PC on 16 October. The installed binary matches the release and packaged payload, and contains the current production JS/CSS assets. The existing publisher trust was reused; this run did not change certificate trust. The frozen 188-file source passes 81 frontend tests, 153 native tests (11 ignored), eleven production-browser workflow groups, fourteen widget/editor layout captures, nine Beam size/file fixtures, four header-width checks and two side-notch motion cases. The installed WindowsApps process was checked again after launch and was responding.
 
 For another installation, use the final signed personal MSIX kit linked by `docs/verification/current-build.json`, extract it and run `Install.cmd`. The installer verifies the package hash/signature/publisher, asks before trusting the signing leaf in LocalMachine TrustedPeople, installs for the original user and copies standalone settings/notes only into an absent package destination. No Root certificate or private signing key is shipped. Building and `-VerifyOnly` do not install or trust anything. Enable native alert access under Settings > Notifications > Allow Windows alerts and select desktop sources under Connections.
 
-Verification logs and screenshots live in `docs/verification`. They distinguish frontend/native regression tests, read-only Windows control/audio smokes, simulated browser event checks and a phone browser using the real Rust HTTP router. Read-only live reset/provider scans and the native controls snapshot passed. The owned native server/browser flow passed approved phone pairing, upload/download, remembered-cookie reconnection and unpaired API denial. Live notification consent/delivery, physical Bluetooth/charging transitions, a music signal, actual memory reclamation and physical phone networking remain separate device/runtime checks.
+Verification logs and screenshots live in `docs/verification`. They distinguish frontend/native regression tests, read-only Windows control/audio smokes, simulated browser event checks and a phone browser using the real Rust HTTP router. Read-only live reset/provider scans and the native controls snapshot passed. The owned native server/browser flow passed approved phone pairing, upload/download, remembered-cookie reconnection and unpaired API denial. The installed MSIX notification diagnostic reports packaged=true, access=allowed and toastCount=2. Native brightness was moved by one point and restored. Paired Bluetooth enumeration passed without mutations. Actual WASAPI capture of a quiet owned four-tone signal recorded 33 packets, 15,840 frames, sample peak 0.00298 and maximum band 0.02856. A new third-party toast arrival, physical Bluetooth/charging transitions, player aesthetics/audio switching, actual memory reclamation and physical phone networking remain separate checks.
 
 The Windows build keeps the Common Controls v6 resource needed by native tests, uses ThinLTO for the optimized release, excludes debug-only devtools from production and uses the GUI subsystem. Native test linking disables PDB generation to avoid the linker type-table limit. Luna subagents reviewed interface/media behavior, source inspiration and installation contracts; review notes accompany the verification records.
 
 
+
+## 0.1.4 implementation details
+
+- The complete collapsed material uses a tethered, cursor-driven outline; the pinned edge stays flush. Reduced motion removes the magnetic movement.
+- Beam uses a compact connection column beside a bounded file list. File paging adapts to available height; empty and populated states no longer overlap. File releases replace chooser targets with action/progress feedback.
+- Phone-style widget editor previews support adding, removing, sizing and moving widgets/pages, including cross-page drag and keyboard alternatives.
+- Album-derived ambient fields respond to raw low/mid/high audio envelopes and bass onsets. Geometry has independent gain so quiet music remains visible without saturating the lighting. Mirror, Radial and Particles are saved native styles; output endpoint changes trigger capture recovery.
+- Weather includes current details, a 24-hour strip, seven-day ranges, precipitation/UV/solar data and modeled AQ particulate values. Units persist; condition/day-driven scenes pause while closed.
+- Bluetooth management lists paired devices and supplied battery data, with guarded driver-supported audio actions, confirmed Forget and Windows pairing fallback.
+- Connections prioritizes observed Windows sources and source-routing tests. Authenticated website feeds keep working in the background; shortcuts are separate and collapsed. No services are connected by default.
+- Email verification-code detection supports opt-in Google/Microsoft OAuth PKCE, DPAPI credentials, bounded preview-only polling, safe reconnect/pause/removal, copied codes and expiry-aware full-notch activities. Provider registration and actual inbox sign-in remain user setup. See `docs/email-codes.md`.
+
+Signed installer ZIP: `releases/HoverIsland-0.1.4.0-x64-20261016-073751-660-6cfcd014.zip`. The package, optimized executable and installed executable have matching SHA-256 hashes. Source fingerprints before and after the release are identical; evidence is in `docs/verification/current-build.json`.

@@ -74,7 +74,7 @@ export async function refreshTransfer(): Promise<void> {
   try {
     const snapshot = await cmd.transferStatus()
     if (revision === sessionRevision && request === refreshRevision) {
-      setTransfer((current) => ({ ...snapshot, error: current.error ?? snapshot.error ?? null }))
+      setTransfer({ ...snapshot, error: snapshot.error ?? null })
     }
   } catch (error) {
     if (revision === sessionRevision && request === refreshRevision) {

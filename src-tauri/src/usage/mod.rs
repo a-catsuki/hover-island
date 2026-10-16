@@ -427,7 +427,11 @@ fn codex() -> Vec<UsageSnapshot> {
     let (local, limits) = local_activity_with_limits("codex", "Codex", root);
     // An empty/unsupported local log is not a usage report. Only surface it
     // when actual token activity was parsed; provider quota rows remain valid.
-    let mut out = if local.status == "ok" { vec![local] } else { Vec::new() };
+    let mut out = if local.status == "ok" {
+        vec![local]
+    } else {
+        Vec::new()
+    };
     out.extend(limits.into_iter().map(|limit| UsageSnapshot {
         provider: "codex".into(),
         label: limit.label,
@@ -493,7 +497,9 @@ pub fn refresh(settings: &Settings) -> Vec<UsageSnapshot> {
     }
     if settings.usage.claude_code {
         let snapshot = claude_code();
-        if snapshot.status == "ok" { out.push(snapshot); }
+        if snapshot.status == "ok" {
+            out.push(snapshot);
+        }
     }
     if settings.usage.manual {
         out.push(manual(&settings.usage.manual_config));

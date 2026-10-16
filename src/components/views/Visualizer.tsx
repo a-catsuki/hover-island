@@ -24,6 +24,7 @@ export default function Visualizer(props: {
   let dpr = 1
   let raf = 0
   let previous = 0
+  let lastDynamicsAt = 0
   let disposed = false
   let releaseCapture: (() => void) | undefined
   let captureEpoch = 0
@@ -31,7 +32,7 @@ export default function Visualizer(props: {
   const smoothed = Array.from({ length: BANDS }, () => 0)
   const peakTrack = Array.from({ length: BANDS }, () => 0.008)
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
-  let beatBaseline = 0
+  let bassBaseline = 0
   let beatPulse = 0
   let energy = 0
 
@@ -53,22 +54,26 @@ export default function Visualizer(props: {
     draw()
   }
 
-  const readLevels = (active: boolean, raw: readonly number[]) => {
+  const readLevels = (active: boolean, raw: readonly number[], dt: number) => {
     const response = clamp(Number.isFinite(props.reactivity) ? props.reactivity : 0.8, 0, 1)
-    const rise = 0.24 + response * 0.5
-    const fall = 0.07 + response * 0.2
-    const adapted = adaptSpectrumLevels(raw, peakTrack, active)
+    const adapted = adaptSpectrumLevels(raw, peakTrack, active, dt)
     adapted.peaks.forEach((peak, index) => { peakTrack[index] = peak })
+    const attack = 0.018 + (1 - response) * 0.045
+    const release = 0.11 + (1 - response) * 0.19
     const levels = smoothed.map((old, index) => {
       const next = adapted.levels[index]
-      const alpha = reducedMotion.matches ? 1 : next > old ? rise : fall
+      const tau = next > old ? attack : release
+      const alpha = reducedMotion.matches ? 1 : 1 - Math.exp(-dt / tau)
       const level = old + (next - old) * alpha
       smoothed[index] = level
       return level
     })
-    energy = active ? audioMetrics(levels).energy : 0
-    beatBaseline += (energy - beatBaseline) * (reducedMotion.matches ? 1 : 0.06)
-    beatPulse = Math.max(beatPulse * 0.9, clamp((energy - beatBaseline) * 3.4, 0, 1))
+    const rawMetrics = active ? audioMetrics(raw) : {energy:0,bass:0}
+    energy += (rawMetrics.energy-energy) * (reducedMotion.matches ? 1 : 1-Math.exp(-dt/.08))
+    const bass = rawMetrics.bass
+    bassBaseline += (bass - bassBaseline) * (reducedMotion.matches ? 1 : 1 - Math.exp(-dt / 0.7))
+    const bassOnset = Math.max(0, bass - bassBaseline - 0.025)
+    beatPulse = Math.max(beatPulse * Math.exp(-dt / 0.19), clamp(bassOnset * 4.2, 0, 1))
     return levels
   }
 
@@ -380,6 +385,83 @@ export default function Visualizer(props: {
     ctx.restore()
   }
 
+  const drawMirror = (levels: number[], active: boolean, gradient: CanvasGradient, time: number) => {
+    if (!ctx) return
+    const gap = clamp(cssW / 220, 1.5, 4)
+    const sidePad = Math.max(5, cssW * 0.035)
+    const width = (cssW - sidePad * 2 - gap * (BANDS - 1)) / BANDS
+    const center = cssH * 0.52
+    const maxHeight = cssH * 0.36
+    ctx.save()
+    ctx.fillStyle = gradient
+    for (let index = 0; index < BANDS; index++) {
+      const value = levelAt(levels, index, active, time)
+      const height = Math.max(1.5, value * intensity() * maxHeight)
+      const x = sidePad + index * (width + gap)
+      ctx.globalAlpha = active ? 0.9 : 0.6
+      ctx.shadowColor = active ? '#ffffff' : 'transparent'
+      ctx.shadowBlur = active ? value * 7 : 0
+      roundBar(x, center - height, width, height, Math.min(width / 2, 3))
+      roundBar(x, center + 2, width, height, Math.min(width / 2, 3))
+    }
+    ctx.restore()
+  }
+
+  const drawRadial = (levels: number[], active: boolean, gradient: CanvasGradient, accent: string, time: number) => {
+    if (!ctx) return
+    const cx = cssW / 2
+    const cy = cssH / 2
+    const radius = Math.min(cssW, cssH) * 0.22
+    const maxLength = Math.min(cssW, cssH) * 0.25 * intensity()
+    ctx.save()
+    ctx.lineCap = 'round'
+    ctx.globalAlpha = 0.3
+    ctx.strokeStyle = accent
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+    ctx.stroke()
+    for (let index = 0; index < BANDS; index++) {
+      const angle = (Math.PI * 2 * index) / BANDS - Math.PI / 2
+      const length = Math.max(2, levelAt(levels, index, active, time) * maxLength)
+      ctx.globalAlpha = active ? 0.38 + levels[index] * 0.62 : 0.3
+      ctx.strokeStyle = gradient
+      ctx.lineWidth = Math.max(2, Math.min(4, cssW / 110))
+      ctx.shadowColor = accent
+      ctx.shadowBlur = active ? 8 : 3
+      ctx.beginPath()
+      ctx.moveTo(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius)
+      ctx.lineTo(cx + Math.cos(angle) * (radius + length), cy + Math.sin(angle) * (radius + length))
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+
+  const drawParticles = (levels: number[], active: boolean, accent: string, accent2: string, time: number) => {
+    if (!ctx) return
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    for (let index = 0; index < 28; index++) {
+      const seed = index * 2.399963
+      const xBase = (Math.sin(seed * 1.73) * 0.5 + 0.5) * cssW
+      const yBase = (Math.cos(seed * 2.17) * 0.5 + 0.5) * cssH
+      const band = index % BANDS
+      const level = levelAt(levels, band, active, time)
+      const phase = (time * (0.025 + level * 0.07) + index * 0.071) % 1
+      const x = xBase + Math.sin(time * 0.16 + seed) * (5 + level * 12)
+      const y = ((yBase - phase * cssH + cssH) % cssH)
+      const radius = 1 + level * 4 + beatPulse * (index % 3 === 0 ? 2.5 : 0.8)
+      ctx.globalAlpha = active ? 0.22 + level * 0.68 + beatPulse * 0.18 : 0.22
+      ctx.fillStyle = index % 2 ? accent : accent2
+      ctx.shadowColor = ctx.fillStyle
+      ctx.shadowBlur = active ? radius * 3 : 4
+      ctx.beginPath()
+      ctx.arc(x, y, radius, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.restore()
+  }
+
   const drawAmbientLight = (levels: number[], sourceActive: boolean, accent: string, accent2: string, time: number) => {
     if (!ctx) return
     const rms = (group: number[]) => Math.sqrt(group.reduce((sum, value) => sum + value * value, 0) / Math.max(1, group.length))
@@ -446,11 +528,17 @@ export default function Visualizer(props: {
     // Reject near-silence and isolated single-bin noise, but keep real quiet
     // music responsive across every visual style.
     const active = sourceActive && isMeaningfulSpectrum(safeBands)
-    const levels = readLevels(active, safeBands)
+    const now = performance.now()
+    const dt = lastDynamicsAt ? clamp((now - lastDynamicsAt) / 1000, 1 / 120, 0.12) : 1 / 30
+    lastDynamicsAt = now
+    const levels = readLevels(active, safeBands, dt)
     const time = reducedMotion.matches ? 0 : performance.now() / 1000
     switch (current) {
       case 'ambient': drawAmbientLight(levels, active, accent, accent2, time); break
       case 'bars': drawBars(levels, active, gradient, time); break
+      case 'mirror': drawMirror(levels, active, gradient, time); break
+      case 'radial': drawRadial(levels, active, gradient, accent, time); break
+      case 'particles': drawParticles(levels, active, accent, accent2, time); break
       case 'wave': drawWave(levels, active, gradient, accent, accent2, time); break
       case 'pulse': drawPulse(levels, active, accent, accent2, gradient, time); break
       case 'bloom': drawBloom(levels, active, gradient, accent, accent2, time); break

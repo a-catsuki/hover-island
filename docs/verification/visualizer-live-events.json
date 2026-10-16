@@ -1,0 +1,104 @@
+{
+  "testedAt": "2026-10-16T07:24:04.813Z",
+  "viewport": {
+    "width": 1420,
+    "height": 920,
+    "reducedMotion": true
+  },
+  "visualizer": {
+    "event": "audio://spectrum",
+    "payload": "validated 24-band arrays; synthetic preview remained disabled",
+    "canvasPixelHashes": {
+      "zeroInitial": {
+        "hash": "8de324bd",
+        "pixelCount": 175904,
+        "meanRgb": 109.367,
+        "mode": "System audio · live"
+      },
+      "quiet": {
+        "hash": "9ef526a8",
+        "pixelCount": 175904,
+        "meanRgb": 119.263,
+        "mode": "System audio · live"
+      },
+      "louder": {
+        "hash": "851a8657",
+        "pixelCount": 175904,
+        "meanRgb": 129.747,
+        "mode": "System audio · live"
+      },
+      "isolated": {
+        "hash": "0eda53c8",
+        "pixelCount": 175904,
+        "meanRgb": 109.499,
+        "mode": "System audio · live"
+      },
+      "zeroAfterNoise": {
+        "hash": "0eda53c8",
+        "pixelCount": 175904,
+        "meanRgb": 109.499,
+        "mode": "System audio · live"
+      }
+    },
+    "assertions": [
+      "quiet broadband differs from silence",
+      "louder broadband differs from quiet and is brighter",
+      "single-bin input equals the stable silence baseline"
+    ],
+    "screenshots": [
+      "visualizer-live-quiet.png",
+      "visualizer-live-louder.png"
+    ],
+    "limitation": "Browser-injected event regression; does not prove physical WASAPI capture."
+  },
+  "fileDropToast": {
+    "component": "Solid component mounted directly from the Vite dev server",
+    "phases": {
+      "pending": {
+        "label": "Adding to Beam",
+        "text": "Adding to Beam2 items · Working…",
+        "targetCount": 0,
+        "progressHasValue": false,
+        "progressValue": 0,
+        "indeterminate": true
+      },
+      "complete": {
+        "label": "Added to Beam",
+        "text": "Added to Beam2 items · Done",
+        "targetCount": 0,
+        "progressHasValue": true,
+        "progressValue": 1,
+        "indeterminate": false
+      },
+      "error": {
+        "label": "Could not add files",
+        "text": "Could not add files2 items",
+        "targetCount": 0,
+        "progressHasValue": true,
+        "progressValue": 0.4,
+        "indeterminate": false
+      }
+    },
+    "assertions": [
+      "pending/complete/error phases hide both drag targets",
+      "unknown progress is indeterminate",
+      "complete progress is 1"
+    ]
+  },
+  "albumAmbient": {
+    "quietEnergy": 0.2888684793951688,
+    "loudEnergy": 0.5958509347225804,
+    "kickPunch": 1,
+    "palette": {
+      "dominant": "#846061",
+      "secondary": "#c25950",
+      "highlight": "#dea860"
+    },
+    "assertions": [
+      "quiet-to-loud dB drive remains ordered",
+      "bass onset creates a pulse",
+      "data-URL thumbnail palette extracts and caches three colors"
+    ]
+  },
+  "pageErrors": []
+}

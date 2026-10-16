@@ -275,7 +275,9 @@ fn split_property(line: &str) -> Option<(String, String)> {
 fn parse_ics_time(raw: &str) -> Option<(u64, bool)> {
     let value = raw.trim();
     // The fixed-width iCalendar fields below are ASCII byte offsets.
-    if !value.is_ascii() { return None; }
+    if !value.is_ascii() {
+        return None;
+    }
     if value.len() == 8 && value.chars().all(|c| c.is_ascii_digit()) {
         let year: i64 = value[0..4].parse().ok()?;
         let month: i64 = value[4..6].parse().ok()?;

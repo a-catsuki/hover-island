@@ -1,7 +1,7 @@
 {
-  "recordedAt": "2026-10-15T13:32:40.8278440Z",
-  "sourceFingerprint": "172852c342923ee5245b7436f8f4d69ae58952697c62b6b14e8ebb346fd198a4",
-  "sourceFileCount": 176,
+  "recordedAt": "2026-10-16T07:42:32.4311557Z",
+  "sourceFingerprint": "2fa712424cb4dca3ed5403830ef04c87caf286346057b4de19d9309e8d70ad6b",
+  "sourceFileCount": 188,
   "assets": [
     {
       "path": "icon.png",
@@ -11,22 +11,22 @@
     {
       "path": "index.html",
       "bytes": 591,
-      "sha256": "b8c6007de7b8cbc2d4354f19463001926b946dc879dd91da0113d6dd1b1e62c2"
+      "sha256": "774245ca73b4a44b115721420d2f1a7fcfa65984fcbf615d2371ff39408ce5ab"
     },
     {
       "path": "settings.html",
       "bytes": 612,
-      "sha256": "54060f9806dfdfa32a8f351c8e3443b3bc27ce7d0fd10185ac528b8a405277e9"
+      "sha256": "239255077c284929fe90fed912041b5fc771361aaf5a689e74072166f7b0dbc7"
     },
     {
-      "path": "assets/base-ChN66JeR.js",
-      "bytes": 344222,
-      "sha256": "d83fd366bc2d460cbcbd760c77185385292c83b6df712410483936409739efde"
+      "path": "assets/base-DKvC7s0a.css",
+      "bytes": 171850,
+      "sha256": "197dd5661921b090a9275d41e1c11d979aa0a3226936b7da369e4f9c61b53e18"
     },
     {
-      "path": "assets/base-DnwNCaz2.css",
-      "bytes": 144158,
-      "sha256": "6ccd554727bacdb79b0357c53f245bfd3aa76d0c967934080fc3ada88118ea76"
+      "path": "assets/base-DvEyFpvG.js",
+      "bytes": 365260,
+      "sha256": "166d354d42b168dbe139ca4ab4b9664e958acc1c2c27a7e5ea650d358efac362"
     },
     {
       "path": "assets/inter-cyrillic-ext-wght-normal-BOeWTOD4.woff2",
@@ -64,24 +64,24 @@
       "sha256": "5c66f9e07e90c6d4ac4922cc68d60de26c17b1858e677fb5e603fce3952b3ff2"
     },
     {
-      "path": "assets/main-CUXD2GaQ.js",
-      "bytes": 79243,
-      "sha256": "d221e9d0dbc1d44bfcc5b4deff54faec4b523f58b5edd401fa2c61008ce7d9e6"
+      "path": "assets/main-CIDJpg8t.js",
+      "bytes": 86589,
+      "sha256": "eb9aae622ed9491b7dfbd04983a2da809a2fe1209e6e93c39d93869a0045947e"
     },
     {
-      "path": "assets/main-CZ-1Igp-.css",
-      "bytes": 90720,
-      "sha256": "43410054d7ad7fd508e42f8085613ee620151085a45d7e4c5e4bd12dc0c50569"
+      "path": "assets/main-DNQ8Nkh2.css",
+      "bytes": 97692,
+      "sha256": "b639dccbf5a0fa5754f5acb6526428f41eefeb7dc430698d312b566f740861fd"
     },
     {
-      "path": "assets/settings-Bqsvx_EP.js",
-      "bytes": 62886,
-      "sha256": "a7e00bbfd9736b222214740b6aa6a28a4cf4728185db44f28b1d989df26176cd"
+      "path": "assets/settings-Dbg0sqcy.css",
+      "bytes": 60990,
+      "sha256": "d4c5ca1254d3e3a7c7c998c34569592633d4705a5dfde649d925a587f75b7a8e"
     },
     {
-      "path": "assets/settings-CP1zo3-h.css",
-      "bytes": 48538,
-      "sha256": "aac46b6ed0c720a5e7be727669ba31428b636bc1a96690b7d5f3a5beb9a3b725"
+      "path": "assets/settings-zHQHukKp.js",
+      "bytes": 71910,
+      "sha256": "d90741348cfff3647b8e7f3ae2acba5224529146868ac3cb46a598ef40ef3771"
     },
     {
       "path": "brands/claude.svg",

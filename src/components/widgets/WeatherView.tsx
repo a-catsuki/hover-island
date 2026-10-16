@@ -1,12 +1,55 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { ChevronDown, CloudOff, CloudSun } from 'lucide-solid'
+import { CloudOff, CloudSun, Droplets, Gauge, RefreshCw, Wind } from 'lucide-solid'
 import { cmd, type WeatherLocation, type WeatherSnapshot } from '../../lib/ipc'
 import { flushSettings, patchSettings, settings } from '../../state/settings'
 import { requestWidgetDetail } from '../../state/panel'
+import { open as islandOpen } from '../../state/ui'
 import './widgets.css'
 import './WeatherView.css'
 
 type ConditionGroup = 'clear' | 'partly' | 'cloud' | 'fog' | 'drizzle' | 'rain' | 'snow' | 'thunder'
+type ForecastView = 'now' | 'hourly' | 'week'
+type WeatherUnits = 'metric' | 'imperial'
+const UNIT_KEY = 'hover-island.weather-units'
+
+function celsius(value: number, units: WeatherUnits): number {
+  return units === 'imperial' ? value * 9 / 5 + 32 : value
+}
+
+function windSpeed(value: number, units: WeatherUnits): number {
+  return units === 'imperial' ? value * 0.621371 : value
+}
+
+function temperature(value: number, units: WeatherUnits): string {
+  return `${Math.round(celsius(value, units))}°${units === 'imperial' ? 'F' : 'C'}`
+}
+
+function unitLabel(units: WeatherUnits): string {
+  return units === 'imperial' ? 'mph' : 'km/h'
+}
+
+function forecastTime(value: string): string {
+  const match = /T(\d{2}):(\d{2})/.exec(value)
+  if (!match) return '—'
+  const date = new Date(2000, 0, 1, Number(match[1]), Number(match[2]))
+  return new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).format(date)
+}
+
+function forecastDay(value: string, index: number): string {
+  if (index === 0) return 'Today'
+  if (index === 1) return 'Tomorrow'
+  const date = new Date(`${value}T12:00:00`)
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(date)
+}
+
+function compass(degrees?: number | null): string {
+  if (degrees == null || !Number.isFinite(degrees)) return '—'
+  return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round((((degrees % 360) + 360) % 360) / 45) % 8]
+}
+
+function readWeatherUnits(): WeatherUnits {
+  try { return localStorage.getItem(UNIT_KEY) === 'imperial' ? 'imperial' : 'metric' } catch { return 'metric' }
+}
 
 function conditionGroup(code: number): ConditionGroup {
   if (code === 0) return 'clear'
@@ -17,6 +60,19 @@ function conditionGroup(code: number): ConditionGroup {
   if (code <= 67 || (code >= 80 && code <= 82)) return 'rain'
   if (code <= 77 || (code >= 85 && code <= 86)) return 'snow'
   return 'thunder'
+}
+
+function conditionLabel(code: number): string {
+  if (code === 0) return 'Clear'
+  if (code === 1) return 'Mostly clear'
+  if (code === 2) return 'Partly cloudy'
+  if (code === 3) return 'Cloudy'
+  if (code === 45 || code === 48) return 'Fog'
+  if (code >= 51 && code <= 57) return 'Drizzle'
+  if (code >= 61 && code <= 67 || code >= 80 && code <= 82) return 'Rain'
+  if (code >= 71 && code <= 77 || code >= 85 && code <= 86) return 'Snow'
+  if (code >= 95 && code <= 99) return 'Thunderstorms'
+  return 'Weather'
 }
 
 function relativeTime(from: number, to: number): string {
@@ -206,21 +262,56 @@ export default function WeatherView() {
   const [savingLocation, setSavingLocation] = createSignal(false)
   const [refreshing, setRefreshing] = createSignal(false)
   const [hovered, setHovered] = createSignal(false)
-  const [pinned, setPinned] = createSignal(false)
   const [now, setNow] = createSignal(Date.now())
   const [meterReady, setMeterReady] = createSignal(false)
   const [sceneActive, setSceneActive] = createSignal(false)
+  const [forecastView, setForecastView] = createSignal<ForecastView>('now')
+  const [units, setUnits] = createSignal<WeatherUnits>('metric')
   let cardElement: HTMLElement | undefined
   let searchRequest = 0
   let weatherRequest = 0
   let active = true
 
-  const revealed = () => hovered() || pinned()
+  const revealed = () => hovered()
   const group = createMemo<ConditionGroup>(() => {
     const snapshot = weather()
     return snapshot?.ok ? conditionGroup(snapshot.code) : 'clear'
   })
-  const night = createMemo(() => localNight(settings.weatherLat, settings.weatherLon, now()))
+  const night = createMemo(() => weather()?.isDay == null
+    ? localNight(settings.weatherLat, settings.weatherLon, now())
+    : !weather()!.isDay)
+  const weekBounds = createMemo(() => {
+    const days = weather()?.daily ?? []
+    const low = days.map((day) => day.lowC).filter(Number.isFinite)
+    const high = days.map((day) => day.highC).filter(Number.isFinite)
+    return { min: low.length ? Math.min(...low) : 0, max: high.length ? Math.max(...high) : 1 }
+  })
+  const daylightProgress = createMemo(() => {
+    const snapshot = weather()
+    const today = snapshot?.daily?.[0]
+    if (!snapshot || !today?.sunrise || !today.sunset || !snapshot.isDay) return 0
+    const minute = (value: string) => {
+      const match = /T(\d{2}):(\d{2})/.exec(value)
+      return match ? Number(match[1]) * 60 + Number(match[2]) : null
+    }
+    const sunrise = minute(today.sunrise)
+    const sunset = minute(today.sunset)
+    if (sunrise == null || sunset == null || sunset <= sunrise) return 0.5
+    let current: number | null = null
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: snapshot.timezone || undefined, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(now()))
+      current = Number(parts.find((part) => part.type === 'hour')?.value) * 60 + Number(parts.find((part) => part.type === 'minute')?.value)
+    } catch { current = null }
+    return current == null ? 0.5 : Math.max(0, Math.min(1, (current - sunrise) / (sunset - sunrise)))
+  })
+  const setWeatherUnits = (value: WeatherUnits) => {
+    setUnits(value)
+    try { localStorage.setItem(UNIT_KEY, value) } catch { /* Keep this display preference for the current session. */ }
+  }
+  const selectForecastView = (value: ForecastView) => {
+    setForecastView(value)
+    if (value !== 'now') requestWidgetDetail('weather')
+  }
 
   const load = async () => {
     const current = ++weatherRequest
@@ -285,6 +376,7 @@ export default function WeatherView() {
   const useApproximate = () => void persistLocation(null, null, null)
 
   onMount(() => {
+    setUnits(readWeatherUnits())
     void load()
     let intersecting = true
     const syncVisibility = () => setSceneActive(document.visibilityState === 'visible' && intersecting)
@@ -336,7 +428,7 @@ export default function WeatherView() {
       classList={{
         [`weather-card--${group()}`]: true,
         'weather-card--night': night(),
-        'weather-card--animated': sceneActive(),
+        'weather-card--animated': sceneActive() && islandOpen(),
         'weather-card--revealed': revealed(),
       }}
       aria-label="Local weather"
@@ -413,6 +505,7 @@ export default function WeatherView() {
         </div>
       </Show>
 
+      <Show when={!editingLocation()}>
       <Show when={weather()?.ok ? weather() : undefined} fallback={
         <div class="weather-empty" role="status">
           <span class="weather-empty__glyph" aria-hidden="true">
@@ -432,96 +525,88 @@ export default function WeatherView() {
             onPointerEnter={() => setHovered(true)}
             onPointerLeave={() => setHovered(false)}
           >
-            <div class="weather__now">
-              <span class="weather__temp">
-                {Math.round(snapshot().tempC)}<span class="weather__deg">°</span>
-              </span>
-              <WeatherIcon code={snapshot().code} night={night()} />
-            </div>
-
-            <div class="weather__meta">
-              <span class="weather__desc">{snapshot().label}</span>
-              <Show when={snapshot().locationSource === 'approximate'}>
-                <span class="weather__approx">Approx</span>
-              </Show>
-            </div>
-
-            <div class="weather__range">
-              <span class="weather__range-label">Today</span>
-              <span class="weather__range-item"><em>H</em>{Math.round(snapshot().hiC)}°</span>
-              <span class="weather__range-item"><em>L</em>{Math.round(snapshot().loC)}°</span>
-            </div>
-
-            <Show when={snapshot().aqi != null}>
-              <div class="weather__aqi">
-                <div class="weather__aqi-head">
-                  <span class="weather__aqi-label">Air quality</span>
-                  <strong class="weather__aqi-value">
-                    {snapshot().aqi}
-                    <small>{snapshot().aqiLabel || 'US AQI'}</small>
-                  </strong>
-                </div>
-                <div
-                  class="weather__aqi-track"
-                  role="meter"
-                  aria-valuenow={snapshot().aqi ?? 0}
-                  aria-valuemin={0}
-                  aria-valuemax={300}
-                  aria-label="Air quality index"
-                >
-                  <span
-                    class="weather__aqi-fill"
-                    style={{
-                      width: `${meterReady() ? aqiPercent(snapshot().aqi ?? 0) : 0}%`,
-                      background: aqiColor(snapshot().aqi ?? 0),
-                    }}
-                  />
-                </div>
+            <div class="weather__toolbar">
+              <div class="weather__views" role="group" aria-label="Weather forecast view">
+                <For each={[['now', 'Now'], ['hourly', 'Hourly'], ['week', '7-day']] as const}>{([id, label]) => <button type="button" aria-pressed={forecastView() === id} onClick={() => selectForecastView(id)}>{label}</button>}</For>
               </div>
+              <div class="weather__unit-toggle" role="group" aria-label="Temperature units">
+                <button type="button" aria-label="Metric units, Celsius and kilometers per hour" aria-pressed={units() === 'metric'} onClick={() => setWeatherUnits('metric')}>°C</button>
+                <button type="button" aria-label="Imperial units, Fahrenheit and miles per hour" aria-pressed={units() === 'imperial'} onClick={() => setWeatherUnits('imperial')}>°F</button>
+              </div>
+              <button type="button" class="weather__refresh" aria-label="Refresh weather" title="Refresh forecast" disabled={refreshing()} onClick={() => void load()}><RefreshCw size={13} class={refreshing() ? 'weather__refresh-icon--spinning' : ''} /></button>
+            </div>
+
+            <Show when={forecastView() === 'now'}>
+              <div class="weather__now">
+                <span class="weather__temp">{temperature(snapshot().tempC, units())}</span>
+                <WeatherIcon code={snapshot().code} night={night()} />
+              </div>
+              <div class="weather__summary-line">
+                <span class="weather__desc">{snapshot().label}</span>
+                <Show when={snapshot().feelsLikeC != null}><span>Feels {temperature(snapshot().feelsLikeC!, units())}</span></Show>
+                <Show when={snapshot().locationSource === 'approximate'}><span class="weather__approx">Approx</span></Show>
+              </div>
+              <div class="weather__range"><span class="weather__range-label">Today</span><span><em>H</em> {temperature(snapshot().hiC, units())}</span><span><em>L</em> {temperature(snapshot().loC, units())}</span><Show when={snapshot().precipitationMm != null && snapshot().precipitationMm! > 0}><span><Droplets size={11} /> {snapshot().precipitationMm!.toFixed(1)} mm</span></Show></div>
+
+              <div class="weather__metrics" aria-label="Current weather details">
+                <div><span>Humidity</span><strong>{snapshot().humidityPct == null ? '—' : `${snapshot().humidityPct}%`}</strong></div>
+                <div><span>Wind</span><strong><Wind size={11} style={{ transform: `rotate(${snapshot().windDirectionDeg ?? 0}deg)` }} /> {snapshot().windSpeedKmh == null ? '—' : `${Math.round(windSpeed(snapshot().windSpeedKmh ?? 0, units()))} ${unitLabel(units())}`} <small>{compass(snapshot().windDirectionDeg)}</small></strong></div>
+                <div><span>Pressure</span><strong><Gauge size={11} /> {snapshot().pressureHpa == null ? '—' : `${Math.round(snapshot().pressureHpa ?? 0)} hPa`}</strong></div>
+                <div><span>Cloud cover</span><strong>{snapshot().cloudCoverPct == null ? '—' : `${snapshot().cloudCoverPct}%`}</strong></div>
+              </div>
+
+              <Show when={(snapshot().hourly?.length ?? 0) > 0}>
+                <div class="weather__mini-title"><span>Next hours</span><span>Precipitation chance</span></div>
+                <div class="weather__mini-hours" aria-label="Upcoming hourly forecast">
+                  <For each={snapshot().hourly?.slice(0, 5) ?? []}>{(hour, index) => <div class="weather__mini-hour"><span>{index() === 0 ? 'Now' : forecastTime(hour.time)}</span><strong>{temperature(hour.temperatureC, units())}</strong><small>{hour.precipitationProbability == null ? '—' : `${hour.precipitationProbability}%`}</small></div>}</For>
+                </div>
+              </Show>
+
+              <Show when={snapshot().daily?.[0]?.sunrise && snapshot().daily?.[0]?.sunset}>
+                <div class="weather__sunline" aria-label={`Daylight from ${forecastTime(snapshot().daily![0].sunrise!)} to ${forecastTime(snapshot().daily![0].sunset!)}`}>
+                  <span>{forecastTime(snapshot().daily![0].sunrise!)}</span><div class="weather__sun-arc"><i style={{ left: `${daylightProgress() * 100}%` }} /></div><span>{forecastTime(snapshot().daily![0].sunset!)}</span>
+                </div>
+              </Show>
+
+              <Show when={snapshot().aqi != null || snapshot().pm25 != null || snapshot().pm10 != null}>
+                <div class="weather__air">
+                  <div class="weather__air-head"><span>Air quality</span><strong>{snapshot().aqi == null ? '—' : snapshot().aqi}<small>{snapshot().aqiLabel || 'US AQI'}</small></strong></div>
+                  <Show when={snapshot().aqi != null}><div class="weather__aqi-track" role="meter" aria-valuenow={snapshot().aqi ?? 0} aria-valuemin={0} aria-valuemax={300} aria-label="Air quality index"><span class="weather__aqi-fill" style={{ width: `${meterReady() ? aqiPercent(snapshot().aqi ?? 0) : 0}%`, background: aqiColor(snapshot().aqi ?? 0) }} /></div></Show>
+                  <div class="weather__particles-values"><Show when={snapshot().pm25 != null}><span>PM2.5 <strong>{snapshot().pm25!.toFixed(1)} μg/m³</strong></span></Show><Show when={snapshot().pm10 != null}><span>PM10 <strong>{snapshot().pm10!.toFixed(1)} μg/m³</strong></span></Show></div>
+                </div>
+              </Show>
             </Show>
 
-            <div
-              class="weather__details"
-              classList={{ 'weather__details--open': revealed() }}
-              aria-hidden={!revealed()}
-            >
-              <div class="weather__details-inner">
-                <div class="weather__detail">
-                  <span class="weather__detail-label">Source</span>
-                  <span class="weather__detail-value">{sourceLabel() || 'Live station'}</span>
-                </div>
-                <div class="weather__detail">
-                  <span class="weather__detail-label">Updated</span>
-                  <span class="weather__detail-value">{relativeTime(snapshot().updatedAt, now())}</span>
-                </div>
-                <Show when={snapshot().stale}>
-                  <div class="weather__detail">
-                    <span class="weather__detail-label">Status</span>
-                    <span class="weather__detail-value weather__detail-value--warn">Saved copy</span>
-                  </div>
-                </Show>
-                <Show when={snapshot().aqi != null}>
-                  <p class="weather__attribution">Model estimate · CAMS ENSEMBLE / Open-Meteo</p>
-                </Show>
+            <Show when={forecastView() === 'hourly'}>
+              <div class="weather__forecast-heading"><strong>Next 24 hours</strong><span>{snapshot().timezone || 'Local time'} · model forecast</span></div>
+              <div class="weather__hours" role="region" aria-label="24-hour weather forecast" tabindex="0">
+                <For each={snapshot().hourly?.slice(0, 24) ?? []}>{(hour, index) => <article class="weather__hour" classList={{ 'weather__hour--current': index() === 0 }} aria-label={`${index() === 0 ? 'Now' : forecastTime(hour.time)}, ${temperature(hour.temperatureC, units())}, ${hour.precipitationProbability ?? 0}% chance of precipitation`}>
+                  <span>{index() === 0 ? 'Now' : forecastTime(hour.time)}</span><WeatherIcon code={hour.code} night={index() > 0 && Number(/T(\d{2})/.exec(hour.time)?.[1] ?? 12) < 6} /><strong>{temperature(hour.temperatureC, units())}</strong><small><Droplets size={10} />{hour.precipitationProbability == null ? '—' : `${hour.precipitationProbability}%`}</small>
+                </article>}</For>
               </div>
-            </div>
+              <p class="weather__forecast-note">Scroll sideways to see all 24 hours.</p>
+            </Show>
 
-            <div class="weather__foot">
-              <span class="weather__updated">
-                Updated <strong>{relativeTime(snapshot().updatedAt, now())}</strong>
-              </span>
-              <button
-                type="button"
-                class="weather__toggle"
-                aria-expanded={revealed()}
-                onClick={() => setPinned((value) => !value)}
-              >
-                {revealed() ? 'Less' : 'Details'}
-                <ChevronDown class="weather__chevron" size={12} strokeWidth={2} aria-hidden="true" />
-              </button>
-            </div>
+            <Show when={forecastView() === 'week'}>
+              <div class="weather__forecast-heading"><strong>7-day forecast</strong><span>High · low · rain chance</span></div>
+              <div class="weather__days" role="region" aria-label="7-day weather forecast">
+                <For each={snapshot().daily?.slice(0, 7) ?? []}>{(day, index) => {
+                  const bounds = weekBounds()
+                  const span = Math.max(1, bounds.max - bounds.min)
+                  const start = Math.max(0, (day.lowC - bounds.min) / span * 100)
+                  const width = Math.max(4, (day.highC - day.lowC) / span * 100)
+                  return <article class="weather__day" aria-label={`${forecastDay(day.date, index())}, ${conditionLabel(day.code)}, high ${temperature(day.highC, units())}, low ${temperature(day.lowC, units())}`}>
+                    <span class="weather__day-name">{forecastDay(day.date, index())}</span><span class="weather__day-condition">{conditionLabel(day.code)}</span><div class="weather__day-range"><strong>{temperature(day.lowC, units())}</strong><span><i style={{ left: `${start}%`, width: `${width}%` }} /></span><strong>{temperature(day.highC, units())}</strong></div><span class="weather__day-rain"><Show when={day.precipitationProbability != null}><Droplets size={10} />{day.precipitationProbability}%</Show></span>
+                  </article>
+                }}</For>
+              </div>
+              <div class="weather__day-extra"><Show when={snapshot().daily?.[0]?.uvIndexMax != null}><span>UV max <strong>{snapshot().daily![0].uvIndexMax}</strong></span></Show><Show when={snapshot().daily?.[0]?.windSpeedMaxKmh != null}><span>Peak wind <strong>{Math.round(windSpeed(snapshot().daily![0].windSpeedMaxKmh!, units()))} {unitLabel(units())}</strong></span></Show><Show when={snapshot().daily?.[0]?.sunrise && snapshot().daily?.[0]?.sunset}><span>Sunrise <strong>{forecastTime(snapshot().daily![0].sunrise!)}</strong> · Sunset <strong>{forecastTime(snapshot().daily![0].sunset!)}</strong></span></Show></div>
+            </Show>
+
+            <footer class="weather__foot"><span>Updated <strong>{relativeTime(snapshot().updatedAt, now())}</strong> · Open-Meteo model{snapshot().stale ? ' · Cached' : ''}</span><Show when={forecastView() !== 'now'}><span class="weather__forecast-disclaimer">Forecasts are estimates.</span></Show></footer>
           </div>
         )}
+      </Show>
       </Show>
     </section>
   )

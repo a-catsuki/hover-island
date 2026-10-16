@@ -1,6 +1,6 @@
 {
   "baseUrl": "http://127.0.0.1:1421",
-  "generatedAt": "2026-10-15T13:01:58.361Z",
+  "generatedAt": "2026-10-16T07:14:50.518Z",
   "screenshots": [
     {
       "widget": "calendar",
@@ -242,14 +242,14 @@
           "height": 40.640625
         },
         {
-          "name": "Thursday, October 15, has events",
+          "name": "Thursday, October 15",
           "x": 540.046875,
           "y": 217.453125,
           "width": 39.6875,
           "height": 40.640625
         },
         {
-          "name": "Friday, October 16",
+          "name": "Friday, October 16, has events",
           "x": 581.734375,
           "y": 217.453125,
           "width": 39.6875,
@@ -452,22 +452,22 @@
       "size": "Small",
       "card": {
         "x": 706,
-        "y": 58.01747512817383,
+        "y": 58.0030517578125,
         "width": 298,
         "height": 346,
-        "top": 58.01747512817383,
+        "top": 58.0030517578125,
         "right": 1004,
-        "bottom": 404.0174751281738,
+        "bottom": 404.0030517578125,
         "left": 706
       },
       "core": {
         "x": 733,
-        "y": 243.51747131347656,
+        "y": 243.5030517578125,
         "width": 244,
-        "height": 12.999984741210938,
-        "top": 243.51747131347656,
+        "height": 13,
+        "top": 243.5030517578125,
         "right": 977,
-        "bottom": 256.5174560546875,
+        "bottom": 256.5030517578125,
         "left": 733
       },
       "coreFontPx": 10,
@@ -477,12 +477,12 @@
       },
       "grid": {
         "x": 396,
-        "y": 58.01747512817383,
+        "y": 58.0030517578125,
         "width": 608,
         "height": 346,
-        "top": 58.01747512817383,
+        "top": 58.0030517578125,
         "right": 1004,
-        "bottom": 404.0174751281738,
+        "bottom": 404.0030517578125,
         "left": 396
       },
       "viewport": {
@@ -497,7 +497,7 @@
         {
           "name": "Refresh reset announcements",
           "x": 959,
-          "y": 76.00312805175781,
+          "y": 76,
           "width": 26,
           "height": 26
         },
@@ -523,22 +523,22 @@
       "size": "Small",
       "card": {
         "x": 396,
-        "y": 58.003135681152344,
+        "y": 58.01764678955078,
         "width": 608,
         "height": 346,
-        "top": 58.003135681152344,
+        "top": 58.01764678955078,
         "right": 1004,
-        "bottom": 404.00313568115234,
+        "bottom": 404.0176467895508,
         "left": 396
       },
       "core": {
         "x": 459,
-        "y": 170.19064331054688,
+        "y": 170.20513916015625,
         "width": 206.5,
-        "height": 14.515609741210938,
-        "top": 170.19064331054688,
+        "height": 14.515640258789062,
+        "top": 170.20513916015625,
         "right": 665.5,
-        "bottom": 184.7062530517578,
+        "bottom": 184.7207794189453,
         "left": 459
       },
       "coreFontPx": 11,
@@ -548,12 +548,12 @@
       },
       "grid": {
         "x": 396,
-        "y": 58.003135681152344,
+        "y": 58.01764678955078,
         "width": 608,
         "height": 346,
-        "top": 58.003135681152344,
+        "top": 58.01764678955078,
         "right": 1004,
-        "bottom": 404.00313568115234,
+        "bottom": 404.0176467895508,
         "left": 396
       },
       "viewport": {
@@ -568,7 +568,7 @@
         {
           "name": "Refresh quick settings",
           "x": 961,
-          "y": 76,
+          "y": 76.00312805175781,
           "width": 24,
           "height": 24
         },
@@ -660,26 +660,160 @@
       "clippedActions": []
     },
     {
+      "widget": "weather",
+      "size": "Small",
+      "card": {
+        "x": 706,
+        "y": 58.04862976074219,
+        "width": 298,
+        "height": 346,
+        "top": 58.04862976074219,
+        "right": 1004,
+        "bottom": 404.0486297607422,
+        "left": 706
+      },
+      "core": {
+        "x": 725,
+        "y": 133.0486297607422,
+        "width": 77.96875,
+        "height": 34,
+        "top": 133.0486297607422,
+        "right": 802.96875,
+        "bottom": 167.0486297607422,
+        "left": 725
+      },
+      "coreFontPx": 34,
+      "panel": {
+        "clientHeight": 358,
+        "scrollHeight": 358
+      },
+      "grid": {
+        "x": 396,
+        "y": 58.04862976074219,
+        "width": 608,
+        "height": 346,
+        "top": 58.04862976074219,
+        "right": 1004,
+        "bottom": 404.0486297607422,
+        "left": 396
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 1000
+      },
+      "document": {
+        "clientHeight": 1000,
+        "scrollHeight": 1000
+      },
+      "buttonBounds": [
+        {
+          "name": "Location",
+          "x": 928.25,
+          "y": 77.23758697509766,
+          "width": 56.75,
+          "height": 16.515625
+        },
+        {
+          "name": "Refresh weather",
+          "x": 958,
+          "y": 102,
+          "width": 27,
+          "height": 27
+        },
+        {
+          "name": "Location",
+          "x": 928.25,
+          "y": 77.234375,
+          "width": 56.75,
+          "height": 16.515625
+        },
+        {
+          "name": "Now",
+          "x": 728,
+          "y": 106,
+          "width": 53.328125,
+          "height": 19
+        },
+        {
+          "name": "Hourly",
+          "x": 784.328125,
+          "y": 106,
+          "width": 53.34375,
+          "height": 19
+        },
+        {
+          "name": "7-day",
+          "x": 840.671875,
+          "y": 106,
+          "width": 53.328125,
+          "height": 19
+        },
+        {
+          "name": "Metric units, Celsius and kilometers per hour",
+          "x": 905,
+          "y": 106.546875,
+          "width": 22.578125,
+          "height": 17.890625
+        },
+        {
+          "name": "Imperial units, Fahrenheit and miles per hour",
+          "x": 928.578125,
+          "y": 106.546875,
+          "width": 21.421875,
+          "height": 17.890625
+        },
+        {
+          "name": "Refresh weather",
+          "x": 958,
+          "y": 102,
+          "width": 27,
+          "height": 27
+        }
+      ],
+      "clippedActions": [],
+      "hourly": {
+        "body": {
+          "client": 284,
+          "content": 284
+        },
+        "strip": {
+          "client": 260,
+          "content": 1460
+        },
+        "card": {
+          "client": 344,
+          "content": 357
+        }
+      },
+      "week": {
+        "body": {
+          "client": 284,
+          "content": 284
+        },
+        "rowsFit": true
+      }
+    },
+    {
       "widget": "calendar",
       "size": "Medium",
       "card": {
         "x": 316,
-        "y": 58,
+        "y": 58.017520904541016,
         "width": 768,
         "height": 466,
-        "top": 58,
+        "top": 58.017520904541016,
         "right": 1084,
-        "bottom": 524,
+        "bottom": 524.017520904541,
         "left": 316
       },
       "core": {
         "x": 341.828125,
-        "y": 143.5,
+        "y": 143.51751708984375,
         "width": 38,
         "height": 38,
-        "top": 143.5,
+        "top": 143.51751708984375,
         "right": 379.828125,
-        "bottom": 181.5,
+        "bottom": 181.51751708984375,
         "left": 341.828125
       },
       "coreFontPx": 15.5016,
@@ -899,14 +1033,14 @@
           "height": 60.640625
         },
         {
-          "name": "Thursday, October 15, has events",
+          "name": "Thursday, October 15",
           "x": 496.046875,
           "y": 257.453125,
           "width": 51.6875,
           "height": 60.640625
         },
         {
-          "name": "Friday, October 16",
+          "name": "Friday, October 16, has events",
           "x": 549.734375,
           "y": 257.453125,
           "width": 51.6875,
@@ -1109,22 +1243,22 @@
       "size": "Medium",
       "card": {
         "x": 706,
-        "y": 58.000030517578125,
+        "y": 58.33458709716797,
         "width": 378,
-        "height": 465.9999694824219,
-        "top": 58.000030517578125,
+        "height": 466,
+        "top": 58.33458709716797,
         "right": 1084,
-        "bottom": 524,
+        "bottom": 524.334587097168,
         "left": 706
       },
       "core": {
         "x": 736,
-        "y": 303.2031555175781,
+        "y": 303.5377197265625,
         "width": 318,
         "height": 15.59375,
-        "top": 303.2031555175781,
+        "top": 303.5377197265625,
         "right": 1054,
-        "bottom": 318.7969055175781,
+        "bottom": 319.1314697265625,
         "left": 736
       },
       "coreFontPx": 12,
@@ -1134,12 +1268,12 @@
       },
       "grid": {
         "x": 316,
-        "y": 58.000030517578125,
+        "y": 58.33458709716797,
         "width": 768,
-        "height": 465.9999694824219,
-        "top": 58.000030517578125,
+        "height": 466,
+        "top": 58.33458709716797,
         "right": 1084,
-        "bottom": 524,
+        "bottom": 524.334587097168,
         "left": 316
       },
       "viewport": {
@@ -1154,21 +1288,21 @@
         {
           "name": "Refresh reset announcements",
           "x": 1039,
-          "y": 76.00001525878906,
+          "y": 76.10314178466797,
           "width": 26,
           "height": 26
         },
         {
           "name": "Refresh reset announcements",
           "x": 1039,
-          "y": 76,
+          "y": 76.10314178466797,
           "width": 26,
           "height": 26
         },
         {
           "name": "Global Codex reset announced. Tibo announced a global reset without a precise landing time. Open the original post. Open source post.",
           "x": 725,
-          "y": 269.203125,
+          "y": 269.3062744140625,
           "width": 340,
           "height": 77.59375
         }
@@ -1180,22 +1314,22 @@
       "size": "Medium",
       "card": {
         "x": 316,
-        "y": 58.0000114440918,
+        "y": 58,
         "width": 768,
         "height": 466,
-        "top": 58.0000114440918,
+        "top": 58,
         "right": 1084,
-        "bottom": 524.0000114440918,
+        "bottom": 524,
         "left": 316
       },
       "core": {
         "x": 381,
-        "y": 187.51564025878906,
+        "y": 187.515625,
         "width": 99.25,
         "height": 14.515625,
-        "top": 187.51564025878906,
+        "top": 187.515625,
         "right": 480.25,
-        "bottom": 202.03126525878906,
+        "bottom": 202.03125,
         "left": 381
       },
       "coreFontPx": 11,
@@ -1205,12 +1339,12 @@
       },
       "grid": {
         "x": 316,
-        "y": 58.0000114440918,
+        "y": 58,
         "width": 768,
         "height": 466,
-        "top": 58.0000114440918,
+        "top": 58,
         "right": 1084,
-        "bottom": 524.0000114440918,
+        "bottom": 524,
         "left": 316
       },
       "viewport": {
@@ -1315,6 +1449,140 @@
         }
       ],
       "clippedActions": []
+    },
+    {
+      "widget": "weather",
+      "size": "Medium",
+      "card": {
+        "x": 706,
+        "y": 58.017547607421875,
+        "width": 378,
+        "height": 466.0000305175781,
+        "top": 58.017547607421875,
+        "right": 1084,
+        "bottom": 524.017578125,
+        "left": 706
+      },
+      "core": {
+        "x": 725,
+        "y": 133.01754760742188,
+        "width": 77.96875,
+        "height": 34,
+        "top": 133.01754760742188,
+        "right": 802.96875,
+        "bottom": 167.01754760742188,
+        "left": 725
+      },
+      "coreFontPx": 34,
+      "panel": {
+        "clientHeight": 478,
+        "scrollHeight": 478
+      },
+      "grid": {
+        "x": 316,
+        "y": 58.017547607421875,
+        "width": 768,
+        "height": 466.0000305175781,
+        "top": 58.017547607421875,
+        "right": 1084,
+        "bottom": 524.017578125,
+        "left": 316
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 1000
+      },
+      "document": {
+        "clientHeight": 1000,
+        "scrollHeight": 1000
+      },
+      "buttonBounds": [
+        {
+          "name": "Location",
+          "x": 1008.25,
+          "y": 77.234375,
+          "width": 56.75,
+          "height": 16.515625
+        },
+        {
+          "name": "Refresh weather",
+          "x": 1038,
+          "y": 102,
+          "width": 27,
+          "height": 27
+        },
+        {
+          "name": "Location",
+          "x": 1008.25,
+          "y": 77.234375,
+          "width": 56.75,
+          "height": 16.515625
+        },
+        {
+          "name": "Now",
+          "x": 728,
+          "y": 106,
+          "width": 80,
+          "height": 19
+        },
+        {
+          "name": "Hourly",
+          "x": 811,
+          "y": 106,
+          "width": 80,
+          "height": 19
+        },
+        {
+          "name": "7-day",
+          "x": 894,
+          "y": 106,
+          "width": 80,
+          "height": 19
+        },
+        {
+          "name": "Metric units, Celsius and kilometers per hour",
+          "x": 985,
+          "y": 106.546875,
+          "width": 22.578125,
+          "height": 17.890625
+        },
+        {
+          "name": "Imperial units, Fahrenheit and miles per hour",
+          "x": 1008.578125,
+          "y": 106.546875,
+          "width": 21.421875,
+          "height": 17.890625
+        },
+        {
+          "name": "Refresh weather",
+          "x": 1038,
+          "y": 102,
+          "width": 27,
+          "height": 27
+        }
+      ],
+      "clippedActions": [],
+      "hourly": {
+        "body": {
+          "client": 404,
+          "content": 404
+        },
+        "strip": {
+          "client": 340,
+          "content": 1460
+        },
+        "card": {
+          "client": 464,
+          "content": 484
+        }
+      },
+      "week": {
+        "body": {
+          "client": 404,
+          "content": 404
+        },
+        "rowsFit": true
+      }
     },
     {
       "widget": "calendar",
@@ -1556,14 +1824,14 @@
           "height": 73.96875
         },
         {
-          "name": "Thursday, October 15, has events",
+          "name": "Thursday, October 15",
           "x": 452.046875,
           "y": 284.125,
           "width": 63.6875,
           "height": 73.96875
         },
         {
-          "name": "Friday, October 16",
+          "name": "Friday, October 16, has events",
           "x": 517.734375,
           "y": 284.125,
           "width": 63.6875,
@@ -1766,22 +2034,22 @@
       "size": "Large",
       "card": {
         "x": 706,
-        "y": 58,
+        "y": 58.01767349243164,
         "width": 458,
         "height": 546,
-        "top": 58,
+        "top": 58.01767349243164,
         "right": 1164,
-        "bottom": 604,
+        "bottom": 604.0176734924316,
         "left": 706
       },
       "core": {
         "x": 736,
-        "y": 343.203125,
+        "y": 343.2207946777344,
         "width": 398,
         "height": 15.59375,
-        "top": 343.203125,
+        "top": 343.2207946777344,
         "right": 1134,
-        "bottom": 358.796875,
+        "bottom": 358.8145446777344,
         "left": 736
       },
       "coreFontPx": 12,
@@ -1791,12 +2059,12 @@
       },
       "grid": {
         "x": 236,
-        "y": 58,
+        "y": 58.01767349243164,
         "width": 928,
         "height": 546,
-        "top": 58,
+        "top": 58.01767349243164,
         "right": 1164,
-        "bottom": 604,
+        "bottom": 604.0176734924316,
         "left": 236
       },
       "viewport": {
@@ -1837,22 +2105,22 @@
       "size": "Large",
       "card": {
         "x": 236,
-        "y": 58,
+        "y": 58.00316619873047,
         "width": 928,
         "height": 546,
-        "top": 58,
+        "top": 58.00316619873047,
         "right": 1164,
-        "bottom": 604,
+        "bottom": 604.0031661987305,
         "left": 236
       },
       "core": {
         "x": 301,
-        "y": 187.515625,
+        "y": 187.51878356933594,
         "width": 139.25,
         "height": 14.515625,
-        "top": 187.515625,
+        "top": 187.51878356933594,
         "right": 440.25,
-        "bottom": 202.03125,
+        "bottom": 202.03440856933594,
         "left": 301
       },
       "coreFontPx": 11,
@@ -1862,12 +2130,12 @@
       },
       "grid": {
         "x": 236,
-        "y": 58,
+        "y": 58.00316619873047,
         "width": 928,
         "height": 546,
-        "top": 58,
+        "top": 58.00316619873047,
         "right": 1164,
-        "bottom": 604,
+        "bottom": 604.0031661987305,
         "left": 236
       },
       "viewport": {
@@ -1972,6 +2240,166 @@
         }
       ],
       "clippedActions": []
+    },
+    {
+      "widget": "weather",
+      "size": "Large",
+      "card": {
+        "x": 706,
+        "y": 58.01478958129883,
+        "width": 458,
+        "height": 546,
+        "top": 58.01478958129883,
+        "right": 1164,
+        "bottom": 604.0147895812988,
+        "left": 706
+      },
+      "core": {
+        "x": 725,
+        "y": 133.01478576660156,
+        "width": 77.96875,
+        "height": 34,
+        "top": 133.01478576660156,
+        "right": 802.96875,
+        "bottom": 167.01478576660156,
+        "left": 725
+      },
+      "coreFontPx": 34,
+      "panel": {
+        "clientHeight": 558,
+        "scrollHeight": 558
+      },
+      "grid": {
+        "x": 236,
+        "y": 58.01478958129883,
+        "width": 928,
+        "height": 546,
+        "top": 58.01478958129883,
+        "right": 1164,
+        "bottom": 604.0147895812988,
+        "left": 236
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 1000
+      },
+      "document": {
+        "clientHeight": 1000,
+        "scrollHeight": 1000
+      },
+      "buttonBounds": [
+        {
+          "name": "Location",
+          "x": 1088.25,
+          "y": 77.24916076660156,
+          "width": 56.75,
+          "height": 16.515625
+        },
+        {
+          "name": "Refresh weather",
+          "x": 1118,
+          "y": 102,
+          "width": 27,
+          "height": 27
+        },
+        {
+          "name": "Location",
+          "x": 1088.25,
+          "y": 77.234375,
+          "width": 56.75,
+          "height": 16.515625
+        },
+        {
+          "name": "Now",
+          "x": 728,
+          "y": 106,
+          "width": 106.65625,
+          "height": 19
+        },
+        {
+          "name": "Hourly",
+          "x": 837.65625,
+          "y": 106,
+          "width": 106.671875,
+          "height": 19
+        },
+        {
+          "name": "7-day",
+          "x": 947.328125,
+          "y": 106,
+          "width": 106.671875,
+          "height": 19
+        },
+        {
+          "name": "Metric units, Celsius and kilometers per hour",
+          "x": 1065,
+          "y": 106.546875,
+          "width": 22.578125,
+          "height": 17.890625
+        },
+        {
+          "name": "Imperial units, Fahrenheit and miles per hour",
+          "x": 1088.578125,
+          "y": 106.546875,
+          "width": 21.421875,
+          "height": 17.890625
+        },
+        {
+          "name": "Refresh weather",
+          "x": 1118,
+          "y": 102,
+          "width": 27,
+          "height": 27
+        }
+      ],
+      "clippedActions": [],
+      "hourly": {
+        "body": {
+          "client": 484,
+          "content": 484
+        },
+        "strip": {
+          "client": 420,
+          "content": 1460
+        },
+        "card": {
+          "client": 544,
+          "content": 567
+        }
+      },
+      "week": {
+        "body": {
+          "client": 484,
+          "content": 484
+        },
+        "rowsFit": true
+      }
+    },
+    {
+      "widget": "settings-editor",
+      "viewport": {
+        "width": 960,
+        "height": 700
+      },
+      "content": {
+        "clientHeight": 617,
+        "scrollHeight": 617
+      },
+      "editor": {
+        "top": 155.75,
+        "bottom": 610.015625,
+        "height": 454.265625
+      },
+      "actions": [
+        "add page",
+        "rename page",
+        "add widget",
+        "resize widget",
+        "drag widget between pages",
+        "drag reorder within page",
+        "remove widget",
+        "delete page"
+      ]
     },
     {
       "widget": "settings-appearance",

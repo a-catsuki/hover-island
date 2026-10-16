@@ -68,6 +68,7 @@ try {
       assert.ok(item.x >= collapsed.x - 1 && item.x + item.width <= collapsed.x + collapsed.width + 1, `${edge} essential fits inside the vertical pill`)
       assert.ok(item.y >= collapsed.y - 1 && item.y + item.height <= collapsed.y + collapsed.height + 1, `${edge} essential fits vertically`)
     }
+    const restingClip = await page.locator('.island').evaluate(n=>getComputedStyle(n).clipPath)
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('island://proximity', { detail: { x: 5, y: -4 } })))
     await page.waitForFunction(() => {
       const island = document.querySelector('.island')
@@ -81,6 +82,10 @@ try {
     }))
     assert.ok(Math.abs(motion.x) <= 6 && Math.abs(motion.y) <= 6, `${edge} magnetic pull is bounded`)
     assert.equal(motion.open, false, `${edge} magnetic pull does not open the pill`)
+    await page.waitForTimeout(200)
+    const movingClip=await page.locator('.island').evaluate(n=>getComputedStyle(n).clipPath)
+    assert.ok(movingClip.startsWith('path('), 'whole shell uses elastic outline')
+    assert.notEqual(movingClip,restingClip,'cursor deforms the shell itself')
     await page.screenshot({ path: join(outDir, `notch-${edge}-collapsed.png`) })
     cases.push({ edge, host, collapsed, itemCount: items.length, motion, collapsedActions: 'none' })
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('island://proximity', { detail: { x: 0, y: 0 } })))

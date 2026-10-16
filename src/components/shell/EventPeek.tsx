@@ -1,5 +1,5 @@
 import { createEffect, createSignal, Show } from 'solid-js'
-import { ArrowDown, ArrowUp, Check, CircleAlert, ExternalLink, FolderOpen, Moon, Sun, Volume2 } from 'lucide-solid'
+import { ArrowDown, ArrowUp, Check, CircleAlert, Copy, ExternalLink, FolderOpen, KeyRound, Moon, Sun, Volume2 } from 'lucide-solid'
 import { peek, dismissPeek, acknowledgePendingAlert } from '../../state/peek'
 import { cmd } from '../../lib/ipc'
 import { showFileBucket } from '../../state/panel'
@@ -12,6 +12,7 @@ export default function EventPeek() {
   const transfer = () => peek()?.category === 'transfer' || peek()?.app === 'Phone bucket'
   const mute = () => peek()?.app === 'Do Not Disturb'
   const ai = () => peek()?.category === 'ai'
+  const auth = () => peek()?.category === 'auth'
   const systemControl = () => peek()?.app === 'Volume' || peek()?.app === 'Brightness'
   const controlLevel = () => {
     const value = Number.parseInt(peek()?.body.match(/\d{1,3}/)?.[0] ?? '', 10)
@@ -44,6 +45,12 @@ export default function EventPeek() {
   const actionLabel = () => failed() ? 'Try again from Files' : complete() ? 'Show files' : 'Open Files'
   const dismiss = (id: string) => { acknowledgePendingAlert(id); dismissPeek() }
   const dismissCurrent = () => { const item = peek(); if (item) dismiss(item.id) }
+  const copyCode = async () => {
+    const item = peek()
+    if (!item?.code) return
+    try { await navigator.clipboard.writeText(item.code); dismiss(item.id) }
+    catch (error) { reportError('Could not copy verification code', error) }
+  }
   const act = () => {
     const item=peek();if(!item)return
     acknowledgePendingAlert(item.id)
@@ -117,10 +124,15 @@ export default function EventPeek() {
     setDragging(false); setDragY(0)
   }
 
-  return <Show when={peek()}>{item=><div class="peek" classList={{'peek--transfer':transfer(),'peek--failed':failed(),'peek--mute':mute(),'peek--ai':ai(),'peek--ai-complete':aiComplete(),'peek--ai-input':aiInput(),'peek--system':systemControl(),'peek--system-muted':controlMuted(),'peek--dragging':dragging()}} role="status" aria-live="polite" tabIndex={0} aria-label={`${item().app}: ${item().title}. Press Escape to dismiss.`}
+  return <Show when={peek()}>{item=><div class="peek" classList={{'peek--transfer':transfer(),'peek--failed':failed(),'peek--mute':mute(),'peek--ai':ai(),'peek--ai-complete':aiComplete(),'peek--ai-input':aiInput(),'peek--system':systemControl(),'peek--auth':auth(),'peek--system-muted':controlMuted(),'peek--dragging':dragging()}} role="status" aria-live="polite" tabIndex={0} aria-label={`${item().app}: ${auth() ? 'verification code ' : ''}${item().code ?? item().title}. Press Escape to dismiss.`}
     style={{'animation':suppressEnter()?'none':'','transform':suppressEnter()?`translateY(${dragging()?dragY():0}px)`:'','transition':suppressEnter()&&!dragging()?'transform 300ms var(--spring)':''}}
     onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}
     onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); dismissCurrent() } }}>
+    <Show when={auth()}><div class="peek__auth">
+      <span class="peek__auth-icon"><KeyRound size={19}/></span>
+      <div class="peek__auth-copy"><div class="peek__auth-label">{item().account ? `Code for ${item().account}` : 'Email verification code'}</div><strong class="peek__auth-code">{item().code}</strong><div class="peek__auth-meta">{item().sender || item().subject || 'New sign-in message'}</div></div>
+      <button class="peek__auth-button" type="button" aria-label="Copy verification code" title="Copy code" onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void copyCode() }}><Copy size={15}/><span>Copy</span></button>
+    </div></Show>
     <Show when={transfer()} fallback={<Show when={ai()} fallback={<Show when={systemControl()} fallback={<>
       <span class="peek__dot"><Show when={!mute()} fallback={<Moon size={16}/>}><Show when={item().icon} fallback={<BrandIcon name={item().app} size={24}/>}>{src=><img src={src()!} alt="" draggable={false}/>}</Show></Show></span>
       <div class="peek__body"><div class="peek__app">{item().app}<Show when={item().priority==='urgent'}><span class="peek__priority">Urgent</span></Show></div><div class="peek__title">{item().title}</div><Show when={item().body}><div class="peek__text">{item().body}</div></Show>

@@ -1,3 +1,4 @@
+import NotificationAccessPanel from './NotificationAccessPanel'
 import { createSignal, For, onCleanup, onMount, Show, Switch, Match } from 'solid-js'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { Bell, Blocks, Cable, Check, ChevronDown, Info, Palette, Plus, Puzzle, RefreshCw, SlidersHorizontal, Sparkles, Trash2 } from 'lucide-solid'
@@ -13,6 +14,7 @@ import { COMPACT_ITEMS, compactItemLimit, normalizeCompactItems, toggleCompactIt
 import { VISUALIZER_STYLES, normalizeVisualizerStyle } from '../lib/visualizerStyles'
 import WebsiteConnectionsPanel from '../components/settings/WebsiteConnectionsPanel'
 import CalendarConnectionsPanel from '../components/settings/CalendarConnectionsPanel'
+import EmailCodesPanel from '../components/settings/EmailCodesPanel'
 import ProvidersPanel from './ProvidersPanel'
 import SettingsPreview from './SettingsPreview'
 
@@ -203,18 +205,19 @@ export default function SettingsApp() {
             </Match>
 
             <Match when={section() === 'connections'}>
-              <CalendarConnectionsPanel/>
-              <WebsiteConnectionsPanel/>
-              <Group title="Desktop alerts & shortcuts" description="Choose Windows apps for alerts, or save a website shortcut. Shortcuts do not sign in to an account.">
+              <Group title="Windows app alerts" description="Choose the app sources that can send notifications into your notch.">
                 <ConnectionsPanel />
               </Group>
+              <CalendarConnectionsPanel/>
+              <EmailCodesPanel/>
+              <WebsiteConnectionsPanel/>
             </Match>
 
             <Match when={section() === 'notifications'}>
               <Group title="Alerts" description="The notch peeks for a few seconds when something new arrives.">
                 <Field label="Connection & transfer sound" hint="Short original tones. Do Not Disturb silences them."><select aria-label="Alert sound" value={settings.notifications.sound} onChange={event=>set({notifications:{...settings.notifications,sound:event.currentTarget.value as Settings['notifications']['sound']}})}><option value="soft">Soft chime</option><option value="glass">Glass chime</option><option value="off">Silent</option></select></Field>
                 <Field label="Listen" hint="Preview the selected chime"><button class="button button--secondary" disabled={settings.notifications.sound==='off'||settings.dnd} onClick={()=>void cmd.playAlertSound(settings.notifications.sound).catch(error=>reportError('Could not play chime',error))}>Test sound</button></Field>
-                <Field label="Test a real alert" hint="Fires the chime, the notch peek and the collapsed badge"><button class="button" disabled={settings.dnd || !settings.notifications.enabled} onClick={()=>void cmd.sendTestAlert().then(()=>setAccessStatus('Test alert sent — look at the notch.')).catch(error=>reportError('Could not send a test alert',error))}>Send test alert</button></Field>
+                <Field label="Test notch feedback" hint="Checks the chime, notch expansion and badge; Windows delivery is separate"><button class="button" disabled={settings.dnd || !settings.notifications.enabled} onClick={()=>void cmd.sendTestAlert().then(()=>setAccessStatus('Test alert sent — look at the notch.')).catch(error=>reportError('Could not send a test alert',error))}>Send test alert</button></Field>
                 <Toggle
                   label="Show notifications"
                   hint="Display alerts in the notch and the Alerts widget"
@@ -233,11 +236,7 @@ export default function SettingsApp() {
                   checked={settings.notifications.systemListener}
                   onChange={(value) => set({ notifications: { ...settings.notifications, systemListener: value } })}
                 />
-                <Field label="System access" hint="Requires the installed MSIX build and Windows permission. You can retry here if access was denied.">
-                  <button class="button" disabled={requestingNotificationAccess()} onClick={() => void requestAccess()}>
-                    {requestingNotificationAccess() ? 'Requesting access…' : 'Allow Windows alerts'}
-                  </button>
-                </Field>
+                <NotificationAccessPanel/>
                 <Show when={accessStatus()}>
                   <p class="set-note" role="status">
                     {accessStatus()}

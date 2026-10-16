@@ -145,7 +145,7 @@ export default function CollapsedPill() {
       </Show></> }</For>
       <Show when={visible().length === 0}><span class="pill__compact-empty">Hover Island</span></Show>
     </div>
-    <Show when={!settings.dnd && settings.notifications.enabled ? pendingAlert() : null}>{item=><button class="pill__alert-badge" aria-label={`Unread alert: ${item().title}`} title={`${item().app}: ${item().title}`} onPointerDown={stop} onClick={event=>{event.stopPropagation();openPendingAlert()}}><span class="pill__alert-dot"/><span>{item().title}</span></button>}</Show>
+    <Show when={!settings.dnd && settings.notifications.enabled ? pendingAlert() : null}>{item=><button class="pill__alert-badge" classList={{'pill__alert-badge--auth':item().category==='auth'}} aria-label={item().category==='auth'?`Verification code ${item().code ?? item().title}; activate to view and copy`:`Unread alert: ${item().title}`} title={item().category==='auth'?`Verification code · ${item().account ?? ''}`:`${item().app}: ${item().title}`} onPointerDown={stop} onClick={event=>{event.stopPropagation();openPendingAlert()}}><span class="pill__alert-dot"/><span>{item().category==='auth'?item().code ?? item().title:item().title}</span></button>}</Show>
     <div class="pill__badges" aria-hidden="true">
       <Show when={settings.modules.notifications && settings.notifications.enabled && unread() > 0}><span class="pill__dot" title={`${unread()} unread`} /></Show>
       <Show when={focusTimer().endsAt && !visible().includes('clock')}><span class="pill__focus">{formatFocus(focusTimer().remaining)}</span></Show>

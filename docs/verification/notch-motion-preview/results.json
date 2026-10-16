@@ -1,5 +1,5 @@
 {
-  "url": "http://127.0.0.1:1421/",
+  "url": "http://127.0.0.1:1421",
   "viewport": {
     "width": 1200,
     "height": 800
@@ -21,8 +21,8 @@
       },
       "itemCount": 4,
       "motion": {
-        "x": 1.4,
-        "y": -1.12,
+        "x": 0.84,
+        "y": -0.68,
         "open": false
       },
       "collapsedActions": "none"
@@ -43,8 +43,8 @@
       },
       "itemCount": 4,
       "motion": {
-        "x": 0.8,
-        "y": -0.64,
+        "x": 3.18,
+        "y": -2.55,
         "open": false
       },
       "collapsedActions": "none"

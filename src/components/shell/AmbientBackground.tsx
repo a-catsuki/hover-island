@@ -3,7 +3,8 @@ import { settings } from '../../state/settings'
 import { nowPlaying } from '../../state/media'
 import { open } from '../../state/ui'
 import { audioCaptureStatus, audioSpectrum, subscribeAudioSpectrum } from '../../state/audio'
-import { audioMetrics } from '../../lib/audioMetrics'
+import { audioFrequencyMetrics, createAudioDynamics } from '../../lib/audioMetrics'
+import { getAlbumPalette, type AlbumPalette } from '../../lib/albumPalette'
 import { syntheticAudioSpectrum } from '../../lib/syntheticAudioPreview'
 import './AmbientBackground.css'
 
@@ -14,6 +15,10 @@ const PATTERN_SCENES = new Set(['contours', 'dots', 'grid', 'waves'])
 
 export default function AmbientBackground() {
   const [visible, setVisible] = createSignal(!document.hidden)
+  const [palette, setPalette] = createSignal<AlbumPalette | null>(null)
+  const [drive, setDrive] = createSignal({ energy: 0, bass: 0, mids: 0, treble: 0, punch: 0 })
+  const dynamics = createAudioDynamics()
+  let lastDriveAt = 0
 
   onMount(() => {
     const updateVisibility = () => setVisible(!document.hidden)
@@ -42,13 +47,43 @@ export default function AmbientBackground() {
     })
   })
 
+  createEffect(() => {
+    const src = settings.background === 'artwork' ? nowPlaying()?.thumbnail : undefined
+    let current = true
+    setPalette(null)
+    void getAlbumPalette(src).then((value) => {
+      if (current) setPalette(value)
+    })
+    onCleanup(() => { current = false })
+  })
+
+  createEffect(() => {
+    const preview = syntheticAudioSpectrum()
+    const active = open() && (preview !== null || (audioCaptureStatus() === 'active' && AUDIO_SCENES.has(settings.background)))
+    const spectrum = preview ?? audioSpectrum()
+    if (!active) {
+      dynamics.reset()
+      lastDriveAt = 0
+      setDrive({ energy: 0, bass: 0, mids: 0, treble: 0, punch: 0 })
+      return
+    }
+    const now = performance.now()
+    const dt = lastDriveAt ? (now - lastDriveAt) / 1000 : 1 / 30
+    lastDriveAt = now
+    const live = dynamics.update(spectrum, true, dt)
+    setDrive({ energy: live.energy, bass: live.bass, mids: live.mids, treble: live.treble, punch: live.punch })
+  })
+
   const sceneUsesAudio = () => AUDIO_SCENES.has(settings.background)
   const audioIsLive = () => sceneUsesAudio() && open() && audioCaptureStatus() === 'active'
   const previewIsActive = () => sceneUsesAudio() && open() && syntheticAudioSpectrum() !== null
-  const drive = () => {
-    const preview = syntheticAudioSpectrum()
-    if (previewIsActive() && preview) return audioMetrics(preview)
-    return audioIsLive() ? audioMetrics(audioSpectrum()) : { energy: 0, bass: 0 }
+  const paletteStyle = () => {
+    const colors = palette()
+    return colors ? {
+      '--album-a': colors.dominant,
+      '--album-b': colors.secondary,
+      '--album-c': colors.highlight,
+    } : {}
   }
 
   const isPattern = () => PATTERN_SCENES.has(settings.background)
@@ -62,7 +97,14 @@ export default function AmbientBackground() {
         'ambient--preview': previewIsActive(),
         'ambient--pattern': isPattern(),
       }}
-      style={{ '--audio-energy': String(drive().energy), '--audio-bass': String(drive().bass) }}
+      style={{
+        ...paletteStyle(),
+        '--audio-energy': String(drive().energy),
+        '--audio-bass': String(drive().bass),
+        '--audio-mid': String(drive().mids),
+        '--audio-treble': String(drive().treble),
+        '--audio-punch': String(drive().punch),
+      }}
       aria-hidden="true"
     >
       <Show when={settings.background === 'artwork' && nowPlaying()?.thumbnail}>

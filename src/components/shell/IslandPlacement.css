@@ -549,5 +549,13 @@ body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-sid
 .file-drop-action__content progress:indeterminate {background:linear-gradient(90deg,#ffffff12 0%,#b2c9ff 45%,#ffffff12 70%);background-size:220% 100%;animation:drop-action-progress 1.15s linear infinite;}
 .file-drop-action__content progress:indeterminate::-webkit-progress-bar {background:transparent;}
 @keyframes drop-action-breathe {50% {transform:scale(1.08);background:#adc5ff1b;}}
+
+/* The same spring deforms the entire material, including its edge and backdrop. */
+.island.island--mode-notch:not(.island--open):not(.island--file-drop):not(.island--dragging) {
+  clip-path: var(--magnetic-clip);
+}
+@media(prefers-reduced-motion:reduce) {
+  .island.island--mode-notch:not(.island--open) { --magnet-x:0px!important;--magnet-y:0px!important; }
+}
 @keyframes drop-action-progress {to {background-position:-220% 0;}}
 @media(prefers-reduced-motion:reduce) {.file-drop-action__icon.is-working,.file-drop-action__content progress:indeterminate {animation:none;}.file-drop-action__content progress::-webkit-progress-value {transition:none;}}

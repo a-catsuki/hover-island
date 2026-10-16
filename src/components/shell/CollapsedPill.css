@@ -33,6 +33,8 @@
 .pill__compact-empty { min-width: 0; overflow: hidden; color: var(--text-3); font-size: 10px; text-overflow: ellipsis; }
 .pill__alert-badge {display:flex;align-items:center;gap:5px;max-width:94px;min-width:26px;flex:0 1 94px;border:0;border-radius:8px;padding:4px 5px;background:#ff453a16;color:#ffc4b9;font:inherit;font-size:9px;cursor:pointer;}
 .pill__alert-badge>span:last-child {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pill__alert-badge--auth {max-width:84px;flex:0 1 84px;background:#829fff20;color:#d5e0ff;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.07em;}
+.pill__alert-badge--auth .pill__alert-dot {background:#9eb7ff;box-shadow:0 0 7px #9eb7ff80;}
 .pill__alert-dot {width:5px;height:5px;border-radius:50%;background:#ff6257;flex:none;box-shadow:0 0 8px #ff453a44;}
 .pill__focus { color: var(--text-2); font-size: 10px; font-variant-numeric: tabular-nums; }
 .pill__beam {display:grid;place-items:center;flex:none;width:25px;height:25px;padding:0;border:0;border-radius:9px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:color-mix(in srgb,var(--accent) 65%,white);cursor:pointer;transition:background 140ms,transform 140ms;}

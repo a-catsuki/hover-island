@@ -1,7 +1,7 @@
 import { createEffect, createSignal, ErrorBoundary, onCleanup, onMount, Show, untrack } from 'solid-js'
 import Island from './components/shell/Island'
 import SpotlightView from './components/views/SpotlightView'
-import { cmd, listen, onAiEvent, onExpandedChanged, onSpotlightOpen, onQuitRequested, type AppNotification } from './lib/ipc'
+import { cmd, listen, onAiEvent, onEmailCode, onExpandedChanged, onSpotlightOpen, onQuitRequested, type AppNotification } from './lib/ipc'
 import { loadSettings, flushSettings, settings } from './state/settings'
 import { subscribeMedia } from './state/media'
 import { focusTimer } from './state/focus'
@@ -11,7 +11,7 @@ import { collapseIsland, syncExpanded, expandIsland } from './state/ui'
 import { beginFirstRun, onboardingOpen, shouldShowFirstRun } from './state/onboarding'
 import { closeSpotlight, openSpotlight, spotlightOpen } from './state/spotlight'
 import { reportError } from './state/feedback'
-import { ingestNotifications, ingestActionPeek, ingestTransferPeek, ingestAiPeek, ingestPreferencePeek, configurePeekSound, dismissPeek } from './state/peek'
+import { ingestNotifications, ingestActionPeek, ingestTransferPeek, ingestAiPeek, ingestTwoFactorPeek, ingestPreferencePeek, configurePeekSound, dismissPeek } from './state/peek'
 import { subscribeForeground } from './state/window'
 import { tickFocus } from './state/focus'
 import { browserPreview } from './lib/ipc'
@@ -104,6 +104,7 @@ export default function App() {
     track(listen('alert://test', () => ingestActionPeek({ id: `test-alert:${Date.now()}`, app: 'Hover Island', title: 'Test alert', body: 'Alerts, chimes and the notch are working.', timestamp: Date.now(), category: 'website', priority: 'normal' })))
     track(listen<AppNotification>('transfer://event', event => ingestTransferPeek(event.payload)))
     track(onAiEvent(ingestAiPeek))
+    track(onEmailCode(ingestTwoFactorPeek))
     track(subscribeForeground())
     track(onQuitRequested(()=>{void cmd.acknowledgeQuitRequest().then(quitSafely).catch(error=>reportError('Could not close the island',error))}))
     track(onSpotlightOpen(openSpotlight))

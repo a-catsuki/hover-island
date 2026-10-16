@@ -1,11 +1,11 @@
 {
-  "generatedAtUtc": "2026-10-15T13:32:40.8971555Z",
-  "version": "0.1.3.0",
+  "generatedAtUtc": "2026-10-16T07:42:32.5724846Z",
+  "version": "0.1.4.0",
   "status": "Built, signed, verified, installed and launched. Live hardware and service validation remains separate.",
   "executable": {
     "path": "C:\\Users\\HP\\source\\hover-island\\src-tauri\\target\\release\\hover-island.exe",
-    "bytes": 14178304,
-    "sha256": "2dc13211c998fb197d3bc42cf9931db0a31df802407408b161e4f282080229c9",
+    "bytes": 14879232,
+    "sha256": "ca884711ff7d8ad161758d8eab801bb04d45b31aaac6ecbeb1c54fb0e110bc22",
     "profile": "release, opt-level=s, ThinLTO, strip=true, custom-protocol",
     "allCurrentJsCssAssetNamesEmbedded": true,
     "matchesPackagedExecutable": true,
@@ -13,13 +13,13 @@
     "log": "docs/verification/latest-release-build.log"
   },
   "installer": {
-    "zip": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.3.0-x64-20261015-133115-847-cc7193f2.zip",
-    "zipBytes": 5251277,
-    "zipSha256": "6b79e1772b6cab85840a620a70bd476666af3409261feda8893e433d371a91d9",
-    "package": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.3.0-x64-20261015-133115-847-cc7193f2\\HoverIsland.msix",
-    "packageSha256": "0629fc359c737a79c3b0b7fdadbeb6af836d963c6d80e3c3f5c8acc06a1f8197",
-    "install": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.3.0-x64-20261015-133115-847-cc7193f2\\Install.cmd",
-    "readme": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.3.0-x64-20261015-133115-847-cc7193f2\\README.txt",
+    "zip": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.4.0-x64-20261016-073751-660-6cfcd014.zip",
+    "zipBytes": 5478169,
+    "zipSha256": "9ca148a5fa9de200b1a4086f90a3b6d7ca574daa26a5a19fc44d3337172cf47c",
+    "package": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.4.0-x64-20261016-073751-660-6cfcd014\\HoverIsland.msix",
+    "packageSha256": "18de3c2ac21b4682fa809bd60be9cde0be7aba224ddb7d612ea4de794d75070c",
+    "install": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.4.0-x64-20261016-073751-660-6cfcd014\\Install.cmd",
+    "readme": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.4.0-x64-20261016-073751-660-6cfcd014\\README.txt",
     "signed": true,
     "publisher": "CN=Hover Island",
     "signerThumbprint": "B695B47BAE4B74B294B3E9C184F2C0A8394C9AF6",
@@ -27,9 +27,9 @@
     "verifyOnlyPassed": true,
     "packageInstalledByThisRun": true,
     "certificateTrustChangedByThisRun": false,
-    "installedVersion": "0.1.3.0",
-    "installedLocation": "C:\\Program Files\\WindowsApps\\com.hoverisland.app_0.1.3.0_x64__hq77z97e8bw9y",
-    "nativeProcessId": 35784,
+    "installedVersion": "0.1.4.0",
+    "installedLocation": "C:\\Program Files\\WindowsApps\\com.hoverisland.app_0.1.4.0_x64__hq77z97e8bw9y",
+    "nativeProcessId": 11436,
     "responding": true,
     "capabilities": [
       "internetClient",
@@ -44,8 +44,8 @@
     "installLog": "docs/verification/latest-install.log"
   },
   "source": {
-    "fingerprint": "172852c342923ee5245b7436f8f4d69ae58952697c62b6b14e8ebb346fd198a4",
-    "fileCount": 176,
+    "fingerprint": "2fa712424cb4dca3ed5403830ef04c87caf286346057b4de19d9309e8d70ad6b",
+    "fileCount": 188,
     "unchangedAcrossBuild": true,
     "assetsManifest": "docs/verification/final-source-assets.json",
     "before": "docs/verification/release-source-before.json",
@@ -53,58 +53,94 @@
   },
   "verification": {
     "readOnlyLive": {
+      "windowsControls": "Passed; docs/verification/live-controls-readonly.log",
       "resetAndProvider": "Passed; docs/verification/live-readonly-tests.log",
-      "windowsControls": "Passed; docs/verification/live-controls-readonly.log"
+      "bluetoothDevices": "Read-only paired list; docs/verification/live-bluetooth-list.log"
+    },
+    "brightnessRoundTrip": {
+      "restored": true,
+      "passed": true,
+      "log": "docs/verification/live-brightness-roundtrip.log"
+    },
+    "audioCapture": {
+      "log": "docs/verification/live-audio-owned-signal.log",
+      "samplePeak": 0.00298,
+      "frames": 15840,
+      "packets": 33,
+      "boundary": "Actual default-output WASAPI capture of an owned quiet generated four-tone WAV. Physical player aesthetics and headphone switching remain separate.",
+      "maxBand": 0.02856
+    },
+    "mediaRenderer": {
+      "boundary": "Injected spectra and owned thumbnail; canvas reactivity, palette and onset checks.",
+      "record": "docs/verification/visualizer-live-events.json"
+    },
+    "beamLayout": {
+      "record": "docs/verification/beam-layout.json",
+      "boundary": "Browser component fixtures, empty/one/many files at three sizes.",
+      "cases": 9
+    },
+    "notificationListener": {
+      "packaged": true,
+      "access": "allowed",
+      "toastCount": 2,
+      "exitCode": 0,
+      "testedExecutable": "C:\\Program Files\\WindowsApps\\com.hoverisland.app_0.1.4.0_x64__hq77z97e8bw9y\\hover-island.exe"
+    },
+    "emailCodes": {
+      "uiRecord": "docs/verification/email-code-ui.json",
+      "implemented": true,
+      "boundary": "Opt-in Google/Microsoft OAuth requires a configured provider desktop client and user sign-in. No real inbox was accessed.",
+      "liveAccountAuthorized": false
     },
     "phonePairing": {
-      "nativeBrowser": "Passed; docs/verification/phone-browser-result.log",
-      "boundary": "Owned localhost fixture; physical iPhone networking not covered."
+      "boundary": "Owned localhost fixture; physical iPhone networking not covered.",
+      "nativeBrowser": "Passed; docs/verification/phone-browser-result.log"
     },
     "typecheck": "Passed",
     "frontendTests": {
-      "log": "docs/verification/latest-frontend-tests.log",
-      "passed": 70,
-      "failed": 0
+      "passed": 81,
+      "failed": 0,
+      "log": "docs/verification/latest-frontend-tests.log"
     },
     "nativeTests": {
       "log": "docs/verification/latest-native-tests.log",
-      "passed": 129,
+      "passed": 153,
       "failed": 0,
-      "ignored": 8
+      "ignored": 11
     },
     "productionBrowser": {
-      "log": "docs/verification/latest-ui-smoke.log",
-      "passed": 11,
-      "mode": "browser preview with sample data, not native integration proof",
       "record": "docs/verification/browser-smoke.json",
-      "pageErrors": 0
+      "passed": 11,
+      "log": "docs/verification/latest-ui-smoke.log",
+      "pageErrors": 0,
+      "mode": "browser preview with sample data, not native integration proof"
     },
     "widgetGallery": {
-      "log": "docs/verification/latest-widget-gallery.log",
-      "boundary": "Production browser with sample data; checks card bounds and outer scrolling.",
+      "captures": 14,
       "baseUrl": "http://127.0.0.1:1421",
       "record": "docs/verification/widget-gallery.json",
-      "captures": 10
+      "boundary": "Production browser with sample data; checks card bounds and outer scrolling.",
+      "log": "docs/verification/latest-widget-gallery.log"
     },
     "notchMotion": {
-      "boundary": "Browser side geometry and synthetic proximity; native worker covered by regression tests, physical cursor interaction remains separate.",
-      "cases": 2,
       "record": "docs/verification/notch-motion-preview/results.json",
+      "cases": 2,
       "log": "docs/verification/latest-notch-motion.log",
       "pageErrors": 0,
-      "baseUrl": "http://127.0.0.1:1421/"
+      "boundary": "Browser side geometry and synthetic proximity; native worker covered by regression tests, physical cursor interaction remains separate.",
+      "baseUrl": "http://127.0.0.1:1421"
     }
   },
   "runtimeChecksRemaining": [
     "Physical Windows dock drag/snap and multi-monitor behavior.",
-    "Live music signal, volume/brightness/Bluetooth/charging events and actual memory trimming.",
-    "Live Windows toast delivery and optional user notification consent.",
+    "Physical music playback aesthetics and audio endpoint switching; Bluetooth/charging transitions and actual memory trimming.",
+    "Live arrival of a new third-party Windows notification; listener access/count is recorded independently.",
     "Physical iPhone network/firewall and folder-drop behavior.",
-    "Optional website feeds and Google/Outlook subscriptions; no accounts auto-connected."
+    "Provider OAuth client setup, user sign-in and actual email-code delivery; optional website feeds and calendar subscriptions."
   ],
   "integrationBoundaries": [
     "Calendar subscriptions are read-only.",
-    "Website alerts need a supported HTTPS feed; shortcuts do not connect inboxes.",
+    "Website alerts need a supported HTTPS feed; email-code accounts use explicit OAuth setup. Website shortcuts do not connect accounts.",
     "AirDrop is hidden; Nearby uses the temporary local QR bucket.",
     "Reset announcements do not redeem grants or change quota.",
     "Energy Saver opens Windows Settings; Best power efficiency is a separate native power mode."

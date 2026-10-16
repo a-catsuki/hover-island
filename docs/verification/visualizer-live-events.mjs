@@ -112,6 +112,25 @@ try {
   assert.equal(fixture.error.progressValue, 0.4, 'an error can retain known partial progress')
   assert.deepEqual(errors, [])
 
+  const ambient = await page.evaluate(async () => {
+    const metrics = await import('/src/lib/audioMetrics.ts')
+    const palette = await import('/src/lib/albumPalette.ts')
+    const quietEnergy = metrics.audioMetrics(Array(24).fill(0.00598)).energy
+    const loudEnergy = metrics.audioMetrics(Array(24).fill(0.026)).energy
+    const dynamics = metrics.createAudioDynamics()
+    for (let i = 0; i < 40; i++) dynamics.update(Array(24).fill(0.006), true, 1 / 30)
+    const kick = dynamics.update([...Array(7).fill(0.16), ...Array(17).fill(0.006)], true, 1 / 30)
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="4" height="8" fill="#1c376e"/><rect x="4" width="4" height="4" fill="#e05648"/><rect x="4" y="4" width="4" height="4" fill="#f7bc60"/></svg>`
+    const source = `data:image/svg+xml,${encodeURIComponent(svg)}`
+    const firstPalette = await palette.getAlbumPalette(source)
+    const secondPalette = await palette.getAlbumPalette(source)
+    return { quietEnergy, loudEnergy, kickPunch: kick.punch, firstPalette, secondPalette }
+  })
+  assert.ok(ambient.quietEnergy > 0.2 && ambient.loudEnergy > ambient.quietEnergy + 0.15, 'ambient transfer should retain quiet-to-loud dynamics')
+  assert.ok(ambient.kickPunch > 0.2, 'bass onset should create a punch envelope')
+  assert.ok(ambient.firstPalette?.dominant && ambient.firstPalette?.secondary && ambient.firstPalette?.highlight, 'album thumbnail should yield three lighting colors')
+  assert.deepEqual(ambient.secondPalette, ambient.firstPalette, 'album palette cache should return a stable result')
+
   const proof = {
     testedAt: new Date().toISOString(),
     viewport: { width: 1420, height: 920, reducedMotion: true },
@@ -127,6 +146,13 @@ try {
       component: 'Solid component mounted directly from the Vite dev server',
       phases: fixture,
       assertions: ['pending/complete/error phases hide both drag targets', 'unknown progress is indeterminate', 'complete progress is 1'],
+    },
+    albumAmbient: {
+      quietEnergy: ambient.quietEnergy,
+      loudEnergy: ambient.loudEnergy,
+      kickPunch: ambient.kickPunch,
+      palette: ambient.firstPalette,
+      assertions: ['quiet-to-loud dB drive remains ordered', 'bass onset creates a pulse', 'data-URL thumbnail palette extracts and caches three colors'],
     },
     pageErrors: errors,
   }

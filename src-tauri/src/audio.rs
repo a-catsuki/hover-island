@@ -11,8 +11,8 @@ use std::time::{Duration, Instant};
 use tauri::Emitter;
 use windows::core::GUID;
 use windows::Win32::Media::Audio::{
-    eMultimedia, eRender, IAudioCaptureClient, IAudioClient, IMMDeviceEnumerator,
-    MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
+    eCommunications, eConsole, eMultimedia, eRender, IAudioCaptureClient, IAudioClient, IMMDevice,
+    IMMDeviceEnumerator, MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
     AUDCLNT_STREAMFLAGS_LOOPBACK, WAVEFORMATEX,
 };
 use windows::Win32::System::Com::{
@@ -20,7 +20,9 @@ use windows::Win32::System::Com::{
 };
 
 const BAND_COUNT: usize = 24;
-const FFT_SIZE: usize = 512;
+const FFT_SIZE: usize = 1024;
+const DEVICE_POLL_INTERVAL: Duration = Duration::from_millis(500);
+const REOPEN_DELAY: Duration = Duration::from_millis(250);
 const SPECTRUM_EVENT: &str = "audio://spectrum";
 const ERROR_EVENT: &str = "audio://spectrum-error";
 
@@ -105,13 +107,67 @@ fn capture_loop(app: &tauri::AppHandle, active: &AtomicBool) -> Result<(), Strin
         CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
             .map_err(|e| format!("audio device enumeration failed: {e}"))?
     };
-    let device = unsafe {
-        enumerator
-            // Music playback normally uses the Multimedia role. Console can
-            // point at a different endpoint after per-role device setup.
-            .GetDefaultAudioEndpoint(eRender, eMultimedia)
-            .map_err(|e| format!("no default audio output is available: {e}"))?
-    };
+    let mut last_error: Option<String> = None;
+    let mut last_silence = Instant::now();
+    while active.load(Ordering::Acquire) {
+        match default_render_endpoint(&enumerator) {
+            Ok((device, endpoint_id)) => {
+                match capture_endpoint(app, active, &enumerator, &device, &endpoint_id) {
+                    Ok(()) => last_error = None,
+                    Err(error) => {
+                        if last_error.as_deref() != Some(error.as_str()) {
+                            let _ = app.emit(ERROR_EVENT, summarize_error(error.clone()));
+                            last_error = Some(error);
+                        }
+                        thread::sleep(REOPEN_DELAY);
+                    }
+                }
+            }
+            Err(error) => {
+                if last_error.as_deref() != Some(error.as_str()) {
+                    let _ = app.emit(ERROR_EVENT, summarize_error(error.clone()));
+                    last_error = Some(error);
+                }
+                if last_silence.elapsed() >= Duration::from_millis(42) {
+                    let _ = app.emit(
+                        SPECTRUM_EVENT,
+                        SpectrumPayload {
+                            bands: [0.0; BAND_COUNT],
+                        },
+                    );
+                    last_silence = Instant::now();
+                }
+                thread::sleep(REOPEN_DELAY);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn default_render_endpoint(
+    enumerator: &IMMDeviceEnumerator,
+) -> Result<(IMMDevice, String), String> {
+    for role in [eConsole, eMultimedia, eCommunications] {
+        let device = unsafe { enumerator.GetDefaultAudioEndpoint(eRender, role) };
+        let Ok(device) = device else { continue };
+        let Ok(native_id) = (unsafe { device.GetId() }) else {
+            continue;
+        };
+        let id = unsafe { native_id.to_string() };
+        unsafe { CoTaskMemFree(Some(native_id.0.cast())) };
+        let Ok(id) = id else { continue };
+        return Ok((device, id));
+    }
+    Err("no default render endpoint is available for Console, Multimedia, or Communications".into())
+}
+
+fn capture_endpoint(
+    app: &tauri::AppHandle,
+    active: &AtomicBool,
+    enumerator: &IMMDeviceEnumerator,
+    device: &IMMDevice,
+    endpoint_id: &str,
+) -> Result<(), String> {
     let client: IAudioClient = unsafe {
         device
             .Activate(CLSCTX_ALL, None)
@@ -178,7 +234,15 @@ fn capture_loop(app: &tauri::AppHandle, active: &AtomicBool) -> Result<(), Strin
     let _running_stream = RunningStream(client.clone());
     let mut samples = Vec::with_capacity(FFT_SIZE);
     let mut last_emit = Instant::now();
+    let mut last_device_check = Instant::now();
     while active.load(Ordering::Acquire) {
+        if last_device_check.elapsed() >= DEVICE_POLL_INTERVAL {
+            last_device_check = Instant::now();
+            match default_render_endpoint(enumerator) {
+                Ok((_, current_id)) if current_id == endpoint_id => {}
+                _ => return Ok(()),
+            }
+        }
         let packet = unsafe { capture.GetNextPacketSize() }
             .map_err(|e| format!("system audio capture failed: {e}"))?;
         if packet == 0 {
@@ -410,22 +474,35 @@ mod tests {
     fn quiet_loopback_tones_remain_visible_in_the_emitted_bands() {
         let sample_rate = 48_000.0;
         let tone_hz = 1500.0;
-        let peak_band = |amplitude: f32| {
+        let spectrum_for = |amplitude: f32| {
             let samples: Vec<_> = (0..FFT_SIZE)
                 .map(|i| {
                     amplitude * (std::f32::consts::TAU * tone_hz * i as f32 / sample_rate).sin()
                 })
                 .collect();
             spectrum(&samples, sample_rate)
-                .into_iter()
-                .fold(0.0f32, f32::max)
         };
-        let quiet = peak_band(0.0065);
-        let louder = peak_band(0.026);
-        assert!(quiet > 0.1, "quiet loopback tone collapsed to {quiet}");
+        let quiet_bands = spectrum_for(0.0065);
+        let louder_bands = spectrum_for(0.026);
+        let (peak_index, quiet) = quiet_bands
+            .iter()
+            .copied()
+            .enumerate()
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .unwrap();
+        let louder = louder_bands.iter().copied().fold(0.0f32, f32::max);
+
+        // At 1024 samples, 1500 Hz falls on a geometric band edge. Hann-windowed
+        // energy therefore splits across bands 13 and 14, yielding about 0.087
+        // for this input (rather than the >0.1 peak produced by the old 512 FFT).
         assert!(
-            louder > quiet,
-            "band response did not rise with input level"
+            (13..=14).contains(&peak_index),
+            "unexpected peak band {peak_index}"
+        );
+        assert!(quiet > 0.075, "quiet loopback tone collapsed to {quiet}");
+        assert!(
+            (louder / quiet - 4.0).abs() < 0.1,
+            "band response did not track the 4x input increase: quiet={quiet}, louder={louder}"
         );
     }
 

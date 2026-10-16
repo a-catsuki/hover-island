@@ -164,7 +164,7 @@ try {
  await settings.getByRole('button',{name:'Widgets',exact:true}).click()
  const firstPanelInput=settings.getByRole('textbox',{name:/Page 1 name/}).first();const firstPanelId=await page.locator('.panel-tabs [role="tab"]').first().getAttribute('data-panel-id');await firstPanelInput.fill('Studio');await firstPanelInput.press('Tab')
  await page.getByRole('tab',{name:'Studio panel'}).waitFor()
- const clockTile=settings.locator('.wmp__tile').filter({hasText:'World clock'}).first();if(await clockTile.count())await clockTile.click();else {await settings.locator('.wmp__hidden').getByRole('button',{name:'World clock',exact:true}).click();await settings.getByRole('switch',{name:'Show World clock',exact:true}).click()}
+ const clockTile=settings.locator('.wmp__tile').filter({hasText:'World clock'}).first();if(await clockTile.count())await clockTile.click();else if(await settings.locator('.wmp__hidden').getByRole('button',{name:'World clock',exact:true}).count()){await settings.locator('.wmp__hidden').getByRole('button',{name:'World clock',exact:true}).click();await settings.getByRole('switch',{name:'Show World clock',exact:true}).click()}else {await settings.getByRole('button',{name:'World clock',exact:true}).click()}
  await page.getByRole('tab',{name:'Studio panel'}).click()
  await findWidget('clock')
  await page.getByText('World clock',{exact:true}).waitFor()
@@ -188,8 +188,9 @@ try {
  await page.getByText('Phone bucket is available in the desktop app.',{exact:true}).waitFor()
  results.push('Analog/digital clock choice synchronizes; Files shortcut exposes the bucket and preview honestly gates native sharing')
  await settings.getByRole('navigation',{name:'Settings sections'}).getByRole('button',{name:'Connections',exact:true}).click()
- assert.equal(await settings.locator('.website-connections__form select').inputValue(),'website')
- await settings.getByText('No websites connected yet.',{exact:true}).waitFor()
+ assert.equal(await settings.locator('.website-connections__form select').count(),0,'Feed setup has no redundant connection-type chooser')
+ await settings.getByText('No alert feeds connected.',{exact:false}).waitFor()
+ await settings.locator('.conn__shortcuts>summary').click()
  await settings.getByRole('switch',{name:'Save WhatsApp shortcut',exact:true}).click()
  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('hover-island.preview.settings')??'null')?.connections.some(item=>item.id==='whatsapp'))
  await settings.getByRole('button',{name:'Behavior',exact:true}).click()

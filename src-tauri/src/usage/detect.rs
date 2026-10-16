@@ -67,21 +67,37 @@ const CANDIDATES: &[Candidate] = &[
     Candidate {
         id: "codex",
         label: "Codex",
-        configs: &[ConfigLoc { base: Base::Home, path: ".codex", kind: "config" }],
+        configs: &[ConfigLoc {
+            base: Base::Home,
+            path: ".codex",
+            kind: "config",
+        }],
         globs: &[],
         binaries: &["codex"],
         path_kind: "cli",
         supported: true,
         capabilities: &["live-quota", "local-activity"],
         process_names: &["codex.exe", "codex"],
-        activity_roots: &[ConfigLoc { base: Base::Home, path: ".codex/sessions", kind: "cli" }],
+        activity_roots: &[ConfigLoc {
+            base: Base::Home,
+            path: ".codex/sessions",
+            kind: "cli",
+        }],
     },
     Candidate {
         id: "claude-code",
         label: "Claude Code",
         configs: &[
-            ConfigLoc { base: Base::Home, path: ".claude", kind: "config" },
-            ConfigLoc { base: Base::Home, path: ".config/claude", kind: "config" },
+            ConfigLoc {
+                base: Base::Home,
+                path: ".claude",
+                kind: "config",
+            },
+            ConfigLoc {
+                base: Base::Home,
+                path: ".config/claude",
+                kind: "config",
+            },
         ],
         globs: &[],
         binaries: &["claude"],
@@ -89,14 +105,26 @@ const CANDIDATES: &[Candidate] = &[
         supported: true,
         capabilities: &["local-activity"],
         process_names: &["claude.exe", "claude"],
-        activity_roots: &[ConfigLoc { base: Base::Home, path: ".claude/projects", kind: "cli" }],
+        activity_roots: &[ConfigLoc {
+            base: Base::Home,
+            path: ".claude/projects",
+            kind: "cli",
+        }],
     },
     Candidate {
         id: "gemini",
         label: "Gemini CLI",
         configs: &[
-            ConfigLoc { base: Base::Home, path: ".gemini", kind: "config" },
-            ConfigLoc { base: Base::Home, path: ".config/gemini", kind: "config" },
+            ConfigLoc {
+                base: Base::Home,
+                path: ".gemini",
+                kind: "config",
+            },
+            ConfigLoc {
+                base: Base::Home,
+                path: ".config/gemini",
+                kind: "config",
+            },
         ],
         globs: &[],
         binaries: &["gemini"],
@@ -110,8 +138,16 @@ const CANDIDATES: &[Candidate] = &[
         id: "grok",
         label: "Grok",
         configs: &[
-            ConfigLoc { base: Base::Home, path: ".grok", kind: "config" },
-            ConfigLoc { base: Base::Home, path: ".config/grok", kind: "config" },
+            ConfigLoc {
+                base: Base::Home,
+                path: ".grok",
+                kind: "config",
+            },
+            ConfigLoc {
+                base: Base::Home,
+                path: ".config/grok",
+                kind: "config",
+            },
         ],
         globs: &[],
         binaries: &["grok"],
@@ -125,8 +161,16 @@ const CANDIDATES: &[Candidate] = &[
         id: "cursor",
         label: "Cursor",
         configs: &[
-            ConfigLoc { base: Base::Home, path: ".cursor", kind: "config" },
-            ConfigLoc { base: Base::AppData, path: "Cursor", kind: "app" },
+            ConfigLoc {
+                base: Base::Home,
+                path: ".cursor",
+                kind: "config",
+            },
+            ConfigLoc {
+                base: Base::AppData,
+                path: "Cursor",
+                kind: "app",
+            },
         ],
         globs: &[],
         binaries: &["cursor"],
@@ -140,8 +184,16 @@ const CANDIDATES: &[Candidate] = &[
         id: "opencode",
         label: "OpenCode",
         configs: &[
-            ConfigLoc { base: Base::Home, path: ".config/opencode", kind: "config" },
-            ConfigLoc { base: Base::AppData, path: "opencode", kind: "app" },
+            ConfigLoc {
+                base: Base::Home,
+                path: ".config/opencode",
+                kind: "config",
+            },
+            ConfigLoc {
+                base: Base::AppData,
+                path: "opencode",
+                kind: "app",
+            },
         ],
         globs: &[],
         binaries: &["opencode"],
@@ -155,8 +207,16 @@ const CANDIDATES: &[Candidate] = &[
         id: "deepseek",
         label: "DeepSeek",
         configs: &[
-            ConfigLoc { base: Base::Home, path: ".deepseek", kind: "config" },
-            ConfigLoc { base: Base::Home, path: ".config/deepseek", kind: "config" },
+            ConfigLoc {
+                base: Base::Home,
+                path: ".deepseek",
+                kind: "config",
+            },
+            ConfigLoc {
+                base: Base::Home,
+                path: ".config/deepseek",
+                kind: "config",
+            },
         ],
         globs: &[],
         binaries: &["deepseek"],
@@ -169,7 +229,11 @@ const CANDIDATES: &[Candidate] = &[
     Candidate {
         id: "github-copilot",
         label: "GitHub Copilot",
-        configs: &[ConfigLoc { base: Base::Home, path: ".config/github-copilot", kind: "config" }],
+        configs: &[ConfigLoc {
+            base: Base::Home,
+            path: ".config/github-copilot",
+            kind: "config",
+        }],
         globs: &[],
         binaries: &["copilot"],
         path_kind: "cli",
@@ -181,7 +245,11 @@ const CANDIDATES: &[Candidate] = &[
     Candidate {
         id: "windsurf",
         label: "Windsurf",
-        configs: &[ConfigLoc { base: Base::AppData, path: "Windsurf", kind: "app" }],
+        configs: &[ConfigLoc {
+            base: Base::AppData,
+            path: "Windsurf",
+            kind: "app",
+        }],
         globs: &[],
         binaries: &["windsurf"],
         path_kind: "app",
@@ -193,7 +261,11 @@ const CANDIDATES: &[Candidate] = &[
     Candidate {
         id: "zed",
         label: "Zed",
-        configs: &[ConfigLoc { base: Base::Home, path: ".config/zed", kind: "config" }],
+        configs: &[ConfigLoc {
+            base: Base::Home,
+            path: ".config/zed",
+            kind: "config",
+        }],
         globs: &[],
         binaries: &["zed"],
         path_kind: "app",
@@ -206,7 +278,11 @@ const CANDIDATES: &[Candidate] = &[
         id: "aider",
         label: "Aider",
         configs: &[],
-        globs: &[GlobLoc { base: Base::Home, prefix: ".aider", kind: "config" }],
+        globs: &[GlobLoc {
+            base: Base::Home,
+            prefix: ".aider",
+            kind: "config",
+        }],
         binaries: &["aider"],
         path_kind: "cli",
         supported: false,
@@ -217,7 +293,11 @@ const CANDIDATES: &[Candidate] = &[
     Candidate {
         id: "ollama",
         label: "Ollama",
-        configs: &[ConfigLoc { base: Base::Home, path: ".ollama", kind: "config" }],
+        configs: &[ConfigLoc {
+            base: Base::Home,
+            path: ".ollama",
+            kind: "config",
+        }],
         globs: &[],
         binaries: &["ollama"],
         path_kind: "cli",
@@ -229,7 +309,11 @@ const CANDIDATES: &[Candidate] = &[
     Candidate {
         id: "lm-studio",
         label: "LM Studio",
-        configs: &[ConfigLoc { base: Base::LocalAppData, path: "LM-Studio", kind: "app" }],
+        configs: &[ConfigLoc {
+            base: Base::LocalAppData,
+            path: "LM-Studio",
+            kind: "app",
+        }],
         globs: &[],
         binaries: &["lms"],
         path_kind: "app",
@@ -333,9 +417,15 @@ fn running_process_names() -> Vec<String> {
     entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
     if unsafe { Process32FirstW(snapshot, &mut entry) }.is_ok() {
         loop {
-            let end = entry.szExeFile.iter().position(|unit| *unit == 0).unwrap_or(entry.szExeFile.len());
+            let end = entry
+                .szExeFile
+                .iter()
+                .position(|unit| *unit == 0)
+                .unwrap_or(entry.szExeFile.len());
             names.push(String::from_utf16_lossy(&entry.szExeFile[..end]).to_ascii_lowercase());
-            if unsafe { Process32NextW(snapshot, &mut entry) }.is_err() { break; }
+            if unsafe { Process32NextW(snapshot, &mut entry) }.is_err() {
+                break;
+            }
         }
     }
     let _ = unsafe { CloseHandle(snapshot) };
@@ -343,34 +433,64 @@ fn running_process_names() -> Vec<String> {
 }
 
 #[cfg(not(windows))]
-fn running_process_names() -> Vec<String> { Vec::new() }
+fn running_process_names() -> Vec<String> {
+    Vec::new()
+}
 
 fn recent_activity(root: &Path) -> Option<String> {
     let mut pending = vec![(root.to_path_buf(), 0usize)];
     let mut visited = 0usize;
     let mut newest: Option<(std::time::SystemTime, PathBuf)> = None;
     while let Some((dir, depth)) = pending.pop() {
-        if depth > MAX_ACTIVITY_DEPTH { continue; }
-        let Ok(entries) = std::fs::read_dir(&dir) else { continue; };
+        if depth > MAX_ACTIVITY_DEPTH {
+            continue;
+        }
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for entry in entries.flatten() {
             visited += 1;
-            if visited > MAX_ACTIVITY_ENTRIES { break; }
-            let Ok(meta) = std::fs::symlink_metadata(entry.path()) else { continue; };
-            if meta.file_type().is_symlink() { continue; }
-            let path = entry.path();
-            if meta.is_dir() {
-                if depth < MAX_ACTIVITY_DEPTH { pending.push((path, depth + 1)); }
+            if visited > MAX_ACTIVITY_ENTRIES {
+                break;
+            }
+            let Ok(meta) = std::fs::symlink_metadata(entry.path()) else {
+                continue;
+            };
+            if meta.file_type().is_symlink() {
                 continue;
             }
-            if !meta.is_file() || path.extension().map_or(true, |ext| ext != "jsonl") { continue; }
-            let Ok(modified) = meta.modified() else { continue; };
-            let Ok(age) = std::time::SystemTime::now().duration_since(modified) else { continue; };
-            if age.as_millis() > RECENT_ACTIVITY_MS { continue; }
-            if newest.as_ref().map_or(true, |(known, _)| modified > *known) { newest = Some((modified, path)); }
+            let path = entry.path();
+            if meta.is_dir() {
+                if depth < MAX_ACTIVITY_DEPTH {
+                    pending.push((path, depth + 1));
+                }
+                continue;
+            }
+            if !meta.is_file() || path.extension().map_or(true, |ext| ext != "jsonl") {
+                continue;
+            }
+            let Ok(modified) = meta.modified() else {
+                continue;
+            };
+            let Ok(age) = std::time::SystemTime::now().duration_since(modified) else {
+                continue;
+            };
+            if age.as_millis() > RECENT_ACTIVITY_MS {
+                continue;
+            }
+            if newest.as_ref().map_or(true, |(known, _)| modified > *known) {
+                newest = Some((modified, path));
+            }
         }
-        if visited > MAX_ACTIVITY_ENTRIES { break; }
+        if visited > MAX_ACTIVITY_ENTRIES {
+            break;
+        }
     }
-    newest.map(|(_, path)| path.file_name().map(|name| format!("recent session log: {}", name.to_string_lossy())).unwrap_or_else(|| "recent session log".into()))
+    newest.map(|(_, path)| {
+        path.file_name()
+            .map(|name| format!("recent session log: {}", name.to_string_lossy()))
+            .unwrap_or_else(|| "recent session log".into())
+    })
 }
 
 fn detect_with(bases: &Bases) -> Vec<DetectedProvider> {
@@ -379,25 +499,38 @@ fn detect_with(bases: &Bases) -> Vec<DetectedProvider> {
         let mut evidence: Vec<String> = Vec::new();
         let mut kind: Option<&'static str> = None;
 
-        let running = candidate.process_names.iter().any(|name| bases.running_processes.iter().any(|running| running.eq_ignore_ascii_case(name)));
+        let running = candidate.process_names.iter().any(|name| {
+            bases
+                .running_processes
+                .iter()
+                .any(|running| running.eq_ignore_ascii_case(name))
+        });
         if running {
             kind = Some(candidate.path_kind);
             evidence.push(format!("{} running", candidate.process_names[0]));
         }
 
         for activity in candidate.activity_roots {
-            let Some(base_dir) = bases.dir(activity.base) else { continue; };
+            let Some(base_dir) = bases.dir(activity.base) else {
+                continue;
+            };
             let path = join_rel(base_dir, activity.path);
             if let Some(detail) = recent_activity(&path) {
                 kind.get_or_insert(activity.kind);
-                evidence.push(format!("{}/{} ({detail})", Bases::label(activity.base), activity.path));
+                evidence.push(format!(
+                    "{}/{} ({detail})",
+                    Bases::label(activity.base),
+                    activity.path
+                ));
             }
         }
 
         // Installation/config roots and PATH entries add context after actual
         // activity is established; they never create a provider row alone.
         let has_activity = !evidence.is_empty();
-        if !has_activity { continue; }
+        if !has_activity {
+            continue;
+        }
 
         for config in candidate.configs {
             let Some(base_dir) = bases.dir(config.base) else {
@@ -419,7 +552,13 @@ fn detect_with(bases: &Bases) -> Vec<DetectedProvider> {
             };
             let prefix = glob.prefix.to_ascii_lowercase();
             for entry in entries.flatten().take(MAX_GLOB_ENTRIES) {
-                if entry.file_type().map(|kind| kind.is_symlink()).unwrap_or(true) { continue; }
+                if entry
+                    .file_type()
+                    .map(|kind| kind.is_symlink())
+                    .unwrap_or(true)
+                {
+                    continue;
+                }
                 let name = entry.file_name();
                 let name = name.to_string_lossy();
                 if name.to_ascii_lowercase().starts_with(&prefix) {
@@ -491,7 +630,15 @@ mod tests {
     fn detects_codex_only_when_recent_session_activity_exists() {
         let home = temp_dir("codex");
         fs::create_dir_all(home.join(".codex").join("sessions").join("2026").join("10")).unwrap();
-        fs::write(home.join(".codex").join("sessions").join("2026").join("10").join("recent.jsonl"), b"metadata only").unwrap();
+        fs::write(
+            home.join(".codex")
+                .join("sessions")
+                .join("2026")
+                .join("10")
+                .join("recent.jsonl"),
+            b"metadata only",
+        )
+        .unwrap();
         let found = detect_with(&home_bases(home.clone()));
         let codex = found
             .iter()
@@ -500,7 +647,10 @@ mod tests {
         assert!(codex.supported);
         assert_eq!(codex.kind, "cli");
         assert_eq!(codex.capabilities, vec!["live-quota", "local-activity"]);
-        assert!(codex.evidence.iter().any(|item| item.contains("~/.codex/sessions")));
+        assert!(codex
+            .evidence
+            .iter()
+            .any(|item| item.contains("~/.codex/sessions")));
         let _ = fs::remove_dir_all(home);
     }
 
@@ -508,7 +658,14 @@ mod tests {
     fn detects_claude_logs_as_local_activity_only() {
         let home = temp_dir("claude");
         fs::create_dir_all(home.join(".claude").join("projects").join("active")).unwrap();
-        fs::write(home.join(".claude").join("projects").join("active").join("recent.jsonl"), b"metadata only").unwrap();
+        fs::write(
+            home.join(".claude")
+                .join("projects")
+                .join("active")
+                .join("recent.jsonl"),
+            b"metadata only",
+        )
+        .unwrap();
         let found = detect_with(&home_bases(home.clone()));
         let claude = found
             .iter()
@@ -547,7 +704,11 @@ mod tests {
     fn evidence_is_deduplicated_and_bounded() {
         let home = temp_dir("bounded");
         fs::create_dir_all(home.join(".codex").join("sessions")).unwrap();
-        fs::write(home.join(".codex").join("sessions").join("recent.jsonl"), b"metadata only").unwrap();
+        fs::write(
+            home.join(".codex").join("sessions").join("recent.jsonl"),
+            b"metadata only",
+        )
+        .unwrap();
         let mut bases = home_bases(home.clone());
         bases.search_paths = vec![home.clone()];
         bases.running_processes = vec!["codex.exe".into()];
@@ -555,7 +716,10 @@ mod tests {
         for provider in &found {
             assert!(provider.evidence.len() <= MAX_EVIDENCE);
         }
-        let codex = found.iter().find(|provider| provider.id == "codex").unwrap();
+        let codex = found
+            .iter()
+            .find(|provider| provider.id == "codex")
+            .unwrap();
         let unique: std::collections::HashSet<_> = codex.evidence.iter().collect();
         assert_eq!(unique.len(), codex.evidence.len());
         let _ = fs::remove_dir_all(home);
@@ -570,7 +734,10 @@ mod tests {
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].id, "cursor");
         assert!(!found[0].supported);
-        assert!(found[0].evidence.iter().any(|item| item == "cursor.exe running"));
+        assert!(found[0]
+            .evidence
+            .iter()
+            .any(|item| item == "cursor.exe running"));
         let _ = fs::remove_dir_all(home);
     }
 

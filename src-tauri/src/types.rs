@@ -171,6 +171,45 @@ pub struct WeatherSnapshot {
     pub location_source: Option<String>,
     /// Whether the displayed forecast was served from the local cache after a fetch failure.
     pub stale: Option<bool>,
+    /// Apparent temperature in Celsius.
+    pub feels_like_c: Option<f64>,
+    pub humidity_pct: Option<u8>,
+    pub wind_speed_kmh: Option<f64>,
+    pub wind_direction_deg: Option<u16>,
+    pub precipitation_mm: Option<f64>,
+    pub is_day: Option<bool>,
+    pub pressure_hpa: Option<f64>,
+    pub cloud_cover_pct: Option<u8>,
+    pub timezone: Option<String>,
+    pub hourly: Vec<WeatherHour>,
+    pub daily: Vec<WeatherDay>,
+    /// Modelled CAMS ensemble particulate matter concentrations in μg/m³.
+    #[serde(rename = "pm25")]
+    pub pm2_5: Option<f64>,
+    pub pm10: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct WeatherHour {
+    pub time: String,
+    pub temperature_c: f64,
+    pub code: i32,
+    pub precipitation_probability: Option<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct WeatherDay {
+    pub date: String,
+    pub code: i32,
+    pub high_c: f64,
+    pub low_c: f64,
+    pub sunrise: Option<String>,
+    pub sunset: Option<String>,
+    pub precipitation_probability: Option<u8>,
+    pub uv_index_max: Option<f64>,
+    pub wind_speed_max_kmh: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]

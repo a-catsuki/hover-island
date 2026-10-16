@@ -38,7 +38,10 @@ pub async fn memory_scan() -> Result<Vec<MemoryCandidate>, String> {
 }
 
 #[tauri::command]
-pub async fn memory_reclaim(app: tauri::AppHandle, ids: Vec<String>) -> Result<Vec<ReclaimResult>, String> {
+pub async fn memory_reclaim(
+    app: tauri::AppHandle,
+    ids: Vec<String>,
+) -> Result<Vec<ReclaimResult>, String> {
     if ids.is_empty() || ids.len() > 8 {
         return Err("Select between one and eight background apps.".into());
     }
@@ -46,11 +49,13 @@ pub async fn memory_reclaim(app: tauri::AppHandle, ids: Vec<String>) -> Result<V
     if unique.len() != ids.len() {
         return Err("Each background app can only be selected once.".into());
     }
-    tauri::async_runtime::spawn_blocking(move || platform::reclaim(ids, |progress| {
-        let _ = app.emit("memory://progress", progress);
-    }))
-        .await
-        .map_err(|error| format!("Memory reclaim worker failed: {error}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        platform::reclaim(ids, |progress| {
+            let _ = app.emit("memory://progress", progress);
+        })
+    })
+    .await
+    .map_err(|error| format!("Memory reclaim worker failed: {error}"))?
 }
 
 fn reclaimable_process_name(name: &str) -> bool {
@@ -131,7 +136,8 @@ fn measured_working_set_delta(before: u64, after: u64) -> u64 {
 #[cfg(target_os = "windows")]
 mod platform {
     use super::{
-        measured_working_set_delta, reclaimable_process_name, MemoryCandidate, ReclaimProgress, ReclaimResult,
+        measured_working_set_delta, reclaimable_process_name, MemoryCandidate, ReclaimProgress,
+        ReclaimResult,
     };
     use sha2::{Digest, Sha256};
     use std::collections::{HashMap, HashSet};
@@ -516,7 +522,10 @@ mod platform {
         Ok(candidates)
     }
 
-    pub(super) fn reclaim(ids: Vec<String>, on_progress: impl Fn(ReclaimProgress)) -> Result<Vec<ReclaimResult>, String> {
+    pub(super) fn reclaim(
+        ids: Vec<String>,
+        on_progress: impl Fn(ReclaimProgress),
+    ) -> Result<Vec<ReclaimResult>, String> {
         if ids.len() > MAX_BATCH {
             return Err("Select at most eight apps per reclaim.".into());
         }
@@ -552,7 +561,12 @@ mod platform {
         let rows = process_rows()?;
         let visible = protect_visible_process_trees(&rows);
         let mut results = Vec::with_capacity(identities.len());
-        let mut progress = ReclaimProgress { total: identities.len(), completed: 0, released_working_set_bytes: 0, skipped: 0 };
+        let mut progress = ReclaimProgress {
+            total: identities.len(),
+            completed: 0,
+            released_working_set_bytes: 0,
+            skipped: 0,
+        };
         on_progress(progress.clone());
         for (id, old) in identities {
             let result = (|| -> Result<u64, String> {
@@ -624,7 +638,10 @@ mod platform {
     pub(super) fn scan() -> Result<Vec<MemoryCandidate>, String> {
         Err("Working-set reclaim is available only on Windows.".into())
     }
-    pub(super) fn reclaim(_: Vec<String>, _: impl Fn(ReclaimProgress)) -> Result<Vec<ReclaimResult>, String> {
+    pub(super) fn reclaim(
+        _: Vec<String>,
+        _: impl Fn(ReclaimProgress),
+    ) -> Result<Vec<ReclaimResult>, String> {
         Err("Working-set reclaim is available only on Windows.".into())
     }
 }
