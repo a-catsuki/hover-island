@@ -122,6 +122,14 @@ pub struct NearbyStatus {
     pub detail: Option<String>,
 }
 
+/// An explicit grid cell (1-based) a widget was dropped into in the editor.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct WidgetSlot {
+    pub row: u8,
+    pub column: u8,
+}
+
 /// A dashboard widget placement. `kind` is one of the frontend `WidgetKind` strings.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
@@ -134,6 +142,8 @@ pub struct WidgetConfig {
     pub clock_style: Option<String>,
     pub size: Option<String>,
     pub show_lyrics: Option<bool>,
+    /// The grid cell the user dropped this widget into; absent means flow order.
+    pub slot: Option<WidgetSlot>,
 }
 
 /// A connected web app (WhatsApp Web, Gmail, …) surfaced in the notch.

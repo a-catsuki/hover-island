@@ -2,12 +2,13 @@ import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-j
 import { Music, Pause, Play, SkipBack, SkipForward } from 'lucide-solid'
 import { mediaControl, mediaBusy, mediaError, nowPlaying } from '../../state/media'
 import { patchSettings, settings } from '../../state/settings'
-import type { LyricsLine, NowPlaying, WidgetConfig } from '../../lib/ipc'
+import type { LyricsLine, WidgetConfig } from '../../lib/ipc'
 import Visualizer from './Visualizer'
 import { normalizeVisualizerStyle, VISUALIZER_STYLES } from '../../lib/visualizerStyles'
 import './MediaView.css'
 import { open } from '../../state/ui'
-import { audioCaptureStatus } from '../../state/audio'
+import { audioCaptureStatus, audioSpectrum } from '../../state/audio'
+import { isMeaningfulSpectrum } from '../../lib/audioMetrics'
 import { syntheticAudioSpectrum } from '../../lib/syntheticAudioPreview'
 import { browserPreview, cmd } from '../../lib/ipc'
 
@@ -151,12 +152,13 @@ export default function MediaView(props: {
   const visualizationMode = () => {
     if (settings.visualizer.style === 'off') return 'Off'
     if (syntheticAudioSpectrum()) return 'Synthetic preview'
-    if (audioCaptureStatus() === 'active') return 'System audio · live'
+    if (audioCaptureStatus() === 'active') return isMeaningfulSpectrum(audioSpectrum()) ? 'System audio · live' : 'Listening for sound'
+    if (audioCaptureStatus() === 'starting') return 'Connecting to audio'
     if (audioCaptureStatus() === 'error') return 'Ambient · audio unavailable'
-    return 'Ambient motion'
+    return 'Ready for system audio'
   }
 
-  const Visualization = (p: { current: NowPlaying; compact?: boolean }) => (
+  const Visualization = (p: { title?: string; compact?: boolean }) => (
     <>
       <div class="media__viz" classList={{ 'media__viz--tile': p.compact }}>
         <div class="media__viz-stage" classList={{
@@ -164,7 +166,7 @@ export default function MediaView(props: {
           'media__viz-stage--ambient': settings.visualizer.style === 'ambient',
         }}>
           <Visualizer
-            title={p.current.title || 'Now playing'}
+            title={p.title || 'System audio'}
             style={settings.visualizer.style}
             intensity={settings.visualizer.intensity}
             reactivity={settings.visualizer.reactivity}
@@ -252,9 +254,12 @@ export default function MediaView(props: {
       <Show
         when={active()}
         fallback={
-          <div class="widget__empty media__empty-tile">
+          <div class="media media--tile widget__empty media__empty-tile">
             <Music class="icon" strokeWidth={1.5} aria-hidden="true" />
             <span>Nothing playing right now.</span>
+            <Show when={open() && settings.modules.visualizer}>
+              <Visualization compact />
+            </Show>
           </div>
         }
       >
@@ -289,8 +294,8 @@ export default function MediaView(props: {
                 data-no-drag
               >{props.showLyrics ? 'Lyrics on' : 'Show lyrics'}</button>
             </Show>
-            <Show when={open() && settings.modules.visualizer && current().status === 'playing'}>
-              <Visualization current={current()} compact />
+            <Show when={open() && settings.modules.visualizer}>
+              <Visualization title={current().title} compact />
             </Show>
             <Show when={lyricsEnabled()}>
               <section class="media__lyrics" aria-label="Synchronized lyrics">
@@ -340,6 +345,9 @@ export default function MediaView(props: {
             </div>
             <h2>Give your day a soundtrack.</h2>
             <p>Play something in Spotify, your browser, or another Windows media app.</p>
+            <Show when={open() && settings.modules.visualizer}>
+              <Visualization />
+            </Show>
           </div>
         }
       >
@@ -371,8 +379,8 @@ export default function MediaView(props: {
                 {mediaError()}
               </p>
             </Show>
-            <Show when={open() && settings.modules.visualizer && current().status === 'playing'}>
-              <Visualization current={current()} />
+            <Show when={open() && settings.modules.visualizer}>
+              <Visualization title={current().title} />
             </Show>
             <Show when={lyricsEnabled()}>
               <section class="media__lyrics" aria-label="Synchronized lyrics">

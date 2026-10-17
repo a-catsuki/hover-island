@@ -264,12 +264,11 @@ fn default_panel(kind: &str) -> &'static str {
 
 const MAX_PANEL_COUNT: usize = 128;
 
-/// Split enabled widgets into pages that fit the narrowest one-column grid.
-/// `calendar`, like the other full-height widgets, owns both available rows.
+/// Split enabled widgets into pages using the editor's two-column cell geometry.
 fn flat_panel_groups(widgets: &[WidgetConfig]) -> Vec<Vec<String>> {
     let mut groups = Vec::new();
     let mut group = Vec::new();
-    let mut rows_used = 0usize;
+    let mut occupied = [[false; 2]; 2];
     for widget in widgets
         .iter()
         .filter(|widget| widget.enabled && widget.kind != "airdrop")
@@ -284,19 +283,34 @@ fn flat_panel_groups(widgets: &[WidgetConfig]) -> Vec<Vec<String>> {
                 "compact"
             }
         });
-        let full = minimum_full || size == "full";
-        let rows = if full { 2 } else { 1 };
-        if (full && rows_used > 0) || rows_used + rows > 2 {
-            if !group.is_empty() {
-                groups.push(std::mem::take(&mut group));
+        let span_x = if !minimum_full && size == "compact" { 1 } else { 2 };
+        let span_y = if minimum_full || size == "full" { 2 } else { 1 };
+        let mut target = None;
+        for row in 0..=2 - span_y {
+            for column in 0..=2 - span_x {
+                let free = (row..row + span_y).all(|y| {
+                    (column..column + span_x).all(|x| !occupied[y][x])
+                });
+                if free {
+                    target = Some((row, column));
+                    break;
+                }
             }
-            rows_used = 0;
+            if target.is_some() { break; }
         }
-        group.push(widget.id.clone());
-        rows_used += rows;
-        if rows_used == 2 {
+        if target.is_none() && !group.is_empty() {
             groups.push(std::mem::take(&mut group));
-            rows_used = 0;
+            occupied = [[false; 2]; 2];
+            target = Some((0, 0));
+        }
+        let Some((row, column)) = target else { continue; };
+        group.push(widget.id.clone());
+        for y in row..row + span_y {
+            for x in column..column + span_x { occupied[y][x] = true; }
+        }
+        if occupied.iter().all(|line| line.iter().all(|cell| *cell)) {
+            groups.push(std::mem::take(&mut group));
+            occupied = [[false; 2]; 2];
         }
     }
     if !group.is_empty() {
@@ -380,6 +394,7 @@ fn default_widgets() -> Vec<WidgetConfig> {
         clock_style: None,
         size: None,
         show_lyrics: None,
+        slot: None,
     })
     .collect()
 }
@@ -635,9 +650,33 @@ impl Settings {
             } else {
                 None
             };
+            widget.slot = widget
+                .slot
+                .filter(|slot| (1..=2).contains(&slot.row) && (1..=2).contains(&slot.column));
         }
-        // Convert overflow from legacy paginated panels into ordinary named panels.
+        // Fold untouched generated overflow labels back into their base page so
+        // saved state can be repacked with current two-column geometry.
         // Disabled widgets stay assigned to their visible panel and are never discarded.
+        let auto_pages: Vec<_> = self.panel_order.iter().filter_map(|id| {
+            self.panels.iter().filter(|(base, _)| !base.starts_with("overflow-"))
+                .filter_map(|(base, title)| {
+                    let prefix = format!("overflow-{base}-");
+                    let suffix = id.strip_prefix(&prefix)?;
+                    let parts: Vec<_> = suffix.split('-').collect();
+                    if parts.is_empty() || parts.iter().any(|part| part.parse::<usize>().is_err()) {
+                        return None;
+                    }
+                    let expected = format!("{} {}", title, parts[0]);
+                    (self.panels.get(id) == Some(&expected)).then(|| (id.clone(), base.clone()))
+                }).max_by_key(|(_, base)| base.len())
+        }).collect();
+        for (id, base) in auto_pages {
+            for widget in &mut self.widgets {
+                if widget.panel.as_deref() == Some(id.as_str()) { widget.panel = Some(base.clone()); }
+            }
+            self.panels.remove(&id);
+            self.panel_order.retain(|panel| panel != &id);
+        }
         let roots = self.panel_order.clone();
         for root in roots {
             let mut members: Vec<_> = self
@@ -895,6 +934,7 @@ mod tests {
                 clock_style: None,
                 size: None,
                 show_lyrics: None,
+                slot: None,
             })
             .collect();
         let settings = Settings {
@@ -906,7 +946,9 @@ mod tests {
         .validated();
 
         assert_eq!(settings.widgets.len(), 7);
-        assert!(settings.panel_order.len() >= 4);
+        // Seven compact tiles fill two 2x2 pages, so the migration must have
+        // split them across an overflow page in addition to the original one.
+        assert!(settings.panel_order.len() >= 2);
         for panel in &settings.panel_order {
             let members: Vec<_> = settings
                 .widgets
@@ -928,6 +970,41 @@ mod tests {
     }
 
     #[test]
+    fn validation_repacks_generated_today_pages_into_the_editor_two_by_two_grid() {
+        let make = |id: &str, kind: &str, order: i32, panel: &str, size: Option<&str>| WidgetConfig {
+            id: id.into(), kind: kind.into(), enabled: true, order, panel: Some(panel.into()),
+            clock_style: None, size: size.map(str::to_string), show_lyrics: None, slot: None,
+        };
+        let settings = Settings {
+            panels: BTreeMap::from([
+                ("today".into(), "Today".into()),
+                ("overflow-today-2".into(), "Today 2".into()),
+                ("overflow-today-2-2".into(), "Today 2".into()),
+                ("overflow-today-2-2-2".into(), "Today 2".into()),
+            ]),
+            panel_order: vec!["today".into(), "overflow-today-2".into(), "overflow-today-2-2".into(), "overflow-today-2-2-2".into()],
+            widgets: vec![
+                make("media", "media", 0, "today", Some("compact")),
+                make("weather", "weather", 1, "overflow-today-2", Some("wide")),
+                make("focus", "focus", 2, "overflow-today-2-2", Some("compact")),
+                make("calendar", "calendar", 3, "overflow-today-2-2-2", None),
+            ],
+            ..Settings::default()
+        }.validated();
+
+        assert_eq!(settings.panel_order, vec!["today", "overflow-today-2"]);
+        for id in ["media", "weather", "focus"] {
+            assert_eq!(settings.widgets.iter().find(|widget| widget.id == id).unwrap().panel.as_deref(), Some("today"));
+        }
+        assert_eq!(settings.widgets.iter().find(|widget| widget.id == "calendar").unwrap().panel.as_deref(), Some("overflow-today-2"));
+        let members: Vec<_> = settings.widgets.iter().filter(|widget| widget.panel.as_deref() == Some("today")).cloned().collect();
+        assert_eq!(flat_panel_groups(&members), vec![vec!["media".to_string(), "weather".to_string(), "focus".to_string()]]);
+        let stable = settings.clone().validated();
+        assert_eq!(stable.panel_order, settings.panel_order);
+        assert_eq!(stable.widgets.iter().map(|widget| widget.panel.clone()).collect::<Vec<_>>(), settings.widgets.iter().map(|widget| widget.panel.clone()).collect::<Vec<_>>());
+    }
+
+    #[test]
     fn validation_preserves_supported_late_added_widget_kinds() {
         let settings = Settings {
             widgets: ["focus", "system", "airdrop", "web-alerts", "not-real"]
@@ -942,6 +1019,7 @@ mod tests {
                     clock_style: None,
                     size: None,
                     show_lyrics: None,
+                    slot: None,
                 })
                 .collect(),
             ..Settings::default()

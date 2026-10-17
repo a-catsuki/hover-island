@@ -7,9 +7,10 @@ import { openSpotlight } from '../../state/spotlight'
 import { feedback, dismissFeedback, reportError } from '../../state/feedback'
 import { acknowledgePendingAlert, dismissPeek } from '../../state/peek'
 import { WIDGETS } from '../widgets/registry'
-import { widgetPanel, moveToPanel, type PanelId } from '../../lib/panels'
+import { widgetPanel, type PanelId } from '../../lib/panels'
 import { moveWidgetBefore, moveWidget } from '../../settings/widgetOrder'
 import { crossedWidgetDragThreshold, widgetPointerDropTarget, widgetPointerReleaseTarget, type WidgetPointerDropTarget } from '../../lib/widgetPointerDrag'
+import { clearWidgetSlot, firstFreeCell, placeWidgetAtCell, swapWidgetCells } from '../../lib/widgetPlacement'
 import { activePanel, setActivePanel, showFileBucket, showControls, widgetRequest, detailRequest } from '../../state/panel'
 import { widgetPages } from '../../lib/widgetPages'
 import FirstRunTour from './FirstRunTour'
@@ -54,6 +55,9 @@ export default function ExpandedPanel() {
   let pointerDrag: { pointerId: number; sourceId: string; start: { x: number; y: number }; element: HTMLElement; started: boolean } | undefined
   const all = createMemo(() => [...settings.widgets].filter(widget => widget.enabled && widget.kind !== 'airdrop').sort((a,b) => a.order-b.order))
   const panelWidgets = createMemo(() => all().filter(widget => widgetPanel(widget, settings.panelOrder) === panel()))
+  const membersOf = (id: PanelId) => [...settings.widgets]
+    .filter(widget => widget.enabled && widget.kind !== 'airdrop' && widgetPanel(widget, settings.panelOrder) === id)
+    .sort((a, b) => a.order - b.order)
   const slotsForPanel = createMemo(() => widgetPages(panelWidgets(), columns())[0] ?? [])
   const slots = slotsForPanel
   const visible = () => slots().map(slot => slot.widget)
@@ -92,6 +96,27 @@ export default function ExpandedPanel() {
     ;[ordered[from],ordered[to]] = [ordered[to],ordered[from]]
     commit(ordered.map((widget, order) => ({...widget,order})))
   }
+  /** Shared outcome for both drop paths: same-panel equal-size tiles trade
+      cells, otherwise the source is inserted before the target and flows. */
+  const settleDrop = (sourceId: string, targetPanel: PanelId, targetId?: string) => {
+    const source = settings.widgets.find(widget => widget.id === sourceId)
+    if (!source) return
+    if (targetId && targetId !== sourceId) {
+      const samePanel = widgetPanel(source, settings.panelOrder) === targetPanel
+      if (samePanel) {
+        const swapped = swapWidgetCells(membersOf(targetPanel), sourceId, targetId)
+        const swappedById = swapped && new Map(swapped.map(widget => [widget.id, widget]))
+        commit(swappedById
+          ? settings.widgets.map(widget => swappedById.get(widget.id) ?? widget)
+          : clearWidgetSlot(moveWidgetBefore(settings.widgets, sourceId, targetId), sourceId))
+        return
+      }
+      const reassigned = settings.widgets.map(widget => widget.id === sourceId ? { ...widget, panel: targetPanel, slot: undefined } : widget)
+      commit(moveWidgetBefore(reassigned, sourceId, targetId))
+      return
+    }
+    commit(placeWidgetAtCell(settings.widgets, sourceId, targetPanel, firstFreeCell(membersOf(targetPanel).filter(widget => widget.id !== sourceId))))
+  }
   // HTML5 drag remains a browser-preview compatibility path only. Native
   // desktop builds use pointer capture because Tauri owns OS file dragging.
   const previewDrop = (event: DragEvent, target?: string, targetPanel = panel()) => {
@@ -99,8 +124,7 @@ export default function ExpandedPanel() {
     event.preventDefault()
     const id = event.dataTransfer?.getData('text/plain') || dragged()
     if (!arranging() || !id || !settings.widgets.some(widget => widget.id === id)) return
-    const reassigned = moveToPanel(settings.widgets, id, targetPanel)
-    commit(target ? moveWidgetBefore(reassigned, id, target) : reassigned)
+    settleDrop(id, targetPanel, target)
     setDragged(null); setOver(null); setPanel(targetPanel)
   }
   const pointerTargetAt = (x: number, y: number, sourceId: string): WidgetPointerDropTarget => {
@@ -149,8 +173,7 @@ export default function ExpandedPanel() {
     const targetWidget = target.kind === 'widget' ? settings.widgets.find(widget => widget.id === target.id) : undefined
     if (target.kind === 'widget' && !targetWidget) return
     const targetPanel = target.kind === 'panel' ? target.id as PanelId : widgetPanel(targetWidget!, settings.panelOrder)
-    const reassigned = moveToPanel(settings.widgets, session.sourceId, targetPanel)
-    commit(target.kind === 'widget' ? moveWidgetBefore(reassigned, session.sourceId, target.id) : reassigned)
+    settleDrop(session.sourceId, targetPanel, target.kind === 'widget' ? target.id : undefined)
     setPanel(targetPanel)
   }
   const cancelWidgetPointerDrag = (event: PointerEvent) => {
@@ -233,7 +256,7 @@ export default function ExpandedPanel() {
     <Show when={feedback()}><div class="feedback" role="alert"><span>{feedback()}</span><button class="icon-button" aria-label="Dismiss error" onClick={dismissFeedback}><X size={14}/></button></div></Show>
     <main ref={body} class="panel__body" id="island-content" role="tabpanel" aria-labelledby={'panel-tab-'+panel()} classList={{'panel__body--tutorial':onboardingOpen()}}>
       <FirstRunTour/>
-      <Show when={arranging()}><p class="arrange-hint"><GripVertical size={13}/>Drag a widget to reorder, or drop it on a panel above.</p></Show>
+      <Show when={arranging()}><p class="arrange-hint"><GripVertical size={13}/>Drag a widget onto another widget to trade places, or onto a panel tab to move it across pages.</p></Show>
       <div ref={grid} class={'widget-grid widget-grid--' + panel()} style={{'--grid-columns':columns()}} classList={{ 'widget-grid--arranging': arranging() }} inert={onboardingOpen()}>
         <For each={visible()}>{widget => {
           const slot = () => slots().find(item => item.widget.id === widget.id) ?? {column:1,row:1,columns:1,rows:1}

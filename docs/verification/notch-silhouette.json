@@ -1,0 +1,96 @@
+{
+  "testedAt": "2026-10-17T09:10:13.500Z",
+  "masks": [
+    {
+      "edge": "top",
+      "w": 256,
+      "h": 36,
+      "mismatch": 0,
+      "filled": 9174
+    },
+    {
+      "edge": "top",
+      "w": 320,
+      "h": 38,
+      "mismatch": 0,
+      "filled": 12114
+    },
+    {
+      "edge": "top",
+      "w": 384,
+      "h": 42,
+      "mismatch": 2,
+      "filled": 16071
+    },
+    {
+      "edge": "bottom",
+      "w": 256,
+      "h": 36,
+      "mismatch": 0,
+      "filled": 9174
+    },
+    {
+      "edge": "bottom",
+      "w": 320,
+      "h": 38,
+      "mismatch": 0,
+      "filled": 12114
+    },
+    {
+      "edge": "bottom",
+      "w": 384,
+      "h": 42,
+      "mismatch": 0,
+      "filled": 16070
+    },
+    {
+      "edge": "left",
+      "w": 56,
+      "h": 144,
+      "mismatch": 0,
+      "filled": 7980
+    },
+    {
+      "edge": "left",
+      "w": 56,
+      "h": 144,
+      "mismatch": 0,
+      "filled": 7980
+    },
+    {
+      "edge": "left",
+      "w": 56,
+      "h": 144,
+      "mismatch": 0,
+      "filled": 7980
+    },
+    {
+      "edge": "right",
+      "w": 56,
+      "h": 144,
+      "mismatch": 0,
+      "filled": 7980
+    },
+    {
+      "edge": "right",
+      "w": 56,
+      "h": 144,
+      "mismatch": 0,
+      "filled": 7980
+    },
+    {
+      "edge": "right",
+      "w": 56,
+      "h": 144,
+      "mismatch": 0,
+      "filled": 7980
+    }
+  ],
+  "resting": {
+    "clip": "path(\"M 240 0 L 560 0 C 560 13.3 560 13.3 560 27.36 C 560 33.24 555.24 38 549.36 38 L 250.64 38 C 244.76 38 240 33.24 240 27.36 C 240 13.3 240 13.3 240 0 Z\")",
+    "black": "rgb(0, 0, 0)",
+    "opacity": "1"
+  },
+  "pageErrors": [],
+  "boundary": "Rendered production shape helper and real shell in browser; native placement tested separately."
+}

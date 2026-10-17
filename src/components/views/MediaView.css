@@ -265,6 +265,18 @@
   color: var(--text-3);
   margin: 0;
 }
+.media__empty .media__viz {
+  width: min(100%, 420px);
+  height: 68px;
+  flex: none;
+  margin-top: 14px;
+}
+.media__empty-tile .media__viz--tile {
+  width: 100%;
+  height: 38px;
+  flex: none;
+  margin-top: 2px;
+}
 .media__lyrics {
   position: relative;
   z-index: 1;

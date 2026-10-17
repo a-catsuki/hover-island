@@ -1,0 +1,9 @@
+{
+  "capturedAt": "2026-10-16T08:21:44.9165614Z",
+  "testSignal": "four-tone WAV generated in memory; amplitude 0.003",
+  "packets": 0,
+  "maxBand": 0.0,
+  "bands": null,
+  "source": "WASAPI default render endpoint; numeric spectrum only",
+  "noPrivateMetadata": true
+}

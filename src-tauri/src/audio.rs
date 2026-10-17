@@ -11,9 +11,9 @@ use std::time::{Duration, Instant};
 use tauri::Emitter;
 use windows::core::GUID;
 use windows::Win32::Media::Audio::{
-    eCommunications, eConsole, eMultimedia, eRender, IAudioCaptureClient, IAudioClient, IMMDevice,
-    IMMDeviceEnumerator, MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
-    AUDCLNT_STREAMFLAGS_LOOPBACK, WAVEFORMATEX,
+    eCommunications, eConsole, eMultimedia, eRender, ERole, IAudioCaptureClient, IAudioClient,
+    IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT,
+    AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, WAVEFORMATEX,
 };
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_MULTITHREADED,
@@ -25,6 +25,7 @@ const DEVICE_POLL_INTERVAL: Duration = Duration::from_millis(500);
 const REOPEN_DELAY: Duration = Duration::from_millis(250);
 const SPECTRUM_EVENT: &str = "audio://spectrum";
 const ERROR_EVENT: &str = "audio://spectrum-error";
+const READY_EVENT: &str = "audio://capture-ready";
 
 static RUNNER: Mutex<Option<Arc<AtomicBool>>> = Mutex::new(None);
 
@@ -98,209 +99,341 @@ fn summarize_error(error: String) -> String {
     one_line.chars().take(MAX).collect()
 }
 
+fn hresult_error(context: &str, error: windows::core::Error) -> String {
+    format!("{context} (HRESULT 0x{:08X})", error.code().0 as u32)
+}
+
+/// Open every distinct default render endpoint and re-open whenever the active
+/// device set changes (headset plugged in, default switched in Settings).
 fn capture_loop(app: &tauri::AppHandle, active: &AtomicBool) -> Result<(), String> {
     unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }
-        .map_err(|e| format!("COM initialization failed: {e}"))?;
+        .map_err(|error| hresult_error("COM initialization failed", error))?;
     let _com = ComApartment;
 
     let enumerator: IMMDeviceEnumerator = unsafe {
         CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
-            .map_err(|e| format!("audio device enumeration failed: {e}"))?
+            .map_err(|error| hresult_error("Audio device enumeration failed", error))?
     };
     let mut last_error: Option<String> = None;
-    let mut last_silence = Instant::now();
     while active.load(Ordering::Acquire) {
-        match default_render_endpoint(&enumerator) {
-            Ok((device, endpoint_id)) => {
-                match capture_endpoint(app, active, &enumerator, &device, &endpoint_id) {
-                    Ok(()) => last_error = None,
-                    Err(error) => {
-                        if last_error.as_deref() != Some(error.as_str()) {
-                            let _ = app.emit(ERROR_EVENT, summarize_error(error.clone()));
-                            last_error = Some(error);
-                        }
-                        thread::sleep(REOPEN_DELAY);
-                    }
-                }
-            }
+        let endpoints = match default_render_endpoints(&enumerator) {
+            Ok(endpoints) => endpoints,
             Err(error) => {
                 if last_error.as_deref() != Some(error.as_str()) {
                     let _ = app.emit(ERROR_EVENT, summarize_error(error.clone()));
                     last_error = Some(error);
                 }
-                if last_silence.elapsed() >= Duration::from_millis(42) {
-                    let _ = app.emit(
-                        SPECTRUM_EVENT,
-                        SpectrumPayload {
-                            bands: [0.0; BAND_COUNT],
-                        },
-                    );
-                    last_silence = Instant::now();
-                }
+                emit_zeros(app);
                 thread::sleep(REOPEN_DELAY);
+                continue;
+            }
+        };
+        let expected_ids: Vec<String> = endpoints.iter().map(|(_, id, _)| id.clone()).collect();
+        let mut streams = Vec::with_capacity(endpoints.len());
+        let mut endpoint_error = None;
+        for (device, _, _) in &endpoints {
+            if !active.load(Ordering::Acquire) {
+                break;
+            }
+            match EndpointStream::open(device) {
+                Ok(stream) => streams.push(stream),
+                Err(error) => endpoint_error = Some(error),
             }
         }
+        if streams.is_empty() {
+            if let Some(error) = endpoint_error {
+                if last_error.as_deref() != Some(error.as_str()) {
+                    let _ = app.emit(ERROR_EVENT, summarize_error(error.clone()));
+                    last_error = Some(error);
+                }
+            }
+            emit_zeros(app);
+            thread::sleep(REOPEN_DELAY);
+            continue;
+        }
+        last_error = None;
+        let _ = app.emit(READY_EVENT, ());
+        if let Err(error) = pump_endpoints(app, active, &enumerator, &expected_ids, &mut streams) {
+            if last_error.as_deref() != Some(error.as_str()) {
+                let _ = app.emit(ERROR_EVENT, summarize_error(error.clone()));
+                last_error = Some(error);
+            }
+            emit_zeros(app);
+            thread::sleep(REOPEN_DELAY);
+        }
+        // Dropping `streams` stops every render stream before the next attempt.
     }
     Ok(())
 }
 
-fn default_render_endpoint(
+fn default_render_endpoints(
     enumerator: &IMMDeviceEnumerator,
-) -> Result<(IMMDevice, String), String> {
+) -> Result<Vec<(IMMDevice, String, ERole)>, String> {
+    let mut endpoints = Vec::with_capacity(3);
     for role in [eConsole, eMultimedia, eCommunications] {
         let device = unsafe { enumerator.GetDefaultAudioEndpoint(eRender, role) };
         let Ok(device) = device else { continue };
-        let Ok(native_id) = (unsafe { device.GetId() }) else {
-            continue;
-        };
-        let id = unsafe { native_id.to_string() };
-        unsafe { CoTaskMemFree(Some(native_id.0.cast())) };
-        let Ok(id) = id else { continue };
-        return Ok((device, id));
+        let Ok(id) = get_endpoint_id(&device) else { continue };
+        if !endpoints.iter().any(|(_, known_id, _)| known_id == &id) {
+            endpoints.push((device, id, role));
+        }
     }
-    Err("no default render endpoint is available for Console, Multimedia, or Communications".into())
+    if endpoints.is_empty() {
+        Err("no default render endpoint is available for Console, Multimedia, or Communications".into())
+    } else {
+        Ok(endpoints)
+    }
 }
 
-fn capture_endpoint(
+fn get_endpoint_id(device: &IMMDevice) -> Result<String, String> {
+    let native_id = unsafe { device.GetId() }
+        .map_err(|error| hresult_error("Could not read the audio endpoint identity", error))?;
+    let id = unsafe { native_id.to_string() }
+        .map_err(|_| "Could not decode the audio endpoint identity".to_string());
+    unsafe { CoTaskMemFree(Some(native_id.0.cast())) };
+    id
+}
+
+/// One open shared-mode loopback capture for a single default render endpoint.
+struct EndpointStream {
+    _running: RunningStream,
+    capture: IAudioCaptureClient,
+    samples: Vec<f32>,
+    sample_rate: f32,
+    channels: usize,
+    bytes_per_sample: usize,
+    frame_bytes: usize,
+    sample_format: SampleFormat,
+    last_packet_at: Instant,
+    packets_seen: usize,
+    frames_seen: usize,
+}
+
+impl EndpointStream {
+    fn open(device: &IMMDevice) -> Result<Self, String> {
+        let client: IAudioClient = unsafe {
+            device
+                .Activate(CLSCTX_ALL, None)
+                .map_err(|error| hresult_error("Could not open default audio output", error))?
+        };
+        let format = unsafe {
+            client
+                .GetMixFormat()
+                .map_err(|error| hresult_error("Could not read the audio output format", error))?
+        };
+        if format.is_null() {
+            return Err("Windows returned an empty audio output format".into());
+        }
+        let fmt = unsafe { format.read_unaligned() };
+        let sample_format = match unsafe { sample_format(format, &fmt) } {
+            Ok(format) => format,
+            Err(error) => {
+                unsafe { CoTaskMemFree(Some(format.cast())) };
+                return Err(error);
+            }
+        };
+        let channels = usize::from(fmt.nChannels);
+        let bytes_per_sample = usize::from(fmt.wBitsPerSample / 8);
+        let sample_format_supported = match sample_format {
+            SampleFormat::Float => fmt.wBitsPerSample == 32,
+            SampleFormat::Pcm => matches!(fmt.wBitsPerSample, 16 | 24 | 32),
+        };
+        if channels == 0
+            || bytes_per_sample == 0
+            || !sample_format_supported
+            || fmt.nBlockAlign == 0
+            || usize::from(fmt.nBlockAlign) < channels * bytes_per_sample
+            || fmt.nSamplesPerSec == 0
+        {
+            unsafe { CoTaskMemFree(Some(format.cast())) };
+            return Err("Windows returned an unsupported audio output format".into());
+        }
+        let sample_rate = fmt.nSamplesPerSec as f32;
+        let frame_bytes = usize::from(fmt.nBlockAlign);
+
+        let init_result = unsafe {
+            client.Initialize(
+                AUDCLNT_SHAREMODE_SHARED,
+                AUDCLNT_STREAMFLAGS_LOOPBACK,
+                1_000_000,
+                0,
+                format,
+                None,
+            )
+        };
+        unsafe { CoTaskMemFree(Some(format.cast())) };
+        init_result
+            .map_err(|error| hresult_error("Could not initialize system audio loopback", error))?;
+
+        let capture: IAudioCaptureClient = unsafe {
+            client.GetService().map_err(|error| {
+                hresult_error("Could not open the system audio capture stream", error)
+            })?
+        };
+        unsafe {
+            client
+                .Start()
+                .map_err(|error| hresult_error("Could not start system audio loopback", error))?;
+        }
+        Ok(Self {
+            _running: RunningStream(client),
+            capture,
+            samples: Vec::with_capacity(FFT_SIZE),
+            sample_rate,
+            channels,
+            bytes_per_sample,
+            frame_bytes,
+            sample_format,
+            last_packet_at: Instant::now(),
+            packets_seen: 0,
+            frames_seen: 0,
+        })
+    }
+
+    /// Drain every queued packet into the rolling FFT window. Each call is
+    /// bounded so one busy endpoint cannot starve the others.
+    fn drain(&mut self) -> Result<(), String> {
+        for _ in 0..32 {
+            let packet = unsafe { self.capture.GetNextPacketSize() }
+                .map_err(|error| hresult_error("System audio capture failed", error))?;
+            if packet == 0 {
+                break;
+            }
+            let mut data = std::ptr::null_mut();
+            let mut frames = 0u32;
+            let mut flags = 0u32;
+            unsafe {
+                self.capture
+                    .GetBuffer(&mut data, &mut frames, &mut flags, None, None)
+                    .map_err(|error| hresult_error("Could not read system audio samples", error))?;
+            }
+            if flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32 == 0 && !data.is_null() {
+                let bytes = frames as usize * self.frame_bytes;
+                let raw = unsafe { std::slice::from_raw_parts(data, bytes) };
+                // Keep only the newest FFT window from each packet instead of
+                // shifting the sample Vec frame by frame at audio rate.
+                let skip = (frames as usize).saturating_sub(FFT_SIZE);
+                for frame in raw.chunks_exact(self.frame_bytes).skip(skip) {
+                    let mut sum = 0.0f32;
+                    for channel in 0..self.channels {
+                        let begin = channel * self.bytes_per_sample;
+                        sum += decode_sample(
+                            &frame[begin..begin + self.bytes_per_sample],
+                            self.sample_format,
+                        );
+                    }
+                    self.samples.push(sum / self.channels as f32);
+                }
+                if self.samples.len() > FFT_SIZE {
+                    self.samples.drain(..self.samples.len() - FFT_SIZE);
+                }
+            } else {
+                let silence_frames = (frames as usize).min(FFT_SIZE);
+                self.samples
+                    .extend(std::iter::repeat(0.0).take(silence_frames));
+                if self.samples.len() > FFT_SIZE {
+                    self.samples.drain(..self.samples.len() - FFT_SIZE);
+                }
+            }
+            unsafe {
+                self.capture.ReleaseBuffer(frames).map_err(|error| {
+                    hresult_error("Could not release the audio capture buffer", error)
+                })?;
+            }
+            self.packets_seen += 1;
+            self.frames_seen += frames as usize;
+            self.last_packet_at = Instant::now();
+        }
+        Ok(())
+    }
+
+    /// The newest measured bands while this endpoint is still actively
+    /// rendering. A short packet gap holds the last frame instead of flickering.
+    fn frame(&mut self) -> Option<[f32; BAND_COUNT]> {
+        if self.samples.len() < FFT_SIZE
+            || self.last_packet_at.elapsed() >= Duration::from_millis(160)
+        {
+            return None;
+        }
+        Some(spectrum(
+            &self.samples[self.samples.len() - FFT_SIZE..],
+            self.sample_rate,
+        ))
+    }
+
+    fn peak(&self) -> f32 {
+        self.samples
+            .iter()
+            .fold(0.0f32, |peak, sample| peak.max(sample.abs()))
+    }
+}
+
+fn emit_zeros(app: &tauri::AppHandle) {
+    let _ = app.emit(
+        SPECTRUM_EVENT,
+        SpectrumPayload {
+            bands: [0.0; BAND_COUNT],
+        },
+    );
+}
+
+/// The distinct endpoint ids currently selected for the three render roles.
+fn current_default_ids(enumerator: &IMMDeviceEnumerator) -> Vec<String> {
+    let mut ids = Vec::with_capacity(3);
+    for role in [eConsole, eMultimedia, eCommunications] {
+        let Ok(device) = (unsafe { enumerator.GetDefaultAudioEndpoint(eRender, role) }) else {
+            continue;
+        };
+        let Ok(id) = get_endpoint_id(&device) else { continue };
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+    ids
+}
+
+/// Merge the spectra of every open endpoint. Windows keeps separate defaults for
+/// the Console, Multimedia and Communications roles, and apps can render to
+/// different devices at once, so a single capture could sit on a silent device
+/// while music plays elsewhere. Bands are combined by per-band peak: only one
+/// endpoint usually carries playback, and the quiet one must not dilute it.
+fn pump_endpoints(
     app: &tauri::AppHandle,
     active: &AtomicBool,
     enumerator: &IMMDeviceEnumerator,
-    device: &IMMDevice,
-    endpoint_id: &str,
+    expected_ids: &[String],
+    streams: &mut [EndpointStream],
 ) -> Result<(), String> {
-    let client: IAudioClient = unsafe {
-        device
-            .Activate(CLSCTX_ALL, None)
-            .map_err(|e| format!("could not open default audio output: {e}"))?
-    };
-    let format = unsafe {
-        client
-            .GetMixFormat()
-            .map_err(|e| format!("could not read audio output format: {e}"))?
-    };
-    if format.is_null() {
-        return Err("Windows returned an empty audio output format".into());
-    }
-    let fmt = unsafe { format.read_unaligned() };
-    let sample_format = match unsafe { sample_format(format, &fmt) } {
-        Ok(format) => format,
-        Err(error) => {
-            unsafe { CoTaskMemFree(Some(format.cast())) };
-            return Err(error);
-        }
-    };
-    let channels = usize::from(fmt.nChannels);
-    let bytes_per_sample = usize::from(fmt.wBitsPerSample / 8);
-    let sample_format_supported = match sample_format {
-        SampleFormat::Float => fmt.wBitsPerSample == 32,
-        SampleFormat::Pcm => matches!(fmt.wBitsPerSample, 16 | 24 | 32),
-    };
-    if channels == 0
-        || bytes_per_sample == 0
-        || !sample_format_supported
-        || fmt.nBlockAlign == 0
-        || usize::from(fmt.nBlockAlign) < channels * bytes_per_sample
-        || fmt.nSamplesPerSec == 0
-    {
-        unsafe { CoTaskMemFree(Some(format.cast())) };
-        return Err("Windows returned an unsupported audio output format".into());
-    }
-    let sample_rate = fmt.nSamplesPerSec as f32;
-    let frame_bytes = usize::from(fmt.nBlockAlign);
-
-    let init_result = unsafe {
-        client.Initialize(
-            AUDCLNT_SHAREMODE_SHARED,
-            AUDCLNT_STREAMFLAGS_LOOPBACK,
-            1_000_000,
-            0,
-            format,
-            None,
-        )
-    };
-    unsafe { CoTaskMemFree(Some(format.cast())) };
-    init_result.map_err(|e| format!("could not initialize system audio loopback: {e}"))?;
-
-    let capture: IAudioCaptureClient = unsafe {
-        client
-            .GetService()
-            .map_err(|e| format!("could not open system audio capture stream: {e}"))?
-    };
-    unsafe {
-        client
-            .Start()
-            .map_err(|e| format!("could not start system audio loopback: {e}"))?;
-    }
-    let _running_stream = RunningStream(client.clone());
-    let mut samples = Vec::with_capacity(FFT_SIZE);
     let mut last_emit = Instant::now();
     let mut last_device_check = Instant::now();
     while active.load(Ordering::Acquire) {
         if last_device_check.elapsed() >= DEVICE_POLL_INTERVAL {
             last_device_check = Instant::now();
-            match default_render_endpoint(enumerator) {
-                Ok((_, current_id)) if current_id == endpoint_id => {}
-                _ => return Ok(()),
+            let current = current_default_ids(enumerator);
+            if current.len() != expected_ids.len()
+                || expected_ids.iter().any(|id| !current.contains(id))
+            {
+                return Ok(());
             }
         }
-        let packet = unsafe { capture.GetNextPacketSize() }
-            .map_err(|e| format!("system audio capture failed: {e}"))?;
-        if packet == 0 {
-            thread::sleep(Duration::from_millis(6));
-            if last_emit.elapsed() >= Duration::from_millis(42) {
-                let _ = app.emit(
-                    SPECTRUM_EVENT,
-                    SpectrumPayload {
-                        bands: [0.0; BAND_COUNT],
-                    },
-                );
-                last_emit = Instant::now();
-            }
-            continue;
+        for stream in streams.iter_mut() {
+            stream.drain()?;
         }
-        let mut data = std::ptr::null_mut();
-        let mut frames = 0u32;
-        let mut flags = 0u32;
-        unsafe {
-            capture
-                .GetBuffer(&mut data, &mut frames, &mut flags, None, None)
-                .map_err(|e| format!("could not read system audio samples: {e}"))?;
-        }
-        if flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32 == 0 && !data.is_null() {
-            let bytes = frames as usize * frame_bytes;
-            let raw = unsafe { std::slice::from_raw_parts(data, bytes) };
-            // Keep only the newest FFT window from each packet. Draining a Vec for
-            // every individual frame needlessly shifted 512 samples at audio rate.
-            let skip = (frames as usize).saturating_sub(FFT_SIZE);
-            for frame in raw.chunks_exact(frame_bytes).skip(skip) {
-                let mut sum = 0.0f32;
-                for channel in 0..channels {
-                    let begin = channel * bytes_per_sample;
-                    sum += decode_sample(&frame[begin..begin + bytes_per_sample], sample_format);
+        if last_emit.elapsed() >= Duration::from_millis(42) {
+            let mut bands = [0.0f32; BAND_COUNT];
+            for stream in streams.iter_mut() {
+                if let Some(frame) = stream.frame() {
+                    for (target, value) in bands.iter_mut().zip(frame) {
+                        if value > *target {
+                            *target = value;
+                        }
+                    }
                 }
-                samples.push(sum / channels as f32);
             }
-            if samples.len() > FFT_SIZE {
-                samples.drain(..samples.len() - FFT_SIZE);
-            }
-        } else {
-            let silence_frames = (frames as usize).min(FFT_SIZE);
-            samples.extend(std::iter::repeat(0.0).take(silence_frames));
-            if samples.len() > FFT_SIZE {
-                samples.drain(..samples.len() - FFT_SIZE);
-            }
-        }
-        unsafe {
-            capture
-                .ReleaseBuffer(frames)
-                .map_err(|e| format!("could not release audio capture buffer: {e}"))?;
-        }
-
-        if samples.len() >= FFT_SIZE && last_emit.elapsed() >= Duration::from_millis(42) {
-            let bands = spectrum(&samples[samples.len() - FFT_SIZE..], sample_rate);
             let _ = app.emit(SPECTRUM_EVENT, SpectrumPayload { bands });
             last_emit = Instant::now();
         }
+        thread::sleep(Duration::from_millis(6));
     }
     Ok(())
 }
@@ -538,120 +671,69 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "reads current system render loopback for one second; does not start audio playback"]
+    #[ignore = "reads every current system render loopback for one second; does not start audio playback"]
     fn default_render_loopback_opens_reads_and_stops() {
         unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.expect("initialize COM");
         let _com = ComApartment;
         let enumerator: IMMDeviceEnumerator = unsafe {
             CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).expect("create enumerator")
         };
-        let device = unsafe {
-            enumerator
-                .GetDefaultAudioEndpoint(eRender, eMultimedia)
-                .expect("get default render endpoint")
-        };
-        let client: IAudioClient = unsafe {
-            device
-                .Activate(CLSCTX_ALL, None)
-                .expect("activate default render endpoint")
-        };
-        let format = unsafe { client.GetMixFormat().expect("get output format") };
-        assert!(!format.is_null(), "default output returned no mix format");
-        let fmt = unsafe { format.read_unaligned() };
-        let sample_format = unsafe { sample_format(format, &fmt) }
-            .expect("default render format should be PCM or IEEE float");
-        let channels = usize::from(fmt.nChannels);
-        let bytes_per_sample = usize::from(fmt.wBitsPerSample / 8);
-        let frame_bytes = usize::from(fmt.nBlockAlign);
-        assert!(
-            channels > 0
-                && bytes_per_sample > 0
-                && frame_bytes >= channels * bytes_per_sample
-                && fmt.nSamplesPerSec > 0
-        );
-        unsafe {
-            client
-                .Initialize(
-                    AUDCLNT_SHAREMODE_SHARED,
-                    AUDCLNT_STREAMFLAGS_LOOPBACK,
-                    1_000_000,
-                    0,
-                    format,
-                    None,
-                )
-                .expect("initialize loopback");
-            CoTaskMemFree(Some(format.cast()));
-        }
-        let capture: IAudioCaptureClient =
-            unsafe { client.GetService().expect("get capture client") };
-        unsafe { client.Start().expect("start loopback") };
-        let _running = RunningStream(client);
-        let deadline = Instant::now() + Duration::from_secs(1);
-        let mut packet_queries = 0usize;
-        let mut packets_read = 0usize;
-        let mut frames_read = 0usize;
-        let mut peak = 0.0f32;
-        let mut samples = Vec::with_capacity(FFT_SIZE);
-        while Instant::now() < deadline {
-            let packet = unsafe { capture.GetNextPacketSize().expect("query loopback packet") };
-            packet_queries += 1;
-            if packet > 0 {
-                let mut data = std::ptr::null_mut();
-                let mut frames = 0u32;
-                let mut flags = 0u32;
-                unsafe {
-                    capture
-                        .GetBuffer(&mut data, &mut frames, &mut flags, None, None)
-                        .expect("read loopback packet");
-                }
-                if flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32 == 0 && !data.is_null() {
-                    let byte_count = frames as usize * frame_bytes;
-                    let raw = unsafe { std::slice::from_raw_parts(data, byte_count) };
-                    for frame in raw.chunks_exact(frame_bytes) {
-                        let mut mixed = 0.0;
-                        for channel in 0..channels {
-                            let begin = channel * bytes_per_sample;
-                            mixed += decode_sample(
-                                &frame[begin..begin + bytes_per_sample],
-                                sample_format,
-                            );
-                        }
-                        let sample = mixed / channels as f32;
-                        peak = peak.max(sample.abs());
-                        samples.push(sample);
-                    }
-                } else {
-                    samples.extend(std::iter::repeat(0.0).take(frames as usize));
-                }
-                frames_read += frames as usize;
-                packets_read += 1;
-                if samples.len() > FFT_SIZE {
-                    samples.drain(..samples.len() - FFT_SIZE);
-                }
-                unsafe {
-                    capture
-                        .ReleaseBuffer(frames)
-                        .expect("release loopback packet");
-                }
+        let endpoints =
+            default_render_endpoints(&enumerator).expect("get default render endpoints");
+        let mut streams = Vec::new();
+        for (device, _, _) in &endpoints {
+            match EndpointStream::open(device) {
+                Ok(stream) => streams.push(stream),
+                Err(error) => println!("loopback endpoint skipped: {error}"),
             }
-            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(
+            !streams.is_empty(),
+            "no default render endpoint could be opened"
+        );
+        let deadline = Instant::now() + Duration::from_millis(1_200);
+        let mut packet_queries = 0usize;
+        while Instant::now() < deadline {
+            for stream in streams.iter_mut() {
+                stream.drain().expect("read loopback packets");
+                packet_queries += 1;
+            }
+            thread::sleep(Duration::from_millis(8));
         }
         assert!(
             packet_queries > 10,
             "loopback read loop did not make progress"
         );
-        let max_band = if samples.len() >= FFT_SIZE {
-            spectrum(
-                &samples[samples.len() - FFT_SIZE..],
-                fmt.nSamplesPerSec as f32,
-            )
-            .into_iter()
-            .fold(0.0f32, f32::max)
-        } else {
-            0.0
-        };
+        let packets_read: usize = streams.iter().map(|stream| stream.packets_seen).sum();
+        let frames_read: usize = streams.iter().map(|stream| stream.frames_seen).sum();
+        let peak = streams
+            .iter()
+            .fold(0.0f32, |peak, stream| peak.max(stream.peak()));
+        let mut bands = [0.0f32; BAND_COUNT];
+        for stream in streams.iter_mut() {
+            // This live probe reads the final window directly instead of using
+            // the emit path's freshness gate.
+            if stream.samples.len() >= FFT_SIZE {
+                let window = spectrum(
+                    &stream.samples[stream.samples.len() - FFT_SIZE..],
+                    stream.sample_rate,
+                );
+                for (target, value) in bands.iter_mut().zip(window) {
+                    if value > *target {
+                        *target = value;
+                    }
+                }
+            }
+        }
+        let max_band = bands.iter().copied().fold(0.0f32, f32::max);
+        let bands_json = bands
+            .iter()
+            .map(|band| format!("{band:.6}"))
+            .collect::<Vec<_>>()
+            .join(",");
         println!(
-            "WASAPI multimedia loopback: packets={packets_read}, frames={frames_read}, sample_peak={peak:.5}, max_band={max_band:.5}; zero levels mean no active system playback during the sample window"
+            "WASAPI default render loopback: endpoints={}, packets={packets_read}, frames={frames_read}, sample_peak={peak:.5}, max_band={max_band:.5}, bands=[{bands_json}]; zero levels mean no active system playback during the sample window",
+            streams.len()
         );
     }
 }

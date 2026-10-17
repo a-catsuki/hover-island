@@ -112,8 +112,8 @@ export default function CollapsedPill() {
               {src => <img src={src()} alt="" draggable={false} />}
             </Show>
           </span>
-          <span class="pill__compact-title" title={media()?.title || 'Nothing playing'}>{activeMedia()?.title || 'Nothing playing'}</span>
-          <Show when={settings.compactMediaControls}>
+          <span class="pill__compact-title" title={activeMedia()?.title || 'Media'}>{activeMedia()?.title || 'Media'}</span>
+          <Show when={settings.compactMediaControls && media()}>
           <span class="pill__compact-controls" onPointerDown={stop}>
             <button type="button" aria-label="Previous track" title="Previous track" disabled={mediaBusy() || !media()?.canSkipPrevious} onClick={event => doMedia(event, 'previous')}><SkipBack size={13}/></button>
             <button type="button" aria-label={media()?.status === 'playing' ? 'Pause' : 'Play'} title={media()?.status === 'playing' ? 'Pause' : 'Play'} disabled={mediaBusy() || (media()?.status === 'playing' ? !media()?.canPause : !media()?.canPlay)} onClick={event => doMedia(event, 'toggle')}>{media()?.status === 'playing' ? <Pause size={14}/> : <Play size={14}/>}</button>

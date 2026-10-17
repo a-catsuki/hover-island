@@ -85,10 +85,8 @@ export default function Visualizer(props: {
     return mix(levels[low] ?? 0, levels[high] ?? 0, at - low)
   }
 
-  // Idle motion keeps every scene alive even with no signal — the "ambient" half.
-  const idleAt = (index: number, time: number) => (Math.sin(time * 1.7 + index * 0.62) * 0.5 + 0.5)
-  const levelAt = (levels: number[], index: number, active: boolean, time: number) =>
-    active ? levels[index] ?? 0 : idleAt(index, time) * 0.16
+  // The quiet state is deliberately static. Only measured bands may animate a scene.
+  const levelAt = (levels: number[], index: number) => levels[index] ?? 0
 
   const roundBar = (x: number, y: number, w: number, h: number, r: number) => {
     if (!ctx) return
@@ -109,7 +107,7 @@ export default function Visualizer(props: {
     ctx.save()
     ctx.fillStyle = gradient
     for (let index = 0; index < BANDS; index++) {
-      const level = levelAt(levels, index, active, time)
+      const level = levelAt(levels, index)
       const height = Math.max(2, level * intensity() * maxHeight)
       const x = side + index * (width + gap)
       // reflection
@@ -144,7 +142,7 @@ export default function Visualizer(props: {
     for (let step = 0; step <= steps; step++) {
       const pos = step / steps
       const base = active ? sample(levels, pos) : 0
-      const breathe = active ? 0 : 0.1 * (Math.sin(pos * Math.PI * 2.2 + time * 1.1) * 0.5 + 0.5)
+      const breathe = 0
       curve.push(clamp(base + breathe, 0, 1))
     }
     const fill = ctx.createLinearGradient(0, cy - amp, 0, cy + amp)
@@ -191,7 +189,7 @@ export default function Visualizer(props: {
     const cx = cssW / 2
     const cy = cssH * 0.52
     const base = Math.min(cssW, cssH) * 0.34
-    const pulse = 1 + Math.sin(time * 1.35) * 0.05 + beatPulse * 0.28 + (active ? energy * 0.35 : 0)
+    const pulse = 1 + (active ? beatPulse * 0.28 + energy * 0.35 : 0)
     ctx.save()
     const glow = ctx.createRadialGradient(cx, cy, 1, cx, cy, base * (2.4 + beatPulse * 0.5))
     glow.addColorStop(0, accent2)
@@ -204,7 +202,7 @@ export default function Visualizer(props: {
     ctx.fill()
     // concentric rings drifting outward forever
     for (let ring = 0; ring < 3; ring++) {
-      const phase = (time * 0.26 + ring / 3) % 1
+      const phase = active ? (time * 0.26 + ring / 3) % 1 : 0.28 + ring * 0.12
       const radius = base * (0.45 + phase * 1.5) * pulse
       ctx.beginPath()
       ctx.arc(cx, cy, radius, 0, Math.PI * 2)
@@ -226,7 +224,7 @@ export default function Visualizer(props: {
     ctx.lineCap = 'round'
     for (let index = 0; index < BANDS; index++) {
       const angle = Math.PI * 0.18 + (index / (BANDS - 1)) * Math.PI * 0.64
-      const len = 4 + levelAt(levels, index, active, time) * intensity() * base * 0.5
+      const len = 4 + levelAt(levels, index) * intensity() * base * 0.5
       ctx.lineWidth = 2.4
       ctx.beginPath()
       ctx.moveTo(cx + Math.cos(angle) * arcR, cy + Math.sin(angle) * arcR)
@@ -246,7 +244,7 @@ export default function Visualizer(props: {
     halo.addColorStop(0, accent2)
     halo.addColorStop(0.4, accent)
     halo.addColorStop(1, 'transparent')
-    ctx.globalAlpha = 0.28 + Math.sin(time * 0.9) * 0.05 + beatPulse * 0.14
+    ctx.globalAlpha = 0.28 + (active ? beatPulse * 0.14 : 0)
     ctx.fillStyle = halo
     ctx.beginPath()
     ctx.arc(cx, cy, radius * 3, 0, Math.PI * 2)
@@ -254,8 +252,8 @@ export default function Visualizer(props: {
     ctx.beginPath()
     for (let step = 0; step <= 96; step++) {
       const angle = (step / 96) * Math.PI * 2
-      const wobble = Math.sin(angle * 6 + time * 0.4) * 0.1
-      const live = levelAt(levels, Math.floor((step / 96) * BANDS) % BANDS, active, time) * 0.42
+      const wobble = active ? Math.sin(angle * 6 + time * 0.4) * 0.1 : 0
+      const live = levelAt(levels, Math.floor((step / 96) * BANDS) % BANDS) * 0.42
       const at = radius * (1 + wobble + live)
       const x = cx + Math.cos(angle) * at
       const y = cy + Math.sin(angle) * at * 0.62
@@ -287,8 +285,8 @@ export default function Visualizer(props: {
       for (let step = 0; step <= 48; step++) {
         const x = (step / 48) * cssW
         const band = Math.min(BANDS - 1, Math.floor(step / 2))
-        const wave = Math.sin((x / cssW) * Math.PI * 2 + time * 0.42 + ribbon * 1.8) * amplitude
-        const y = center + wave + levelAt(levels, band, active, time) * cssH * 0.2
+        const wave = active ? Math.sin((x / cssW) * Math.PI * 2 + time * 0.42 + ribbon * 1.8) * amplitude : 0
+        const y = center + wave + levelAt(levels, band) * cssH * 0.2
         if (step === 0) ctx.moveTo(x, y)
         else ctx.lineTo(x, y)
       }
@@ -311,9 +309,10 @@ export default function Visualizer(props: {
       for (let step = 0; step <= 40; step++) {
         const x = (step / 40) * cssW
         const band = Math.min(BANDS - 1, Math.floor(step / 2))
+        const wave = active ? Math.sin((step / 40) * Math.PI * 2 + time * 0.35 + strand) * cssH * 0.09 : 0
         const y = cssH * (0.24 + strand * 0.17)
-          + Math.sin((step / 40) * Math.PI * 2 + time * 0.35 + strand) * cssH * 0.09
-          + levelAt(levels, band, active, time) * cssH * 0.22
+          + wave
+          + levelAt(levels, band) * cssH * 0.22
         if (!step) ctx.moveTo(x, y)
         else ctx.lineTo(x, y)
       }
@@ -343,7 +342,7 @@ export default function Visualizer(props: {
     ctx.stroke()
     for (let index = 0; index < BANDS; index++) {
       const angle = (Math.PI * 2 * index) / BANDS - Math.PI / 2
-      const length = active ? levelAt(levels, index, active, time) * intensity() * maxLength : Math.max(2, idleAt(index, time) * maxLength * 0.14)
+      const length = active ? levelAt(levels, index) * intensity() * maxLength : 2
       ctx.globalAlpha = active ? 0.42 + clamp(levels[index], 0, 1) * 0.58 : 0.34
       ctx.strokeStyle = index % 2 ? accent2 : accent
       ctx.lineWidth = Math.max(1.6, Math.min(3.6, cssW / 150))
@@ -371,12 +370,12 @@ export default function Visualizer(props: {
     ctx.save()
     ctx.lineCap = 'round'
     for (let ring = 0; ring < 3; ring++) {
-      const r = radius * (0.5 + ring * 0.32) + (active ? 0 : Math.sin(time * 0.7 + ring) * 1.4)
-      const start = time * (ring % 2 ? -0.07 : 0.07) + ring
+      const r = radius * (0.5 + ring * 0.32)
+      const start = active ? time * (ring % 2 ? -0.07 : 0.07) + ring : ring
       ctx.beginPath()
       ctx.arc(cx, cy, r, start, start + Math.PI * 1.72)
       ctx.strokeStyle = gradient
-      ctx.globalAlpha = active ? 0.36 + levelAt(levels, ring * 7, active, time) * 0.34 : 0.42 - ring * 0.06
+      ctx.globalAlpha = active ? 0.36 + levelAt(levels, ring * 7) * 0.34 : 0.42 - ring * 0.06
       ctx.lineWidth = ring === 1 ? 2.1 : 1.2
       ctx.shadowColor = accent
       ctx.shadowBlur = 7
@@ -395,7 +394,7 @@ export default function Visualizer(props: {
     ctx.save()
     ctx.fillStyle = gradient
     for (let index = 0; index < BANDS; index++) {
-      const value = levelAt(levels, index, active, time)
+      const value = levelAt(levels, index)
       const height = Math.max(1.5, value * intensity() * maxHeight)
       const x = sidePad + index * (width + gap)
       ctx.globalAlpha = active ? 0.9 : 0.6
@@ -423,7 +422,7 @@ export default function Visualizer(props: {
     ctx.stroke()
     for (let index = 0; index < BANDS; index++) {
       const angle = (Math.PI * 2 * index) / BANDS - Math.PI / 2
-      const length = Math.max(2, levelAt(levels, index, active, time) * maxLength)
+      const length = Math.max(2, levelAt(levels, index) * maxLength)
       ctx.globalAlpha = active ? 0.38 + levels[index] * 0.62 : 0.3
       ctx.strokeStyle = gradient
       ctx.lineWidth = Math.max(2, Math.min(4, cssW / 110))
@@ -446,9 +445,9 @@ export default function Visualizer(props: {
       const xBase = (Math.sin(seed * 1.73) * 0.5 + 0.5) * cssW
       const yBase = (Math.cos(seed * 2.17) * 0.5 + 0.5) * cssH
       const band = index % BANDS
-      const level = levelAt(levels, band, active, time)
-      const phase = (time * (0.025 + level * 0.07) + index * 0.071) % 1
-      const x = xBase + Math.sin(time * 0.16 + seed) * (5 + level * 12)
+      const level = levelAt(levels, band)
+      const phase = active ? (time * (0.025 + level * 0.07) + index * 0.071) % 1 : 0
+      const x = xBase + (active ? Math.sin(time * 0.16 + seed) * (5 + level * 12) : 0)
       const y = ((yBase - phase * cssH + cssH) % cssH)
       const radius = 1 + level * 4 + beatPulse * (index % 3 === 0 ? 2.5 : 0.8)
       ctx.globalAlpha = active ? 0.22 + level * 0.68 + beatPulse * 0.18 : 0.22
@@ -478,10 +477,10 @@ export default function Visualizer(props: {
     // the Ambient data gate made low-level music fall back to unrelated idle
     // breathing and looked like the effect was not listening to the track.
     const liveSpectrum = sourceActive && rawEnergy > 0.002
-    const low = liveSpectrum ? lift(lowRaw) : idleAt(0, time) * 0.18
-    const mid = liveSpectrum ? lift(midRaw) : idleAt(1, time + 1.8) * 0.16
-    const high = liveSpectrum ? lift(highRaw) : idleAt(2, time + 3.1) * 0.14
-    const drive = liveSpectrum ? clamp(lift(rawEnergy) + beatPulse * 0.25, 0, 1) : 0.12
+    const low = liveSpectrum ? lift(lowRaw) : 0.035
+    const mid = liveSpectrum ? lift(midRaw) : 0.035
+    const high = liveSpectrum ? lift(highRaw) : 0.035
+    const drive = liveSpectrum ? clamp(lift(rawEnergy) + beatPulse * 0.25, 0, 1) : 0.04
     ctx.save()
     // Three broad, edge-to-edge light fields respond independently to bass,
     // mids and treble. The canvas is softly blurred by the media stage CSS, so
@@ -493,8 +492,8 @@ export default function Visualizer(props: {
       { x: 0.98, y: 0.74, color: accent, amount: high, phase: 4.0, size: 0.6 },
     ]
     for (const field of fields) {
-      const driftX = Math.sin(time * 0.22 + field.phase) * cssW * (0.035 + field.amount * 0.055)
-      const driftY = Math.cos(time * 0.19 + field.phase) * cssH * (0.045 + field.amount * 0.04)
+      const driftX = liveSpectrum ? Math.sin(time * 0.22 + field.phase) * cssW * (0.035 + field.amount * 0.055) : 0
+      const driftY = liveSpectrum ? Math.cos(time * 0.19 + field.phase) * cssH * (0.045 + field.amount * 0.04) : 0
       const bx = cssW * field.x + driftX
       const by = cssH * field.y + driftY
       const radius = Math.max(cssW, cssH) * field.size * (0.92 + field.amount * 0.28)
@@ -509,8 +508,8 @@ export default function Visualizer(props: {
     ctx.restore()
   }
 
-  const draw = () => {
-    if (!ctx || !cssW || !cssH) return
+  const draw = (): boolean => {
+    if (!ctx || !cssW || !cssH) return false
     const theme = getComputedStyle(document.documentElement)
     const accent = theme.getPropertyValue('--accent').trim() || '#6e8bff'
     const accent2 = theme.getPropertyValue('--accent-2').trim() || '#b18cff'
@@ -520,7 +519,7 @@ export default function Visualizer(props: {
     gradient.addColorStop(1, accent2)
     ctx.clearRect(0, 0, cssW, cssH)
     const current = style()
-    if (current === 'off') return
+    if (current === 'off') return false
     const preview = syntheticAudioSpectrum()
     const sourceActive = audioCaptureStatus() === 'active' || preview !== null
     const rawBands = preview ?? audioSpectrum()
@@ -547,6 +546,10 @@ export default function Visualizer(props: {
       case 'halo': drawHalo(levels, active, gradient, accent, accent2, time); break
       case 'orbit': drawOrbit(levels, active, gradient, accent, time); break
     }
+    // Keep the short release envelope moving after capture stops, then let the
+    // animation loop sleep until another spectrum frame arrives.
+    const tail = energy > 0.004 || beatPulse > 0.006 || smoothed.some(level => level > 0.012)
+    return active || tail
   }
 
   const frame = (now: number) => {
@@ -558,8 +561,8 @@ export default function Visualizer(props: {
       return
     }
     previous = now
-    draw()
-    if (!reducedMotion.matches && style() !== 'off') raf = requestAnimationFrame(frame)
+    const active = draw()
+    if (!reducedMotion.matches && style() !== 'off' && active) raf = requestAnimationFrame(frame)
   }
 
   const requestFrame = () => {
@@ -638,7 +641,9 @@ export default function Visualizer(props: {
   createEffect(() => {
     audioSpectrum()
     syntheticAudioSpectrum()
-    if (!reducedMotion.matches) requestFrame()
+    // Reduced motion disables frame interpolation, not event-driven audio response.
+    if (reducedMotion.matches) draw()
+    else requestFrame()
   })
 
   onCleanup(() => {
@@ -650,9 +655,10 @@ export default function Visualizer(props: {
   const modeLabel = () => {
     if (style() === 'off') return 'Off'
     if (syntheticAudioSpectrum()) return 'Synthetic preview'
-    if (audioCaptureStatus() === 'active') return 'System audio · live'
+    if (audioCaptureStatus() === 'active') return isMeaningfulSpectrum(audioSpectrum()) ? 'System audio · live' : 'Listening for sound'
+    if (audioCaptureStatus() === 'starting') return 'Connecting to audio'
     if (audioCaptureStatus() === 'error') return 'Ambient · audio unavailable'
-    return 'Ambient'
+    return 'Ready for system audio'
   }
 
   return (

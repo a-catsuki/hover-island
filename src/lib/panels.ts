@@ -42,11 +42,18 @@ function generatedOverflowId(base: string, suffix: number, panels: Record<string
   return id
 }
 
-/**
- * Normalize saved panels and turn legacy overflow pages into ordinary panels.
- * A one-column layout is the conservative fit, so a panel also fits on narrow
- * windows without creating another hidden page when the island is resized.
- */
+function generatedOverflowParent(id: string, panels: Record<string, string>): string | null {
+  for (const base of Object.keys(panels).filter(candidate => !candidate.startsWith('overflow-')).sort((a, b) => b.length - a.length)) {
+    const prefix = `overflow-${base}-`
+    if (!id.startsWith(prefix)) continue
+    const suffix = id.slice(prefix.length).split('-')
+    if (!suffix.length || !suffix.every(part => /^\d+$/.test(part))) continue
+    if (panels[id] === `${panels[base]} ${suffix[0]}`) return base
+  }
+  return null
+}
+
+/** Normalize saved panels using the same two-column cell geometry as the editor. */
 export function fitPanelLayout(
   sourcePanels: Record<string, string> | null | undefined,
   sourceOrder: string[] | null | undefined,
@@ -78,10 +85,21 @@ export function fitPanelLayout(
   }
   widgets = widgets.map(widget => ({ ...widget, panel: widgetPanel(widget, panelOrder) }))
 
+  // Earlier releases persisted capacity-generated overflow pages as if they
+  // were user pages. Fold only untouched generated labels back into their root
+  // so the current geometry can repack them. Renamed pages remain user-owned.
+  for (const id of [...panelOrder]) {
+    const parent = generatedOverflowParent(id, panels)
+    if (!parent) continue
+    widgets = widgets.map(widget => widget.panel === id ? { ...widget, panel: parent } : widget)
+    delete panels[id]
+    panelOrder.splice(panelOrder.indexOf(id), 1)
+  }
+
   const roots = [...panelOrder]
   for (const root of roots) {
     const members = widgets.filter(widget => widget.panel === root).sort((a, b) => a.order - b.order)
-    const pages = widgetPages(members, 1)
+    const pages = widgetPages(members, 2)
     let insertAt = panelOrder.indexOf(root) + 1
     for (let pageIndex = 1; pageIndex < pages.length && panelOrder.length < MAX_PANEL_COUNT; pageIndex++) {
       const suffix = pageIndex + 1

@@ -3,7 +3,7 @@ import { settings } from '../../state/settings'
 import { nowPlaying } from '../../state/media'
 import { open } from '../../state/ui'
 import { audioCaptureStatus, audioSpectrum, subscribeAudioSpectrum } from '../../state/audio'
-import { audioFrequencyMetrics, createAudioDynamics } from '../../lib/audioMetrics'
+import { createAudioDynamics, isMeaningfulSpectrum } from '../../lib/audioMetrics'
 import { getAlbumPalette, type AlbumPalette } from '../../lib/albumPalette'
 import { syntheticAudioSpectrum } from '../../lib/syntheticAudioPreview'
 import './AmbientBackground.css'
@@ -32,7 +32,8 @@ export default function AmbientBackground() {
       && visible()
       && scene !== 'plain'
       && AUDIO_SCENES.has(scene)
-      && nowPlaying()?.status === 'playing'
+      && settings.modules.visualizer
+      && settings.visualizer.style !== 'off'
     if (!shouldCapture) return
 
     let cancelled = false
@@ -59,24 +60,30 @@ export default function AmbientBackground() {
 
   createEffect(() => {
     const preview = syntheticAudioSpectrum()
-    const active = open() && (preview !== null || (audioCaptureStatus() === 'active' && AUDIO_SCENES.has(settings.background)))
     const spectrum = preview ?? audioSpectrum()
-    if (!active) {
+    const captureEnabled = open()
+      && settings.modules.visualizer
+      && settings.visualizer.style !== 'off'
+      && AUDIO_SCENES.has(settings.background)
+    if (!captureEnabled) {
       dynamics.reset()
       lastDriveAt = 0
       setDrive({ energy: 0, bass: 0, mids: 0, treble: 0, punch: 0 })
       return
     }
+    const active = isMeaningfulSpectrum(spectrum)
     const now = performance.now()
     const dt = lastDriveAt ? (now - lastDriveAt) / 1000 : 1 / 30
     lastDriveAt = now
-    const live = dynamics.update(spectrum, true, dt)
-    setDrive({ energy: live.energy, bass: live.bass, mids: live.mids, treble: live.treble, punch: live.punch })
+    const live = dynamics.update(spectrum, true, dt, settings.visualizer.reactivity)
+    const intensity = Math.max(0.1, Math.min(1.6, settings.visualizer.intensity)) / 0.7
+    const amplify = (value: number) => Math.max(0, Math.min(1, value * intensity))
+    setDrive({ energy: amplify(live.energy), bass: amplify(live.bass), mids: amplify(live.mids), treble: amplify(live.treble), punch: amplify(live.punch) })
   })
 
   const sceneUsesAudio = () => AUDIO_SCENES.has(settings.background)
-  const audioIsLive = () => sceneUsesAudio() && open() && audioCaptureStatus() === 'active'
-  const previewIsActive = () => sceneUsesAudio() && open() && syntheticAudioSpectrum() !== null
+  const audioIsLive = () => sceneUsesAudio() && open() && settings.modules.visualizer && audioCaptureStatus() === 'active' && isMeaningfulSpectrum(audioSpectrum())
+  const previewIsActive = () => sceneUsesAudio() && open() && settings.modules.visualizer && syntheticAudioSpectrum() !== null && isMeaningfulSpectrum(syntheticAudioSpectrum() ?? [])
   const paletteStyle = () => {
     const colors = palette()
     return colors ? {

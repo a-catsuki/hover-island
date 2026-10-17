@@ -8,44 +8,92 @@ export interface WidgetSlot {
   rows: number
 }
 
-/** Two rows per page preserve readable controls rather than shrinking forever. */
+export type WidgetResolvedSize = 'compact' | 'wide' | 'full'
+
+/** The size a widget occupies once kind minimums and the user's choice are applied. */
+export function widgetResolvedSize(widget: WidgetConfig): WidgetResolvedSize {
+  if (['nearby', 'controls', 'calendar'].includes(widget.kind)) return 'full'
+  const inferred = ['usage', 'web-alerts', 'clock'].includes(widget.kind)
+    ? 'full'
+    : widget.kind === 'dock' ? 'wide' : 'compact'
+  return (widget.size ?? inferred) as WidgetResolvedSize
+}
+
+/** The 0-based grid cell a widget asks for, or null when it should flow. */
+function explicitCell(widget: WidgetConfig) {
+  const slot = widget.slot
+  if (!slot || !Number.isInteger(slot.row) || !Number.isInteger(slot.column)) return null
+  return { row: slot.row - 1, column: slot.column - 1 }
+}
+
+/**
+ * Pack widgets into the first free rectangle so later compact tiles can fill holes left by wide ones.
+ * A widget the user dropped onto a specific cell keeps that cell as long as it still fits.
+ */
 export function widgetPages(widgets: WidgetConfig[], columns = 2): WidgetSlot[][] {
   const width = columns === 1 ? 1 : 2
+  const height = 2
   const pages: WidgetSlot[][] = []
-  let page: WidgetSlot[] = [], cursor = 0
-  const finishRow = () => {
-    if (width === 2 && cursor % width && page.length) {
-      if (page.every((slot) => slot.widget.size == null)) page[page.length - 1].columns = width
-      cursor++
-    }
+  let page: WidgetSlot[] = []
+  let occupied = Array.from({ length: height }, () => Array<boolean>(width).fill(false))
+
+  const resetPage = () => {
+    page = []
+    occupied = Array.from({ length: height }, () => Array<boolean>(width).fill(false))
   }
-  const flush = () => {
-    finishRow()
-    // Preserve the established full-row look for saved, unsized layouts. Any
-    // explicit size opts into the new geometry, including Compact.
-    if (cursor <= width && page.length > 0 && page.every((slot) => slot.widget.size == null)) {
-      for (const slot of page) slot.rows = 2
+  const isFree = (row: number, column: number, spanX: number, spanY: number) => {
+    if (row < 0 || column < 0 || row + spanY > height || column + spanX > width) return false
+    for (let y = row; y < row + spanY; y++) {
+      for (let x = column; x < column + spanX; x++) {
+        if (occupied[y][x]) return false
+      }
     }
-    if (page.length) pages.push(page)
-    page = []; cursor = 0
+    return true
   }
+  const emptyCell = (spanX: number, spanY: number) => {
+    for (let row = 0; row <= height - spanY; row++) {
+      for (let column = 0; column <= width - spanX; column++) {
+        if (isFree(row, column, spanX, spanY)) return { row, column }
+      }
+    }
+    return null
+  }
+  const targetCell = (widget: WidgetConfig, spanX: number, spanY: number) => {
+    const requested = explicitCell(widget)
+    if (requested && isFree(requested.row, requested.column, spanX, spanY)) return requested
+    return emptyCell(spanX, spanY)
+  }
+  const finishPage = () => {
+    if (!page.length) return
+    // Unspecified legacy layouts historically filled their first row vertically.
+    // Keep that saved appearance; explicit sizes and dropped cells use exact placement.
+    if (page.every(slot => slot.widget.size == null && !slot.widget.slot) && page.every(slot => slot.row === 1)) {
+      for (const slot of page) slot.rows = height
+      if (page.length === 1) page[0].columns = width
+    }
+    pages.push(page)
+    resetPage()
+  }
+
   for (const widget of widgets) {
     if (!widget.enabled || widget.kind === 'airdrop') continue
-    const minimumFull = ['nearby', 'controls', 'calendar'].includes(widget.kind)
-    // An unset size keeps the established layout for saved configurations.
-    const inferred = minimumFull || ['usage', 'web-alerts', 'clock'].includes(widget.kind)
-      ? 'full'
-      : widget.kind === 'dock' ? 'wide' : 'compact'
-    const size = minimumFull ? 'full' : widget.size ?? inferred
-    const span = size === 'compact' ? 1 : width
-    const rows = size === 'full' ? 2 : 1
-    if (rows === 2 && page.length) flush()
-    if (span === width && cursor % width) finishRow()
-    if (cursor + span * rows > width * 2) flush()
-    page.push({ widget, column: cursor % width + 1, row: Math.floor(cursor / width) + 1, columns: span, rows })
-    cursor += span * rows
-    if (cursor === width * 2) flush()
+    const size = widgetResolvedSize(widget)
+    const spanX = size === 'compact' ? 1 : width
+    const spanY = size === 'full' ? height : 1
+
+    let target = targetCell(widget, spanX, spanY)
+    if (!target && page.length) {
+      finishPage()
+      target = targetCell(widget, spanX, spanY)
+    }
+    if (!target) continue
+
+    page.push({ widget, column: target.column + 1, row: target.row + 1, columns: spanX, rows: spanY })
+    for (let row = target.row; row < target.row + spanY; row++) {
+      for (let column = target.column; column < target.column + spanX; column++) occupied[row][column] = true
+    }
+    if (occupied.every(row => row.every(Boolean))) finishPage()
   }
-  flush()
+  finishPage()
   return pages.length ? pages : [[]]
 }

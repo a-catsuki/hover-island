@@ -439,6 +439,7 @@ export const onIslandHover = (cb: (hovering: boolean) => void): Promise<Unlisten
   listen<boolean>('island://hover', (e) => cb(e.payload))
 export const onAudioSpectrum = (cb: (value: { bands: number[] }) => void): Promise<UnlistenFn> => listen<{ bands: number[] }>('audio://spectrum', event => cb(event.payload))
 export const onAudioSpectrumError = (cb: (message: string) => void): Promise<UnlistenFn> => listen<string>('audio://spectrum-error', event => cb(event.payload))
+export const onAudioCaptureReady = (cb: () => void): Promise<UnlistenFn> => listen<void>('audio://capture-ready', () => cb())
 
 export const onQuitRequested = (cb: () => void): Promise<UnlistenFn> =>
   listen<boolean>('app://quit-request', () => cb())
@@ -540,6 +541,8 @@ export interface WidgetConfig {
   clockStyle?: 'analog' | 'digital'
   size?: 'compact' | 'wide' | 'full'
   showLyrics?: boolean
+  /** The grid cell the user dropped this widget into; absent means flow order. */
+  slot?: { row: number; column: number }
 }
 
 /** A "connected" web app (WhatsApp Web, Gmail, Instagram, …). */

@@ -41,6 +41,7 @@ export default function Island() {
   let shapeSpring: ReturnType<typeof createIslandSpring> | undefined
   let magneticSpring: ReturnType<typeof createMagneticSpring> | undefined
   let magneticOffset = { x: 0, y: 0 }
+  let shapeFrame: SpringFrame | undefined
   let reduceMotion = false
   let motionPreference: MediaQueryList | undefined
   let leavePending = false
@@ -172,8 +173,8 @@ export default function Island() {
       : settings.placement.mode === 'sidebar'
         ? { width: 72, height: viewport().height, radius: 0 }
         : sideNotch()
-          ? { width: 56, height: 144, radius: 28 }
-        : { width: settings.collapsed.w, height: settings.collapsed.h, radius: 17 }
+          ? { width: 56, height: 144, radius: 14 }
+        : { width: settings.collapsed.w, height: settings.collapsed.h, radius: Math.min(14, settings.collapsed.h * .28) }
     if (transferPeek()) {
       return { width: Math.min(440, settings.expanded.w), height: 148, radius: 24 }
     }
@@ -191,11 +192,13 @@ export default function Island() {
   }
 
   const publishShape = (frame: SpringFrame) => {
+    shapeFrame = frame
     const node = islandElement
     if (!node) return
     node.style.setProperty('--island-spring-width', `${frame.width.toFixed(2)}px`)
     node.style.setProperty('--island-spring-height', `${frame.height.toFixed(2)}px`)
     node.style.setProperty('--island-spring-radius', `${frame.radius.toFixed(2)}px`)
+    publishMagnet(magneticOffset)
   }
 
   const publishMagnet = (offset: { x: number; y: number }) => {
@@ -203,7 +206,8 @@ export default function Island() {
     islandElement?.style.setProperty('--magnet-x', `${offset.x.toFixed(2)}px`)
     islandElement?.style.setProperty('--magnet-y', `${offset.y.toFixed(2)}px`)
     const node = islandElement
-    if (node) node.style.setProperty('--magnetic-clip', magneticNotchPath(node.clientWidth, node.clientHeight, sideNotch() ? 56 : settings.collapsed.w, sideNotch() ? 144 : settings.collapsed.h, settings.placement.edge, offset.x, offset.y))
+    const frame = shapeFrame ?? targetFrame()
+    if (node) node.style.setProperty('--magnetic-clip', magneticNotchPath(node.clientWidth, node.clientHeight, frame.width, frame.height, settings.placement.edge, offset.x, offset.y, frame.radius))
   }
 
   createEffect(() => {
@@ -230,7 +234,7 @@ export default function Island() {
     window.addEventListener('resize', updateViewport)
     motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
     reduceMotion = motionPreference.matches
-    const collapsed = { width: settings.collapsed.w, height: settings.collapsed.h, radius: 17 }
+    const collapsed = { width: settings.collapsed.w, height: settings.collapsed.h, radius: Math.min(14, settings.collapsed.h * .28) }
     shapeSpring = createIslandSpring(collapsed, publishShape, () => reduceMotion)
     shapeSpring.snap(targetFrame())
     magneticSpring = createMagneticSpring(publishMagnet, () => reduceMotion)

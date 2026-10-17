@@ -8,6 +8,17 @@ function normalizedBands(bands: readonly number[]) {
 
 const rms = (values: readonly number[]) => Math.sqrt(values.reduce((sum, value) => sum + value * value, 0) / Math.max(1, values.length))
 
+function meaningful(values: readonly number[]) {
+  const occupiedBands = values.filter(value => value > 0.003).length
+  const energy = rms(values)
+  const peak = Math.max(0, ...values)
+  // A quiet, stable musical tone can occupy only one or two adjacent FFT bands.
+  // Let that pass once it rises above the noise floor, while rejecting an isolated
+  // hot bin that is more consistent with capture noise or a transient glitch.
+  const tonal = occupiedBands > 0 && occupiedBands <= 2 && energy >= 0.012 && peak <= 0.45
+  return { occupiedBands, energy, active: energy > 0.003 && (occupiedBands >= 3 || tonal) }
+}
+
 /** A bounded log response preserves quiet movement without pinning loud tracks at full brightness. */
 function dbDrive(value: number, floor = 0.0015, ceiling = 0.18) {
   if (value <= floor) return 0
@@ -16,7 +27,7 @@ function dbDrive(value: number, floor = 0.0015, ceiling = 0.18) {
 
 export function audioMetrics(bands: readonly number[]) {
   const values = normalizedBands(bands)
-  if (values.filter(value => value > 0.003).length < 3 || rms(values) <= 0.003) return { energy: 0, bass: 0 }
+  if (!meaningful(values).active) return { energy: 0, bass: 0 }
   return {
     energy: dbDrive(rms(values)),
     bass: dbDrive(rms(values.slice(0, 7))),
@@ -35,9 +46,7 @@ export function audioFrequencyMetrics(bands: readonly number[]) {
 /** Ignore near-silence and isolated FFT noise while retaining quiet broadband playback. */
 export function isMeaningfulSpectrum(bands: readonly number[]) {
   const values = normalizedBands(bands)
-  const energy = rms(values)
-  const occupiedBands = values.filter(value => value > 0.003).length
-  return energy > 0.003 && occupiedBands >= 3
+  return meaningful(values).active
 }
 
 /** Bounded per-band peak tracking keeps quiet playback visible without flattening dynamics. */

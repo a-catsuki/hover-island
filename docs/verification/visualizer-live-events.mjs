@@ -4,7 +4,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 
 const require = createRequire(import.meta.url)
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH ?? join(homedir(), '.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'))
@@ -16,6 +16,12 @@ if (!executablePath && !existsSync(chromium.executablePath())) {
 }
 
 const outDir = fileURLToPath(new URL('./', import.meta.url))
+const nativeCapture = process.env.WASAPI_BANDS_JSON
+  ? JSON.parse(await readFile(process.env.WASAPI_BANDS_JSON, 'utf8'))
+  : null
+if (nativeCapture && (nativeCapture.packets < 1 || !Array.isArray(nativeCapture.bands) || nativeCapture.bands.length !== 24)) {
+  throw new Error('WASAPI capture file must contain packets and the native 24-band payload')
+}
 const browser = await chromium.launch({ headless: true, executablePath })
 const context = await browser.newContext({ viewport: { width: 1420, height: 920 }, reducedMotion: 'reduce' })
 const page = await context.newPage()
@@ -40,6 +46,11 @@ try {
   if (await skipTour.count()) await skipTour.click()
   await page.getByRole('dialog').waitFor({ state: 'detached' }).catch(() => {})
   await page.waitForTimeout(120)
+
+  // Exercise the actual no-SMTC/empty-media fallback: the system output capture
+  // must remain mounted even when Windows has no title or playback session.
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('media://changed', { detail: null })))
+  await page.locator('[data-widget-kind="media"] .media__empty-tile .viz__canvas').waitFor()
 
   const sample = async bands => page.evaluate(async bands => {
     window.dispatchEvent(new CustomEvent('audio://spectrum', { detail: { bands } }))
@@ -70,11 +81,29 @@ try {
   await screenshot('visualizer-live-louder.png')
   const isolated = await sample([0.8, ...Array(23).fill(0)])
   const zeroAfterNoise = await sample(Array(24).fill(0))
+  const captured = nativeCapture ? await sample(nativeCapture.bands) : null
+  if (captured) {
+    assert.notEqual(captured.hash, zeroAfterNoise.hash, 'captured WASAPI bands must visibly change the mounted renderer')
+    assert.notEqual(captured.mode, 'Synthetic preview', 'captured native-shaped bands must not enable synthetic preview')
+    await screenshot('visualizer-live-captured.png')
+  }
   assert.notEqual(quiet.hash, zeroInitial.hash, 'quiet broadband audio should change the rendered pixels')
   assert.notEqual(louder.hash, quiet.hash, 'louder broadband audio should produce a distinct rendered response')
   assert.ok(louder.meanRgb > quiet.meanRgb, 'louder broadband audio should visibly increase canvas brightness')
   assert.equal(isolated.hash, zeroAfterNoise.hash, 'single-bin input should return to the stable idle/silence rendering')
   assert.ok(![zeroInitial, quiet, louder, isolated, zeroAfterNoise].some(frame => frame.mode === 'Synthetic preview'), 'synthetic preview must stay disabled')
+
+  const styleIds = await page.locator('[data-widget-kind="media"] .media__viz-select option').evaluateAll(options =>
+    options.map(option => option.value).filter(value => value !== 'off'))
+  const styleFrames = {}
+  for (const id of styleIds) {
+    await page.locator('[data-widget-kind="media"] .media__viz-select').selectOption(id)
+    const silent = await sample(Array(24).fill(0))
+    const live = await sample(Array.from({ length: 24 }, (_, index) => 0.006 + index * 0.0007))
+    assert.notEqual(live.hash, silent.hash, `${id} should respond to the measured spectrum instead of idle animation`)
+    styleFrames[id] = { silentHash: silent.hash, liveHash: live.hash, liveMeanRgb: live.meanRgb }
+    await screenshot(`visualizer-style-${id}.png`)
+  }
 
   const fixture = await page.evaluate(async () => {
     const harness = await import('/docs/verification/file-drop-toast-harness.tsx')
@@ -140,7 +169,19 @@ try {
       canvasPixelHashes: { zeroInitial, quiet, louder, isolated, zeroAfterNoise },
       assertions: ['quiet broadband differs from silence', 'louder broadband differs from quiet and is brighter', 'single-bin input equals the stable silence baseline'],
       screenshots: ['visualizer-live-quiet.png', 'visualizer-live-louder.png'],
-      limitation: 'Browser-injected event regression; does not prove physical WASAPI capture.',
+      perStyle: styleFrames,
+      stylesChecked: styleIds,
+      noMediaSessionFallback: 'media://changed(null) keeps the visualizer mounted and listening without SMTC metadata',
+      nativeCaptureBridge: captured ? {
+        source: 'WASAPI default-render numeric spectrum from owned-audio-smoke.ps1',
+        bands: nativeCapture.bands,
+        packets: nativeCapture.packets,
+        screenshot: 'visualizer-live-captured.png',
+        rendered: captured,
+      } : null,
+      limitation: captured
+        ? 'Native capture bands were relayed through the preview event adapter into the exact renderer listener; this does not prove Tauri app.emit transport.'
+        : 'Browser-injected event regression; set WASAPI_BANDS_JSON from the owned native smoke for physical capture-to-renderer verification.',
     },
     fileDropToast: {
       component: 'Solid component mounted directly from the Vite dev server',

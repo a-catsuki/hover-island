@@ -173,6 +173,7 @@ test('Stop cancels queued files and coalesced starts without reopening the bucke
 
 test('audio capture stays ambient until a valid system spectrum arrives', async () => {
   let spectrumListener
+  let readyListener
   let starts = 0
   let stops = 0
   const audio = await importTs('src/state/audio.ts', {
@@ -187,8 +188,13 @@ test('audio capture stays ambient until a valid system spectrum arrives', async 
         return () => {}
       },
       onAudioSpectrumError: async () => () => {},
+      onAudioCaptureReady: async callback => {
+        readyListener = callback
+        return () => {}
+      },
     },
-  })
+    '../lib/audioMetrics': { isMeaningfulSpectrum: bands => bands.some(value => value > 0.001) },
+  }, { setInterval, clearInterval })
 
   const release = await audio.subscribeAudioSpectrum()
   assert.equal(starts, 1)
@@ -200,6 +206,8 @@ test('audio capture stays ambient until a valid system spectrum arrives', async 
   spectrumListener({ bands: Array(24).fill(0.4) })
   assert.equal(audio.audioCaptureStatus(), 'active')
   assert.equal(audio.audioSpectrum().length, 24)
+  readyListener()
+  assert.equal(audio.audioCaptureStatus(), 'active')
   release()
   await until(() => stops === 1, 'final audio subscriber did not stop loopback')
 })
@@ -207,6 +215,7 @@ test('audio capture stays ambient until a valid system spectrum arrives', async 
 test('audio endpoint errors can restart the one shared loopback capture', async () => {
   let spectrumListener
   let errorListener
+  let readyListener
   let starts = 0
   let stops = 0
   const audio = await importTs('src/state/audio.ts', {
@@ -224,8 +233,13 @@ test('audio endpoint errors can restart the one shared loopback capture', async 
         errorListener = callback
         return () => {}
       },
+      onAudioCaptureReady: async callback => {
+        readyListener = callback
+        return () => {}
+      },
     },
-  })
+    '../lib/audioMetrics': { isMeaningfulSpectrum: bands => bands.some(value => value > 0.001) },
+  }, { setInterval, clearInterval })
 
   const release = await audio.subscribeAudioSpectrum()
   assert.equal(starts, 1)
@@ -235,6 +249,8 @@ test('audio endpoint errors can restart the one shared loopback capture', async 
   errorListener('default output changed')
   assert.equal(audio.audioCaptureStatus(), 'error')
   assert.equal(audio.audioCaptureError(), 'default output changed')
+  spectrumListener({ bands: Array(24).fill(0) })
+  assert.equal(audio.audioCaptureStatus(), 'error', 'idle zero frames cannot hide an endpoint failure')
 
   await audio.retryAudioCapture()
   assert.equal(stops, 1)
@@ -244,6 +260,9 @@ test('audio endpoint errors can restart the one shared loopback capture', async 
   spectrumListener({ bands: Array(24).fill(0.3) })
   assert.equal(audio.audioCaptureStatus(), 'active')
   assert.equal(audio.audioSpectrum()[0], 0.3)
+  errorListener('endpoint temporarily unavailable')
+  readyListener()
+  assert.equal(audio.audioCaptureStatus(), 'active', 'a successful endpoint open clears a stale capture error')
   release()
   await until(() => stops === 2, 'recovered loopback was not stopped on final release')
 })
@@ -268,10 +287,13 @@ test('visualizer gate and bounded adaptive gain preserve quiet music and reject 
   const louder = Array(24).fill(0.026)
   const silence = Array(24).fill(0)
   const loneBin = [0.8, ...Array(23).fill(0)]
+  const quietTone = [0.087, 0.044, ...Array(22).fill(0)]
   assert.equal(metrics.isMeaningfulSpectrum(quiet), true, 'quiet broadband output remains live')
   assert.equal(metrics.isMeaningfulSpectrum(louder), true)
   assert.equal(metrics.isMeaningfulSpectrum(silence), false)
   assert.equal(metrics.isMeaningfulSpectrum(loneBin), false, 'an isolated hot FFT bin is treated as noise')
+  assert.equal(metrics.isMeaningfulSpectrum(quietTone), true, 'a quiet tone split across adjacent FFT bands remains audible')
+  assert.ok(metrics.audioMetrics(quietTone).energy > 0, 'quiet tonal output drives the ambient layer')
   const quietLevels = metrics.adaptSpectrumLevels(quiet, Array(24).fill(0.008), true).levels
   const loudLevels = metrics.adaptSpectrumLevels(louder, Array(24).fill(0.008), true).levels
   const rejectedLevels = metrics.adaptSpectrumLevels(loneBin, Array(24).fill(0.008), false).levels

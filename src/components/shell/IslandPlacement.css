@@ -551,9 +551,12 @@ body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-sid
 @keyframes drop-action-breathe {50% {transform:scale(1.08);background:#adc5ff1b;}}
 
 /* The same spring deforms the entire material, including its edge and backdrop. */
-.island.island--mode-notch:not(.island--open):not(.island--file-drop):not(.island--dragging) {
+.island.island--mode-notch:not(.island--file-drop):not(.island--dragging) {
   clip-path: var(--magnetic-clip);
 }
+.island.island--mode-notch:not(.island--open)::before {background:#000;opacity:1;backdrop-filter:none;}
+.island.island--mode-notch:not(.island--open)::after {box-shadow:none;}
+.island.island--mode-notch:not(.island--open)>.ambient {opacity:0;}
 @media(prefers-reduced-motion:reduce) {
   .island.island--mode-notch:not(.island--open) { --magnet-x:0px!important;--magnet-y:0px!important; }
 }

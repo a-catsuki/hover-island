@@ -1,5 +1,5 @@
 {
-  "testedAt": "2026-10-16T07:24:04.813Z",
+  "testedAt": "2026-10-17T09:12:38.742Z",
   "viewport": {
     "width": 1420,
     "height": 920,
@@ -10,34 +10,34 @@
     "payload": "validated 24-band arrays; synthetic preview remained disabled",
     "canvasPixelHashes": {
       "zeroInitial": {
-        "hash": "8de324bd",
-        "pixelCount": 175904,
-        "meanRgb": 109.367,
-        "mode": "System audio · live"
+        "hash": "0d92f7f9",
+        "pixelCount": 13440,
+        "meanRgb": 119.668,
+        "mode": "Ambient · audio unavailable"
       },
       "quiet": {
-        "hash": "9ef526a8",
-        "pixelCount": 175904,
-        "meanRgb": 119.263,
+        "hash": "aac469d4",
+        "pixelCount": 13440,
+        "meanRgb": 138.759,
         "mode": "System audio · live"
       },
       "louder": {
-        "hash": "851a8657",
-        "pixelCount": 175904,
-        "meanRgb": 129.747,
+        "hash": "4641eba9",
+        "pixelCount": 13440,
+        "meanRgb": 153.281,
         "mode": "System audio · live"
       },
       "isolated": {
-        "hash": "0eda53c8",
-        "pixelCount": 175904,
-        "meanRgb": 109.499,
-        "mode": "System audio · live"
+        "hash": "8aa41f90",
+        "pixelCount": 13440,
+        "meanRgb": 118.87,
+        "mode": "Listening for sound"
       },
       "zeroAfterNoise": {
-        "hash": "0eda53c8",
-        "pixelCount": 175904,
-        "meanRgb": 109.499,
-        "mode": "System audio · live"
+        "hash": "8aa41f90",
+        "pixelCount": 13440,
+        "meanRgb": 118.87,
+        "mode": "Listening for sound"
       }
     },
     "assertions": [
@@ -49,7 +49,121 @@
       "visualizer-live-quiet.png",
       "visualizer-live-louder.png"
     ],
-    "limitation": "Browser-injected event regression; does not prove physical WASAPI capture."
+    "perStyle": {
+      "ambient": {
+        "silentHash": "8aa41f90",
+        "liveHash": "40107f78",
+        "liveMeanRgb": 143.619
+      },
+      "pulse": {
+        "silentHash": "f6da83b5",
+        "liveHash": "88267f03",
+        "liveMeanRgb": 21.182
+      },
+      "aurora": {
+        "silentHash": "17394765",
+        "liveHash": "f8a75e4b",
+        "liveMeanRgb": 35.75
+      },
+      "bloom": {
+        "silentHash": "441fafd4",
+        "liveHash": "ec00b173",
+        "liveMeanRgb": 37.179
+      },
+      "silk": {
+        "silentHash": "1bb4b533",
+        "liveHash": "913789ce",
+        "liveMeanRgb": 142.56
+      },
+      "wave": {
+        "silentHash": "6be51f70",
+        "liveHash": "aa76ee9c",
+        "liveMeanRgb": 104.07
+      },
+      "halo": {
+        "silentHash": "16f807e6",
+        "liveHash": "5edfb402",
+        "liveMeanRgb": 9.068
+      },
+      "orbit": {
+        "silentHash": "7239c761",
+        "liveHash": "78435d64",
+        "liveMeanRgb": 27.839
+      },
+      "bars": {
+        "silentHash": "26f1b7b5",
+        "liveHash": "782794d0",
+        "liveMeanRgb": 39.775
+      },
+      "mirror": {
+        "silentHash": "9b62b632",
+        "liveHash": "d9f6f79c",
+        "liveMeanRgb": 52.081
+      },
+      "radial": {
+        "silentHash": "2cc87d74",
+        "liveHash": "8e47f60e",
+        "liveMeanRgb": 17.936
+      },
+      "particles": {
+        "silentHash": "9d8de6e5",
+        "liveHash": "55176de9",
+        "liveMeanRgb": 23.397
+      }
+    },
+    "stylesChecked": [
+      "ambient",
+      "pulse",
+      "aurora",
+      "bloom",
+      "silk",
+      "wave",
+      "halo",
+      "orbit",
+      "bars",
+      "mirror",
+      "radial",
+      "particles"
+    ],
+    "noMediaSessionFallback": "media://changed(null) keeps the visualizer mounted and listening without SMTC metadata",
+    "nativeCaptureBridge": {
+      "source": "WASAPI default-render numeric spectrum from owned-audio-smoke.ps1",
+      "bands": [
+        0.000038,
+        0.000038,
+        0.000038,
+        0.000046,
+        0.000052,
+        0.00011,
+        0.000232,
+        0.01478,
+        0.028611,
+        0.00757,
+        0.000107,
+        0.013881,
+        0.014628,
+        0.000121,
+        0.007738,
+        0.000034,
+        0.000024,
+        0.000022,
+        0.004321,
+        0.000062,
+        0.000071,
+        0.000068,
+        0.000059,
+        0.000027
+      ],
+      "packets": 36,
+      "screenshot": "visualizer-live-captured.png",
+      "rendered": {
+        "hash": "77531324",
+        "pixelCount": 13440,
+        "meanRgb": 109.146,
+        "mode": "System audio · live"
+      }
+    },
+    "limitation": "Native capture bands were relayed through the preview event adapter into the exact renderer listener; this does not prove Tauri app.emit transport."
   },
   "fileDropToast": {
     "component": "Solid component mounted directly from the Vite dev server",

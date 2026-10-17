@@ -1,5 +1,4 @@
 $ErrorActionPreference='Stop'
-Add-Type -AssemblyName System.Windows.Extensions
 $source = @"
 using System;
 using System.IO;
@@ -14,7 +13,26 @@ public static class HoverIslandOwnedAudio {
 Add-Type -TypeDefinition $source
 $islandTestExe=(Get-ChildItem -LiteralPath src-tauri/target/debug/deps -Filter 'hover_island_lib-*.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
 $start=[Diagnostics.ProcessStartInfo]::new();$start.FileName=$islandTestExe;$start.Arguments='--ignored default_render_loopback_opens_reads_and_stops --nocapture';$start.UseShellExecute=$false;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true;$start.CreateNoWindow=$true
-$stream=[IO.MemoryStream]::new([HoverIslandOwnedAudio]::Wave());$player=[System.Media.SoundPlayer]::new($stream);$player.Load()
+$signal=[Convert]::ToBase64String([HoverIslandOwnedAudio]::Wave())
 $process=[Diagnostics.Process]::Start($start)
-try {Start-Sleep -Milliseconds 200;$player.Play();$result=$process.StandardOutput.ReadToEnd();$process.WaitForExit();if($process.ExitCode -ne 0){throw 'Native loopback check failed'};[IO.File]::WriteAllText((Join-Path $PSScriptRoot 'live-audio-owned-signal.log'),"Owned quiet 3-second four-tone WAV at amplitude 0.003; generated in memory. No account/player/microphone access.`n"+$result);$result}
-finally {$player.Stop();$player.Dispose();$stream.Dispose();$process.Dispose()}
+$playerStart=[Diagnostics.ProcessStartInfo]::new();$playerStart.FileName='python';$playerStart.Arguments='-c "import base64,sys,winsound; winsound.PlaySound(base64.b64decode(sys.stdin.read()), winsound.SND_MEMORY)"';$playerStart.UseShellExecute=$false;$playerStart.RedirectStandardInput=$true;$playerStart.CreateNoWindow=$true
+$player=[Diagnostics.Process]::Start($playerStart)
+try {
+ Start-Sleep -Milliseconds 200
+ $player.StandardInput.Write($signal);$player.StandardInput.Close();$player.WaitForExit()
+ if($player.ExitCode -ne 0){throw 'Owned in-memory WAV playback failed'}
+ $result=$process.StandardOutput.ReadToEnd();$process.WaitForExit()
+ if($process.ExitCode -ne 0){throw 'Native loopback check failed'}
+ $stamp=Get-Date -Format 'yyyyMMdd-HHmmss'
+ $prefix="Owned quiet 3-second four-tone WAV at amplitude 0.003; generated in memory and played with Python winsound. No account/player/microphone access.`n"
+ [IO.File]::WriteAllText((Join-Path $PSScriptRoot "live-audio-owned-signal-$stamp.log"),$prefix+$result)
+ $bandMatch=[regex]::Match($result,'bands=\[([0-9., -]+)\]')
+ $maxMatch=[regex]::Match($result,'max_band=([0-9.]+)')
+ $packetMatch=[regex]::Match($result,'packets=(\d+)')
+ $bands=$null
+ if($bandMatch.Success){$bands=@($bandMatch.Groups[1].Value.Split(',') | ForEach-Object {[double]::Parse($_,[Globalization.CultureInfo]::InvariantCulture)})}
+ $proof=[ordered]@{capturedAt=(Get-Date).ToUniversalTime().ToString('o');testSignal='four-tone WAV generated in memory; amplitude 0.003';packets=if($packetMatch.Success){[int]$packetMatch.Groups[1].Value}else{$null};maxBand=if($maxMatch.Success){[double]::Parse($maxMatch.Groups[1].Value,[Globalization.CultureInfo]::InvariantCulture)}else{$null};bands=$bands;source='WASAPI default render endpoint; numeric spectrum only';noPrivateMetadata=$true}
+ [IO.File]::WriteAllText((Join-Path $PSScriptRoot "live-audio-owned-signal-$stamp.json"),($proof | ConvertTo-Json -Depth 5)+"`n")
+ $result
+}
+finally {$player.Dispose();$process.Dispose()}
