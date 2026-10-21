@@ -1,5 +1,6 @@
 (() => {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+  document.documentElement.classList.add('js')
   const $ = (s, r = document) => r.querySelector(s)
   const $$ = (s, r = document) => [...r.querySelectorAll(s)]
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
@@ -41,17 +42,30 @@
     return `M${f(L - e)} 0 Q${f(L)} 0 ${f(L)} ${f(e)} L${f(L)} ${f(h - r)} Q${f(L)} ${f(h)} ${f(L + r)} ${f(h)} L${f(R - r)} ${f(h)} Q${f(R)} ${f(h)} ${f(R)} ${f(h - r)} L${f(R)} ${f(e)} Q${f(R)} 0 ${f(R + e)} 0 Z`
   }
 
-  /* ---------- nav notch ---------- */
-  const nav = $('#navnotch'), navPath = $('#navnotch-path')
-  const navSpring = springs({ h: 56 }, ({ h }) => {
-    const w = nav.offsetWidth
+  /* ---------- nav notch: name, star and download; the links unfold on hover ---------- */
+  const nav = $('#navnotch'), navPath = $('#navnotch-path'), navLinks = $('#navnotch-links')
+  let linksW = 0, navOpen = false
+  const navSpring = springs({ h: 56, w: 0 }, ({ h, w }) => {
+    const f = linksW ? clamp(w / linksW, 0, 1) : 0
+    navLinks.style.width = `${Math.max(0, w)}px`
+    navLinks.style.opacity = String(clamp(f * 1.5 - 0.25, 0, 1))
+    navLinks.style.marginInline = `${-11 * (1 - f)}px`
+    const bw = nav.offsetWidth
     nav.style.height = `${h}px`
-    navPath.setAttribute('d', notchPath(w / 2 + 14, w, h, 14))
+    navPath.setAttribute('d', notchPath(bw / 2 + 14, bw, h, 14))
   }, () => ({ k: 240, d: 0.55 }))
+  const measureNav = () => { const as = [...navLinks.children]; linksW = Math.ceil(as.reduce((n, a) => n + a.offsetWidth, 0) + (parseFloat(getComputedStyle(navLinks).columnGap) || 0) * Math.max(0, as.length - 1)); navSpring.to({ w: navOpen ? linksW : 0 }); navSpring.redraw() }
+  let navLeave = 0
+  const openNav = (open) => { clearTimeout(navLeave); navOpen = open; navSpring.to({ w: open ? linksW : 0 }) }
+  nav.addEventListener('pointerenter', () => openNav(true))
+  nav.addEventListener('pointerleave', () => { navLeave = setTimeout(() => openNav(false), 240) })
+  nav.addEventListener('focusin', () => openNav(true))
+  nav.addEventListener('focusout', (e) => { if (!nav.contains(e.relatedTarget)) openNav(false) })
   const onScrollNav = () => { const s = scrollY > 40; nav.classList.toggle('is-scrolled', s); navSpring.to({ h: s ? 46 : 56 }) }
   addEventListener('scroll', onScrollNav, { passive: true }); onScrollNav()
-  addEventListener('resize', () => navSpring.redraw())
-  ;(document.fonts?.ready ?? Promise.resolve()).then(() => navSpring.redraw())
+  addEventListener('resize', measureNav)
+  measureNav()
+  ;(document.fonts?.ready ?? Promise.resolve()).then(measureNav)
   const links = $$('.navnotch nav a')
   if ('IntersectionObserver' in window) {
     const spy = new IntersectionObserver((entries) => { for (const e of entries) if (e.isIntersecting) for (const a of links) a.classList.toggle('is-here', a.getAttribute('href') === `#${e.target.id}`) }, { rootMargin: '-45% 0px -50% 0px' })
@@ -101,6 +115,69 @@
       { w: Math.min(590, sw * 0.94), h: Math.min(220, sw * 0.42) },
     ][i]
   }
+  /* ---------- beam: drag a file, the notch swallows it, it lands on a phone ---------- */
+  const beam = $('#beam'), bFile = $('.beam-file'), bCursor = $('.beam-cursor'), bPhone = $('.beam-phone'), bDrop = $('.drop')
+  const rings = $$('.beam-ripple i'), comet = $$('.beam-comet i'), bPct = $('.bp-pct'), bState = $('.bp-state'), bBar = $('.bp-bar i'), islShape = $('.isl-shape')
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3)
+  const easeIO = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+  const seg = (t, a, b) => clamp((t - a) / (b - a), 0, 1)
+  const bez = (p0, p1, p2, p3, u) => { const m = 1 - u; return [m * m * m * p0[0] + 3 * m * m * u * p1[0] + 3 * m * u * u * p2[0] + u * u * u * p3[0], m * m * m * p0[1] + 3 * m * m * u * p1[1] + 3 * m * u * u * p2[1] + u * u * u * p3[1]] }
+  const centerIn = (el) => { const a = screen.getBoundingClientRect(), b = el.getBoundingClientRect(); return [b.left - a.left + b.width / 2, b.top - a.top + b.height / 2] }
+  const LOOP = 5.6
+  let beamRaf = 0, beamT0 = 0
+  function beamFrame(now) {
+    const t = reduce ? 4.9 : ((now - beamT0) / 1000) % LOOP
+    const W = screen.clientWidth, H = screen.clientHeight
+    const start = [W * 0.2, H * 0.86], dz = centerIn(bDrop)
+    const phone = [bPhone.offsetLeft + bPhone.offsetWidth / 2, bPhone.offsetTop + 10]
+    // the file, carried along a curve by a cursor
+    const u = easeIO(seg(t, 0.9, 2.1))
+    const [fx, fy] = bez(start, [W * 0.2, H * 0.5], [dz[0] - W * 0.12, dz[1] + H * 0.26], dz, u)
+    const swallow = easeOut(seg(t, 2.1, 2.5))
+    const fScale = (1 + 0.08 * seg(t, 0.5, 0.8)) * (1 - 0.75 * swallow)
+    bFile.style.opacity = String(seg(t, 0, 0.45) * (1 - seg(t, 2.3, 2.55)))
+    bFile.style.transform = `translate(${fx - bFile.offsetWidth / 2}px, ${fy - bFile.offsetHeight / 2}px) rotate(${(Math.sin(u * Math.PI) * -7).toFixed(2)}deg) scale(${fScale.toFixed(3)})`
+    const arrive = easeOut(seg(t, 0, 0.55)), leave = easeOut(seg(t, 2.2, 3.1))
+    const cx = (t < 0.9 ? start[0] + 46 * (1 - arrive) : fx) + 12 + 46 * leave, cy = (t < 0.9 ? start[1] + 70 * (1 - arrive) : fy) + 16 + 56 * leave
+    bCursor.style.opacity = String(seg(t, 0, 0.3) * (1 - seg(t, 2.5, 3.1)))
+    bCursor.style.transform = `translate(${cx}px, ${cy}px) scale(${(1 - 0.14 * seg(t, 0.5, 0.65) + 0.14 * seg(t, 2.1, 2.3)).toFixed(3)})`
+    // the notch's drop zone lights up, ripples, and squishes
+    screen.classList.toggle('is-dropping', t > 1.5 && t < 2.5)
+    rings.forEach((r, i) => { const k = seg(t, 2.15 + i * 0.18, 3.1 + i * 0.18); r.style.opacity = String(k > 0 && k < 1 ? 0.7 * (1 - k) : 0); r.style.transform = `translate(${dz[0]}px, ${dz[1]}px) scale(${(0.3 + 1.6 * easeOut(k)).toFixed(3)})` })
+    const q = t - 2.15, wob = q > 0 ? Math.exp(-q * 6) * Math.sin(q * 22) : 0
+    islShape.style.transform = `scale(${(1 + 0.025 * wob).toFixed(4)}, ${(1 - 0.07 * wob).toFixed(4)})`
+    // a comet from the notch to the phone
+    const head = easeIO(seg(t, 2.4, 3.5))
+    comet.forEach((d, i) => {
+      const k = clamp(head - i * 0.035, 0, 1)
+      const [x, y] = bez(dz, [dz[0] + W * 0.12, dz[1] + H * 0.14], [phone[0] - W * 0.16, phone[1] - H * 0.2], phone, k)
+      d.style.opacity = String(head > 0 && k < 1 ? (1 - i / 8) * (1 - seg(k, 0.9, 1)) : 0)
+      d.style.transform = `translate(${x}px, ${y}px) scale(${(1 - i * 0.1).toFixed(2)})`
+    })
+    // the phone receives it
+    const pin = easeOut(seg(t, 2.0, 2.8)), p = easeIO(seg(t, 3.3, 4.5)), done = p >= 1
+    const bump = 1 + 0.05 * Math.sin(seg(t, 4.5, 4.9) * Math.PI)
+    bPhone.style.opacity = String(pin * (1 - seg(t, 5.05, 5.55)))
+    bPhone.style.transform = `translateY(${((1 - pin) * 26).toFixed(1)}px) scale(${((0.94 + 0.06 * pin) * bump).toFixed(3)})`
+    bBar.style.transform = `scaleX(${p.toFixed(3)})`
+    bPct.textContent = `${Math.round(p * 100)}%`
+    bPhone.classList.toggle('is-done', done)
+    bState.textContent = done ? 'Received' : 'Receiving'
+  }
+  const beamLoop = (now) => { beamFrame(now); beamRaf = requestAnimationFrame(beamLoop) }
+  const beamStart = () => { cancelAnimationFrame(beamRaf); beamT0 = performance.now(); if (reduce) beamFrame(beamT0); else beamRaf = requestAnimationFrame(beamLoop) }
+  const beamStop = () => { cancelAnimationFrame(beamRaf); beamRaf = 0; screen.classList.remove('is-dropping'); islShape.style.transform = '' }
+
+  /* ---------- AI limits count up with their rings ---------- */
+  const counts = $$('[data-count]')
+  const countUp = () => {
+    if (reduce) return
+    const t0 = performance.now()
+    const tick = (now) => { const k = easeOut(clamp((now - t0 - 300) / 1400, 0, 1)); for (const el of counts) el.textContent = String(Math.round(+el.dataset.count * k)); if (k < 1) requestAnimationFrame(tick) }
+    for (const el of counts) el.textContent = '0'
+    requestAnimationFrame(tick)
+  }
+
   let stepNow = -1
   const isl = springs({ w: 184, h: 34 }, ({ w, h }) => islPath.setAttribute('d', notchPath(screen.clientWidth / 2, w, Math.max(18, h))), (key, target) => {
     const growing = target.h > 40
@@ -115,6 +192,8 @@
     faces.forEach((f) => f.classList.toggle('on', +f.dataset.face === i))
     steps.forEach((s, n) => { s.classList.toggle('is-active', n === i); s.classList.toggle('is-past', n < i) })
     screen.dataset.step = String(i)
+    if (i === 2) beamStart(); else beamStop()
+    if (i === 3) countUp()
   }
   const mobile = matchMedia('(max-width: 1000px)')
   function storyScroll() {
@@ -207,4 +286,15 @@
   if (reduce) { for (const [cls, text] of lines) { const s = document.createElement('span'); if (cls) s.className = cls; s.textContent = text; term.appendChild(s) } } else io([$('.term')], 'is-in', '0px', typeTerm)
 
   io([$('.download'), $('.foot')], 'is-in', '0px 0px -10% 0px')
+
+  /* ---------- tiles follow the pointer with a soft light ---------- */
+  for (const t of $$('.tile')) t.addEventListener('pointermove', (e) => { const r = t.getBoundingClientRect(); t.style.setProperty('--px', `${e.clientX - r.left}px`); t.style.setProperty('--py', `${e.clientY - r.top}px`) }, { passive: true })
+
+  /* ---------- footer: the cursor drifts toward the pointer ---------- */
+  const foot = $('#foot'), year = $('#year')
+  if (year) year.textContent = String(new Date().getFullYear())
+  if (!reduce && matchMedia('(pointer: fine)').matches) {
+    foot.addEventListener('pointermove', (e) => { const r = foot.getBoundingClientRect(); foot.style.setProperty('--cx', String(((e.clientX - r.left) / r.width - 0.5) * 70)); foot.style.setProperty('--cy', String(((e.clientY - r.top) / r.height - 0.5) * 40)) }, { passive: true })
+    foot.addEventListener('pointerleave', () => { foot.style.setProperty('--cx', '0'); foot.style.setProperty('--cy', '0') })
+  }
 })()
