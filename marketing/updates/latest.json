@@ -1,7 +1,7 @@
 {
-    "version":  "0.1.7",
-    "url":  "https://hover-island.vercel.app/updates/HoverIsland-0.1.7.msix",
-    "sha256":  "60ef299076dc9a624279cd59ae2079a2cb06900a14997938c1d85a82989d9577",
-    "notes":  "Ambient mode redesign: album-colour aurora, big clock, weather and a now-playing card, and it can take over from the screensaver. Lyrics find timed lyrics more often, and media seeking and covers are steadier.",
-    "published":  "2026-10-21T15:47:25.4091008Z"
+    "version":  "0.1.8",
+    "url":  "https://hover-island.vercel.app/updates/HoverIsland-0.1.8.msix",
+    "sha256":  "acb97b497aafd5d80d317ed36a00658c79c1439055b1a875699413d0b900c51e",
+    "notes":  "Lyrics now sit right on the card, no more dark box. Ambient mode gets soft lock and face unlock, with Windows Hello as backup. Claude plan limits show up properly.",
+    "published":  "2026-10-21T16:35:40.7393915Z"
 }

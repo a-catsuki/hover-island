@@ -1,7 +1,7 @@
 {
   "name": "hover-island",
   "private": true,
-  "version": "0.1.7",
+  "version": "0.1.8",
   "type": "module",
   "description": "A macOS-notch-style Dynamic Island for Windows: media, notifications, AI usage and a custom app dock.",
   "scripts": {

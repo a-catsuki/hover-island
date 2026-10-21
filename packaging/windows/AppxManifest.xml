@@ -39,5 +39,6 @@
     <DeviceCapability Name="bluetooth" />
     <DeviceCapability Name="radios" />
     <DeviceCapability Name="location" />
+    <DeviceCapability Name="webcam" />
   </Capabilities>
 </Package>
