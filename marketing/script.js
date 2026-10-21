@@ -62,7 +62,7 @@
   nav.addEventListener('focusin', () => openNav(true))
   nav.addEventListener('focusout', (e) => { if (!nav.contains(e.relatedTarget)) openNav(false) })
   const onScrollNav = () => { const s = scrollY > 40; nav.classList.toggle('is-scrolled', s); navSpring.to({ h: s ? 46 : 56 }) }
-  addEventListener('scroll', onScrollNav, { passive: true }); onScrollNav()
+  onScrollNav()
   addEventListener('resize', measureNav)
   measureNav()
   ;(document.fonts?.ready ?? Promise.resolve()).then(measureNav)
@@ -97,9 +97,12 @@
 
   /* ---------- hero parallax ---------- */
   const floaters = $$('#floaters [data-depth]')
+  let heroOn = true, px = 0, py = 0, pxQueued = false
   if (!reduce && matchMedia('(pointer: fine)').matches) addEventListener('pointermove', (e) => {
-    const x = e.clientX / innerWidth - 0.5, y = e.clientY / innerHeight - 0.5
-    for (const f of floaters) { const d = +f.dataset.depth; f.style.translate = `${-x * d}px ${-y * d}px` }
+    if (!heroOn) return
+    px = e.clientX / innerWidth - 0.5; py = e.clientY / innerHeight - 0.5
+    if (pxQueued) return; pxQueued = true
+    requestAnimationFrame(() => { pxQueued = false; for (const f of floaters) { const d = +f.dataset.depth; f.style.translate = `${-px * d}px ${-py * d}px` } })
   }, { passive: true })
 
   /* ---------- the story: one island morphing through every chapter ---------- */
@@ -124,19 +127,21 @@
   const bez = (p0, p1, p2, p3, u) => { const m = 1 - u; return [m * m * m * p0[0] + 3 * m * m * u * p1[0] + 3 * m * u * u * p2[0] + u * u * u * p3[0], m * m * m * p0[1] + 3 * m * m * u * p1[1] + 3 * m * u * u * p2[1] + u * u * u * p3[1]] }
   const centerIn = (el) => { const a = screen.getBoundingClientRect(), b = el.getBoundingClientRect(); return [b.left - a.left + b.width / 2, b.top - a.top + b.height / 2] }
   const LOOP = 5.6
-  let beamRaf = 0, beamT0 = 0
+  let beamRaf = 0, beamT0 = 0, geo = null
   function beamFrame(now) {
     const t = reduce ? 4.9 : ((now - beamT0) / 1000) % LOOP
     const W = screen.clientWidth, H = screen.clientHeight
-    const start = [W * 0.2, H * 0.86], dz = centerIn(bDrop)
-    const phone = [bPhone.offsetLeft + bPhone.offsetWidth / 2, bPhone.offsetTop + 10]
+    const start = [W * 0.2, H * 0.86]
+    // the island is still opening for the first second; after that the geometry is fixed
+    if (!geo || t < 1.2) geo = { dz: centerIn(bDrop), phone: [bPhone.offsetLeft + bPhone.offsetWidth / 2, bPhone.offsetTop + 10], fw: bFile.offsetWidth, fh: bFile.offsetHeight }
+    const { dz, phone } = geo
     // the file, carried along a curve by a cursor
     const u = easeIO(seg(t, 0.9, 2.1))
     const [fx, fy] = bez(start, [W * 0.2, H * 0.5], [dz[0] - W * 0.12, dz[1] + H * 0.26], dz, u)
     const swallow = easeOut(seg(t, 2.1, 2.5))
     const fScale = (1 + 0.08 * seg(t, 0.5, 0.8)) * (1 - 0.75 * swallow)
     bFile.style.opacity = String(seg(t, 0, 0.45) * (1 - seg(t, 2.3, 2.55)))
-    bFile.style.transform = `translate(${fx - bFile.offsetWidth / 2}px, ${fy - bFile.offsetHeight / 2}px) rotate(${(Math.sin(u * Math.PI) * -7).toFixed(2)}deg) scale(${fScale.toFixed(3)})`
+    bFile.style.transform = `translate(${fx - geo.fw / 2}px, ${fy - geo.fh / 2}px) rotate(${(Math.sin(u * Math.PI) * -7).toFixed(2)}deg) scale(${fScale.toFixed(3)})`
     const arrive = easeOut(seg(t, 0, 0.55)), leave = easeOut(seg(t, 2.2, 3.1))
     const cx = (t < 0.9 ? start[0] + 46 * (1 - arrive) : fx) + 12 + 46 * leave, cy = (t < 0.9 ? start[1] + 70 * (1 - arrive) : fy) + 16 + 56 * leave
     bCursor.style.opacity = String(seg(t, 0, 0.3) * (1 - seg(t, 2.5, 3.1)))
@@ -165,7 +170,7 @@
     bState.textContent = done ? 'Received' : 'Receiving'
   }
   const beamLoop = (now) => { beamFrame(now); beamRaf = requestAnimationFrame(beamLoop) }
-  const beamStart = () => { cancelAnimationFrame(beamRaf); beamT0 = performance.now(); if (reduce) beamFrame(beamT0); else beamRaf = requestAnimationFrame(beamLoop) }
+  const beamStart = () => { cancelAnimationFrame(beamRaf); geo = null; beamT0 = performance.now(); if (reduce) beamFrame(beamT0); else beamRaf = requestAnimationFrame(beamLoop) }
   const beamStop = () => { cancelAnimationFrame(beamRaf); beamRaf = 0; screen.classList.remove('is-dropping'); islShape.style.transform = '' }
 
   /* ---------- AI limits count up with their rings ---------- */
@@ -203,7 +208,8 @@
     railFill.style.strokeDasharray = `${(p * 100).toFixed(2)} 100`
     setStep(Math.floor(p * 5.999))
   }
-  addEventListener('scroll', () => requestAnimationFrame(storyScroll), { passive: true })
+  let scrollQueued = false
+  addEventListener('scroll', () => { if (scrollQueued) return; scrollQueued = true; requestAnimationFrame(() => { scrollQueued = false; onScrollNav(); storyScroll() }) }, { passive: true })
   addEventListener('resize', () => { const i = stepNow; stepNow = -1; setStep(i); isl.redraw() })
   setStep(0); storyScroll()
   // On phones the story is not pinned: it plays itself while on screen.
@@ -288,13 +294,26 @@
   io([$('.download'), $('.foot')], 'is-in', '0px 0px -10% 0px')
 
   /* ---------- tiles follow the pointer with a soft light ---------- */
-  for (const t of $$('.tile')) t.addEventListener('pointermove', (e) => { const r = t.getBoundingClientRect(); t.style.setProperty('--px', `${e.clientX - r.left}px`); t.style.setProperty('--py', `${e.clientY - r.top}px`) }, { passive: true })
+  for (const t of $$('.tile')) {
+    let q = false, ev = null
+    t.addEventListener('pointermove', (e) => { ev = e; if (q) return; q = true; requestAnimationFrame(() => { q = false; const r = t.getBoundingClientRect(); t.style.setProperty('--px', `${ev.clientX - r.left}px`); t.style.setProperty('--py', `${ev.clientY - r.top}px`) }) }, { passive: true })
+  }
 
   /* ---------- footer: the cursor drifts toward the pointer ---------- */
+  const idle = (fn) => ('requestIdleCallback' in window ? requestIdleCallback(fn, { timeout: 2500 }) : setTimeout(fn, 800))
+  const loadFootArt = () => { for (const img of $$('.foot img[data-src]')) { img.src = img.dataset.src; img.removeAttribute('data-src'); img.decode?.().catch(() => {}) } }
+  if (document.readyState === 'complete') idle(loadFootArt); else addEventListener('load', () => idle(loadFootArt), { once: true })
   const foot = $('#foot'), year = $('#year')
   if (year) year.textContent = String(new Date().getFullYear())
   if (!reduce && matchMedia('(pointer: fine)').matches) {
-    foot.addEventListener('pointermove', (e) => { const r = foot.getBoundingClientRect(); foot.style.setProperty('--cx', String(((e.clientX - r.left) / r.width - 0.5) * 70)); foot.style.setProperty('--cy', String(((e.clientY - r.top) / r.height - 0.5) * 40)) }, { passive: true })
+    let fq = false, fe = null
+    foot.addEventListener('pointermove', (e) => { fe = e; if (fq) return; fq = true; requestAnimationFrame(() => { fq = false; const r = foot.getBoundingClientRect(); foot.style.setProperty('--cx', String(((fe.clientX - r.left) / r.width - 0.5) * 70)); foot.style.setProperty('--cy', String(((fe.clientY - r.top) / r.height - 0.5) * 40)) }) }, { passive: true })
     foot.addEventListener('pointerleave', () => { foot.style.setProperty('--cx', '0'); foot.style.setProperty('--cy', '0') })
+  }
+
+  /* ---------- sections that are offscreen stop animating ---------- */
+  if ('IntersectionObserver' in window) {
+    const watch = new IntersectionObserver((entries) => { for (const e of entries) { e.target.classList.toggle('is-off', !e.isIntersecting); if (e.target.id === 'top') heroOn = e.isIntersecting } }, { rootMargin: '120px 0px' })
+    for (const el of $$('.hero, .works, .more, .open, .download, .play')) watch.observe(el)
   }
 })()
