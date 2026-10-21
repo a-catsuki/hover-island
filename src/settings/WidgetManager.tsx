@@ -16,7 +16,7 @@ import {
   type PanelId,
 } from '../lib/panels'
 import { widgetPages, widgetResolvedSize } from '../lib/widgetPages'
-import { clearWidgetSlot, firstFreeCell, placeWidgetAtCell, swapWidgetCells } from '../lib/widgetPlacement'
+import { clearWidgetSlot, firstFreeCell, fitShapeAt, placeWidgetAtCell, swapWidgetCells } from '../lib/widgetPlacement'
 import { SHAPE_SPAN, defaultWidgetShape, widgetShapeLocked, widgetShapeOptions } from '../lib/widgetShapes'
 import Dropdown from '../components/widgets/Dropdown'
 import './WidgetManager.css'
@@ -44,6 +44,8 @@ export default function WidgetManager() {
   const [selectedPanel, setSelectedPanel] = createSignal<PanelId>(settings.panelOrder[0] ?? 'today')
   const [announce, setAnnounce] = createSignal('')
   const [draggingId, setDraggingId] = createSignal<string | null>(null)
+  // An empty cell the user clicked before choosing a widget; the next widget added lands there.
+  const [pendingCell, setPendingCell] = createSignal<{ panel: PanelId; row: number; column: number } | null>(null)
   const [dropTarget, setDropTarget] = createSignal<{ panel: PanelId; widgetId?: string; row?: number; column?: number } | null>(null)
   let pointerDrag: { pointerId: number; pointerType: string; widgetId: string; x: number; y: number; started: boolean } | null = null
   let suppressClickId: string | null = null
@@ -61,7 +63,25 @@ export default function WidgetManager() {
     } })
   }
   const pageWidgets = (panel: PanelId) => visibleWidgets().filter((widget) => widgetPanel(widget, settings.panelOrder) === panel)
-  const enabled = (panel: PanelId) => pageWidgets(panel).filter((widget) => widget.enabled)
+  // Widgets saved before shapes existed have no size, and a page made only of those is drawn
+  // stretched to full height, which left no free cell to drop anything into. The editor treats
+  // them as the compact tiles they are labelled as, and saving a placement pins that size.
+  const sized = (widget: WidgetConfig): WidgetConfig => widget.size == null ? { ...widget, size: resolvedSize(widget) } : widget
+  const pinSizes = (list: WidgetConfig[], panel: PanelId) => list.map((widget) => widgetPanel(widget, settings.panelOrder) === panel ? sized(widget) : widget)
+  const enabled = (panel: PanelId) => pageWidgets(panel).filter((widget) => widget.enabled).map(sized)
+  // Pages pack in order, so a widget placed into a free cell of the first page must sit right
+  // after that page's tiles; otherwise a larger tile further down claims the page first and
+  // the placed one spills onto an extra page.
+  const afterFirstPage = (list: WidgetConfig[], panel: PanelId, id: string) => {
+    const firstIds = new Set(slotsFor(panel).map((slot) => slot.widget.id).filter((other) => other !== id))
+    const moving = list.find((widget) => widget.id === id)
+    if (!moving) return list
+    const rest = list.filter((widget) => widget.id !== id)
+    let at = -1
+    rest.forEach((widget, index) => { if (firstIds.has(widget.id)) at = index })
+    rest.splice(at + 1, 0, moving)
+    return rest
+  }
   const slotsFor = (panel: PanelId) => widgetPages(enabled(panel), 2)[0] ?? []
   const freeCellsFor = (panel: PanelId, dragging: string | null) => {
     const occupied = new Set<string>()
@@ -86,14 +106,28 @@ export default function WidgetManager() {
     setAnnounce(`${WIDGETS[widget.kind]?.label ?? widget.kind} removed`)
   }
   const add = (kind: WidgetKind) => {
+    const label = WIDGETS[kind]?.label ?? kind
+    const pending = pendingCell()
+    setPendingCell(null)
+    // New widgets go on the page you are looking at, in the first space they fit,
+    // instead of a fixed home page where they could spill onto an extra page.
+    const panel = pending?.panel ?? selectedPanel()
+    const members = enabled(panel)
+    const preferred = defaultWidgetShape(kind)
+    const cells: { row: number; column: number }[] = pending ? [pending] : freeCellsFor(panel, null).map(([row, column]) => ({ row, column }))
+    let fit: ReturnType<typeof fitShapeAt> = null
+    for (const cell of cells) { fit = fitShapeAt(members, kind, preferred, cell); if (fit) break }
     const widget: WidgetConfig = {
       id: crypto.randomUUID(), kind, enabled: true, order: visibleWidgets().length,
-      panel: defaultPanelForKind(kind, settings.panelOrder),
-      size: defaultWidgetShape(kind),
+      panel,
+      size: fit?.size ?? preferred,
+      ...(fit ? { slot: fit.cell } : {}),
       ...(kind === 'media' ? { showLyrics: false } : {}),
     }
-    commit([...visibleWidgets(), widget])
+    commit(fit ? afterFirstPage([...pinSizes(visibleWidgets(), panel), widget], panel, widget.id) : [...pinSizes(visibleWidgets(), panel), widget])
     setSelectedId(widget.id)
+    setSelectedPanel(panel)
+    setAnnounce(fit ? `${label} added to ${pageName(panel)}` : `${label} needs more room than ${pageName(panel)} has, so it went on a new page`)
   }
   const move = (widget: WidgetConfig, delta: number) => {
     const panel = widgetPanel(widget, settings.panelOrder)
@@ -116,8 +150,17 @@ export default function WidgetManager() {
         ? ordered().map((widget) => swappedById.get(widget.id) ?? widget).sort((a, b) => a.order - b.order)
         : clearWidgetSlot(moveWidgetBefore(ordered(), sourceId, dropping), sourceId)
     } else {
-      // Placing a hidden widget on a cell is also an instruction to show it.
-      next = placeWidgetAtCell(ordered(), sourceId, panel, cell).map((widget) => widget.id === sourceId ? { ...widget, enabled: true } : widget)
+      // Fit the widget into the space that is actually free there, shrinking it if it supports a
+      // smaller shape. Placing a hidden widget on a cell is also an instruction to show it.
+      const others = enabled(panel).filter((widget) => widget.id !== sourceId)
+      const fit = fitShapeAt(others, source.kind, resolvedSize(source), cell)
+      if (!fit) {
+        setAnnounce(`${WIDGETS[source.kind]?.label ?? source.kind} needs more room than that. Free up space or use a page with room.`)
+        return
+      }
+      next = placeWidgetAtCell(pinSizes(ordered(), panel).map((widget) => widget.id === sourceId ? { ...widget, size: fit.size } : widget), sourceId, panel, fit.cell)
+        .map((widget) => widget.id === sourceId ? { ...widget, enabled: true } : widget)
+      next = afterFirstPage(next, panel, sourceId)
     }
     commit(next)
     setSelectedId(sourceId)
@@ -266,12 +309,12 @@ export default function WidgetManager() {
                 >
                   <For each={freeCellsFor(panel, draggingId())}>{([row, column]) => <button type="button"
                     class="wmp__empty-cell" data-drop-panel={panel} data-drop-row={row} data-drop-column={column}
-                    classList={{ 'wmp__empty-cell--active': dropTarget()?.panel === panel && dropTarget()?.row === row && dropTarget()?.column === column }}
+                    classList={{ 'wmp__empty-cell--active': (dropTarget()?.panel === panel && dropTarget()?.row === row && dropTarget()?.column === column) || (pendingCell()?.panel === panel && pendingCell()?.row === row && pendingCell()?.column === column) }}
                     aria-label={`Place selected widget in row ${row}, column ${column}`}
-                    onClick={() => { const id = selectedId(); if (id) placeWidget(id, panel, { row, column }); else { setAnnounce('Choose a widget to add below.'); focusTray() } }}
+                    onClick={() => { const id = selectedId(); if (id) placeWidget(id, panel, { row, column }); else { setPendingCell({ panel, row, column }); setAnnounce('Pick a widget below to put it here.'); focusTray() } }}
                     style={{ 'grid-column': `${column}`, 'grid-row': `${row}` }}>
                     <span class="wmp__plus" aria-hidden="true"><Plus size={14} strokeWidth={2.4} /></span>
-                    <span class="wmp__empty-text">{draggingId() ? 'Drop here' : selectedId() ? 'Place here' : 'Add widget'}</span>
+                    <span class="wmp__empty-text">{draggingId() ? 'Drop here' : selectedId() ? 'Place here' : pendingCell()?.panel === panel && pendingCell()?.row === row && pendingCell()?.column === column ? 'Pick below' : 'Add widget'}</span>
                   </button>}</For>
                   <Show when={slots().length > 0} fallback={<div class="wmp__empty">Add a widget to this page</div>}>
                     <For each={slots()}>{(slot) => {

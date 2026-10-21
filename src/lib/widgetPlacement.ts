@@ -1,7 +1,8 @@
 import type { WidgetConfig } from './ipc'
 import { widgetPages, widgetResolvedSize } from './widgetPages'
 import type { WidgetResolvedSize } from './widgetPages'
-import { SHAPE_AREA, SHAPE_SHRINK, widgetShapeLocked } from './widgetShapes'
+import { SHAPE_AREA, SHAPE_SHRINK, SHAPE_SPAN, WIDGET_SHAPES, widgetShapeLocked } from './widgetShapes'
+import type { WidgetKind } from './ipc'
 
 export interface GridCell {
   row: number
@@ -128,4 +129,46 @@ export function firstFreeCell(members: WidgetConfig[]): GridCell {
     }
   }
   return { row: 1, column: 1 }
+}
+
+/** Grid cells (row:column, 1-based) already used on a panel's first page. */
+export function occupiedCells(members: WidgetConfig[]): Set<string> {
+  const used = new Set<string>()
+  for (const slot of (widgetPages(members, 2)[0] ?? [])) {
+    for (let row = slot.row; row < slot.row + slot.rows; row++) {
+      for (let column = slot.column; column < slot.column + slot.columns; column++) used.add(`${row}:${column}`)
+    }
+  }
+  return used
+}
+
+/**
+ * The shape and start cell a widget should take when placed at `cell` on a page
+ * holding `members` (the widget itself excluded). Keeps the preferred shape when
+ * it fits, otherwise the largest shape this widget supports that does. Null when
+ * nothing fits, for example a full-page widget dropped into one free tile.
+ */
+export function fitShapeAt(members: WidgetConfig[], kind: WidgetKind, preferred: WidgetResolvedSize, cell: GridCell): { size: WidgetResolvedSize; cell: GridCell } | null {
+  const used = occupiedCells(members)
+  const allowed = (WIDGET_SHAPES[kind] ?? []).map(option => option.id as WidgetResolvedSize)
+  const byArea = [...allowed].sort((a, b) => SHAPE_AREA[b] - SHAPE_AREA[a])
+  const order = [preferred, ...byArea.filter(size => size !== preferred && SHAPE_AREA[size] <= SHAPE_AREA[preferred]), ...byArea.filter(size => SHAPE_AREA[size] > SHAPE_AREA[preferred])]
+  for (const size of order) {
+    if (!allowed.includes(size)) continue
+    const [spanX, spanY] = SHAPE_SPAN[size] ?? [1, 1]
+    // Try the clicked cell first, then any start that still covers it.
+    const starts: GridCell[] = [cellForSize(size, cell)]
+    for (let row = 1; row <= 3 - spanY; row++) for (let column = 1; column <= 3 - spanX; column++) {
+      if (cell.row >= row && cell.row < row + spanY && cell.column >= column && cell.column < column + spanX) starts.push({ row, column })
+    }
+    for (const start of starts) {
+      if (start.row + spanY > 3 || start.column + spanX > 3) continue
+      let free = true
+      for (let row = start.row; row < start.row + spanY && free; row++) for (let column = start.column; column < start.column + spanX; column++) {
+        if (used.has(`${row}:${column}`)) { free = false; break }
+      }
+      if (free) return { size, cell: start }
+    }
+  }
+  return null
 }

@@ -256,3 +256,18 @@ test('quick controls and beam get their own pages that only show while their wid
   assert.equal(panels.panelVisible('today', hidden), true)
   assert.equal(panels.dedicatePanelLayout(layout, 'clock'), layout)
 })
+
+test('placing a widget fits it into the free space instead of spilling onto a new page', () => {
+  const { fitShapeAt } = placement
+  // Media is wide on the top row; the bottom row is free.
+  const members = [{ ...widget('media', 'media', 0, 'today'), size: 'wide', slot: { row: 1, column: 1 } }]
+  // A compact network widget lands exactly where it was clicked.
+  assert.deepEqual(JSON.parse(JSON.stringify(fitShapeAt(members, 'network', 'compact', { row: 2, column: 2 }))), { size: 'compact', cell: { row: 2, column: 2 } })
+  // A widget that defaults to full shrinks to the largest shape that fits the free row.
+  assert.deepEqual(JSON.parse(JSON.stringify(fitShapeAt(members, 'usage', 'full', { row: 2, column: 1 }))), { size: 'wide', cell: { row: 2, column: 1 } })
+  // One free tile left: a wide-capable widget becomes compact there.
+  const busy = [...members, { ...widget('notes', 'notes', 1, 'today'), size: 'compact', slot: { row: 2, column: 1 } }]
+  assert.deepEqual(JSON.parse(JSON.stringify(fitShapeAt(busy, 'weather', 'wide', { row: 2, column: 2 }))), { size: 'compact', cell: { row: 2, column: 2 } })
+  // A full-page-only widget never squeezes into one tile.
+  assert.equal(fitShapeAt(busy, 'calendar', 'full', { row: 2, column: 2 }), null)
+})

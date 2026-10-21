@@ -137,6 +137,15 @@ export function patchSettings(patch: Partial<Settings>): void {
     ;(pending as Record<string, unknown>)[key] = value && old && typeof value === 'object' && !Array.isArray(value)
       ? { ...old as object, ...value as object } : value
   }
+  // Layout edits are normalized here (overflow pages folded and repacked). Save that exact
+  // layout as one unit, or the native side merges raw widgets with stale page ids and the
+  // next sync invents "Recovered" pages.
+  if ('widgets' in patch || 'panels' in patch || 'panelOrder' in patch) {
+    pending.widgets = clone(unwrap(settings.widgets))
+    pending.panels = clone(unwrap(settings.panels))
+    pending.panelOrder = clone(unwrap(settings.panelOrder))
+    pending.panelNames = clone(unwrap(settings.panelNames ?? {}))
+  }
   clearTimeout(timer)
   timer = setTimeout(enqueueSave, 180)
 }
