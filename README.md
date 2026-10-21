@@ -83,7 +83,7 @@ Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for
 1. Bump `version` in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`.
 2. Run `Rebuild.ps1`.
 3. Run `packaging\windows\Publish-Update.ps1 -Notes "What changed"`. It copies the package and a `latest.json` (version, URL, SHA-256) into `marketing/updates`.
-4. Deploy the site from `marketing/`. Installed apps see it under Settings, General.
+4. Run `packaging\windows\Deploy-Site.ps1`. It deploys `marketing/` from a copy outside the repo, because the Vercel CLI applies `.gitignore` and would leave the `.msix` out. Installed apps see it under Settings, General.
 
 ## Honest limits
 

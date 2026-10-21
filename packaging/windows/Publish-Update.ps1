@@ -2,7 +2,8 @@
 #   1. bump "version" in src-tauri/tauri.conf.json and src-tauri/Cargo.toml (3 parts, e.g. 0.1.6)
 #   2. run Rebuild.ps1 (builds, packages and installs it)
 #   3. run this:  powershell -ExecutionPolicy Bypass -File packaging\windows\Publish-Update.ps1 -Notes "What changed"
-#   4. deploy the site (cd marketing; vercel deploy --prod). Installed apps pick it up under Settings > About.
+#   4. run packaging\windows\Deploy-Site.ps1 (not a plain `vercel deploy` from marketing/: the repo
+#      .gitignore drops *.msix from the upload). Installed apps pick it up under Settings > About.
 [CmdletBinding()]
 param([string] $Notes = '')
 $ErrorActionPreference = 'Stop'
@@ -28,4 +29,4 @@ $manifest = [ordered]@{
     published = (Get-Date).ToUniversalTime().ToString('o')
 }
 [IO.File]::WriteAllText((Join-Path $updates 'latest.json'), ($manifest | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
-Write-Host "Published $name ($hash). Now deploy the site: cd marketing; vercel deploy --prod"
+Write-Host "Published $name ($hash). Now deploy the site: packaging\windows\Deploy-Site.ps1"

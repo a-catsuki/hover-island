@@ -1,7 +1,7 @@
 {
-    "version":  "0.1.6",
-    "url":  "https://hover-island.vercel.app/updates/HoverIsland-0.1.6.msix",
-    "sha256":  "c041ceb2308c5ee100beb919b356074f7ea3f3578e48d1d3ba7c58af9352241e",
-    "notes":  "what changed",
-    "published":  "2026-10-21T05:03:20.3028201Z"
+    "version":  "0.1.7",
+    "url":  "https://hover-island.vercel.app/updates/HoverIsland-0.1.7.msix",
+    "sha256":  "60ef299076dc9a624279cd59ae2079a2cb06900a14997938c1d85a82989d9577",
+    "notes":  "Ambient mode redesign: album-colour aurora, big clock, weather and a now-playing card, and it can take over from the screensaver. Lyrics find timed lyrics more often, and media seeking and covers are steadier.",
+    "published":  "2026-10-21T15:47:25.4091008Z"
 }
