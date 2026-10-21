@@ -1,6 +1,6 @@
 [package]
 name = "hover-island"
-version = "0.1.8"
+version = "0.1.9"
 description = "A macOS-notch-style Dynamic Island for Windows"
 authors = ["Hover Island"]
 edition = "2021"

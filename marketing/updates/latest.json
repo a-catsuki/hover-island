@@ -1,7 +1,7 @@
 {
-    "version":  "0.1.8",
-    "url":  "https://hover-island.vercel.app/updates/HoverIsland-0.1.8.msix",
-    "sha256":  "acb97b497aafd5d80d317ed36a00658c79c1439055b1a875699413d0b900c51e",
-    "notes":  "Lyrics now sit right on the card, no more dark box. Ambient mode gets soft lock and face unlock, with Windows Hello as backup. Claude plan limits show up properly.",
-    "published":  "2026-10-21T16:35:40.7393915Z"
+    "version":  "0.1.9",
+    "url":  "https://hover-island.vercel.app/updates/HoverIsland-0.1.9.msix",
+    "sha256":  "51403e7b9cacc8b65d854ae81d3839814651941ed6506d1b3761ce9c48960884",
+    "notes":  "Vinyl and CD covers are now round discs. The notch closes properly after a notification peek. Hide behind maximised and full screen windows works per monitor and no longer eats clicks (the toggle moved to Island, Open and close). Face setup no longer hangs: it falls back to the CPU and shows hints.",
+    "published":  "2026-10-21T17:46:08.5689201Z"
 }
