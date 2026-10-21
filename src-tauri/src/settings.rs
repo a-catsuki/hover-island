@@ -142,10 +142,12 @@ pub struct AmbientCfg {
     pub weather: bool,
     /// Dim everything and drift slowly so a still image never burns into the screen.
     pub dim: bool,
+    /// Appear just before the Windows screen saver would, and keep the screen saver and display sleep off while shown.
+    pub take_over_screensaver: bool,
 }
 impl Default for AmbientCfg {
     fn default() -> Self {
-        Self { enabled: false, idle_minutes: 5, clock: true, media: true, weather: true, dim: true }
+        Self { enabled: false, idle_minutes: 5, clock: true, media: true, weather: true, dim: true, take_over_screensaver: true }
     }
 }
 

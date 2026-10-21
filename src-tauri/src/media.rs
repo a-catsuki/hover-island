@@ -495,8 +495,14 @@ fn timeline_from_ticks(
 
     let duration = ticks_to_seconds(span);
     let position = ticks_to_seconds(position - start);
-    let range_start = min_seek.max(start).min(end);
-    let range_end = max_seek.max(start).min(end);
+    let mut range_start = min_seek.max(start).min(end);
+    let mut range_end = max_seek.max(start).min(end);
+    // Some players (Apple Music for Windows among them) enable position control but report an empty
+    // seek window. Treat that as "anywhere in the track" and let Windows accept or refuse the seek.
+    if playback_position_enabled && range_end <= range_start {
+        range_start = start;
+        range_end = end;
+    }
     let valid_seek_range = range_end > range_start;
     let can_seek = valid_seek_range && playback_position_enabled;
 

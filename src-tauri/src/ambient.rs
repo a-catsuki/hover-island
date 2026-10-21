@@ -2,6 +2,7 @@
 //! and weather page. Any keyboard or mouse input closes it again. Idle time comes from
 //! `GetLastInputInfo`, so it needs no hooks and reads nothing about what is typed.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager, WebviewUrl};
@@ -11,6 +12,60 @@ use crate::state::AppState;
 const LABEL: &str = "ambient";
 /// Input that happens this soon after opening is the user's own click or key, not a wake-up.
 const OPEN_GRACE: Duration = Duration::from_millis(1500);
+/// How long before the Windows screen saver would start that ambient mode takes over.
+const SAVER_LEAD_MS: u64 = 20_000;
+
+/// True while ambient mode wants the screen saver and display sleep held off.
+static HOLD_DISPLAY: AtomicBool = AtomicBool::new(false);
+
+/// Seconds until Windows would start its screen saver, or `None` when it is switched off.
+#[cfg(windows)]
+fn screensaver_timeout_ms() -> Option<u64> {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SystemParametersInfoW, SPI_GETSCREENSAVEACTIVE, SPI_GETSCREENSAVETIMEOUT,
+        SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+    };
+    let mut active: u32 = 0;
+    let mut seconds: u32 = 0;
+    // SAFETY: both out-pointers are valid u32 values that live for the calls.
+    unsafe {
+        SystemParametersInfoW(SPI_GETSCREENSAVEACTIVE, 0, Some(&mut active as *mut u32 as *mut _), SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0)).ok()?;
+        if active == 0 {
+            return None;
+        }
+        SystemParametersInfoW(SPI_GETSCREENSAVETIMEOUT, 0, Some(&mut seconds as *mut u32 as *mut _), SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0)).ok()?;
+    }
+    (seconds > 0).then(|| u64::from(seconds) * 1000)
+}
+
+#[cfg(not(windows))]
+fn screensaver_timeout_ms() -> Option<u64> {
+    None
+}
+
+/// Keeps the display (and with it the screen saver timer) from running out while ambient mode is
+/// on screen. The execution state belongs to one thread, so a small thread owns it.
+#[cfg(windows)]
+fn spawn_display_holder() {
+    use windows::Win32::System::Power::{SetThreadExecutionState, ES_CONTINUOUS, ES_DISPLAY_REQUIRED};
+    let _ = std::thread::Builder::new().name("ambient-display-hold".into()).spawn(|| {
+        let mut holding = false;
+        loop {
+            let want = HOLD_DISPLAY.load(Ordering::Relaxed);
+            if want != holding {
+                // SAFETY: plain Win32 call with documented flag values.
+                unsafe {
+                    SetThreadExecutionState(if want { ES_CONTINUOUS | ES_DISPLAY_REQUIRED } else { ES_CONTINUOUS });
+                }
+                holding = want;
+            }
+            std::thread::sleep(Duration::from_millis(500));
+        }
+    });
+}
+
+#[cfg(not(windows))]
+fn spawn_display_holder() {}
 
 #[cfg(windows)]
 fn idle_millis() -> Option<u64> {
@@ -67,6 +122,7 @@ fn close(app: &AppHandle) {
 
 /// Polls twice a second while ambient mode is on, and once every few seconds otherwise.
 pub fn spawn(app: AppHandle) {
+    spawn_display_holder();
     tauri::async_runtime::spawn(async move {
         let mut opened_at: Option<Instant> = None;
         loop {
@@ -84,6 +140,14 @@ pub fn spawn(app: AppHandle) {
             if !open_now {
                 opened_at = None;
             }
+            HOLD_DISPLAY.store(open_now && cfg.take_over_screensaver, Ordering::Relaxed);
+            // Start ahead of the Windows screen saver, so ambient mode is what shows instead of it.
+            let mut threshold = u64::from(cfg.idle_minutes) * 60_000;
+            if cfg.take_over_screensaver {
+                if let Some(saver) = screensaver_timeout_ms() {
+                    threshold = threshold.min(saver.saturating_sub(SAVER_LEAD_MS).max(10_000));
+                }
+            }
             if let Some(idle) = idle_millis() {
                 if open_now {
                     let since_open = opened_at.get_or_insert_with(Instant::now).elapsed();
@@ -92,7 +156,7 @@ pub fn spawn(app: AppHandle) {
                         close(&app);
                         opened_at = None;
                     }
-                } else if cfg.enabled && idle >= u64::from(cfg.idle_minutes) * 60_000 {
+                } else if cfg.enabled && idle >= threshold {
                     if open(&app).is_ok() {
                         opened_at = Some(Instant::now());
                     }

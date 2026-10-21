@@ -344,6 +344,7 @@ export default function SettingsApp() {
                     <Toggle label="Clock and date" checked={settings.ambient.clock} onChange={value => set({ ambient: { ...settings.ambient, clock: value } })} />
                     <Toggle label="Now playing" hint="Uses your album cover style" checked={settings.ambient.media} onChange={value => set({ ambient: { ...settings.ambient, media: value } })} />
                     <Toggle label="Weather" checked={settings.ambient.weather} onChange={value => set({ ambient: { ...settings.ambient, weather: value } })} />
+                    <Toggle label="Take over from the screen saver" hint="Shows just before the Windows screen saver would, and keeps it and display sleep off while ambient is up. Windows does not let apps draw over the screen saver or lock screen itself." checked={settings.ambient.takeOverScreensaver} onChange={value => set({ ambient: { ...settings.ambient, takeOverScreensaver: value } })} />
                     <Toggle label="Dim and drift" hint="Softer brightness and a slow wander to protect the screen" checked={settings.ambient.dim} onChange={value => set({ ambient: { ...settings.ambient, dim: value } })} />
                     <Field label="Preview" hint="Opens it now. Move the mouse after a couple of seconds to close it.">
                       <button type="button" class="button" onClick={() => void cmd.ambientOpen().catch(error => reportError('Could not open ambient mode', error))}>Preview</button>

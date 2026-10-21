@@ -416,7 +416,7 @@ export const DEFAULT_SETTINGS: Settings = {
     manualConfig: { label: 'Custom', used: null, limit: null, unit: 'tokens', resetAt: null },
   },
   transfer: { trustedPhones: false },
-  ambient: { enabled: false, idleMinutes: 5, clock: true, media: true, weather: true, dim: true },
+  ambient: { enabled: false, idleMinutes: 5, clock: true, media: true, weather: true, dim: true, takeOverScreensaver: true },
   notifications: { enabled: true, systemListener: true, sound: 'soft' },
   interaction: { hoverOpen: true, openDelayMs: 140, closeDelayMs: 450 },
 }
@@ -1044,7 +1044,7 @@ export interface AirDropCapability {
   reason:string
 }
 
-export interface AmbientSettings { enabled: boolean; idleMinutes: number; clock: boolean; media: boolean; weather: boolean; dim: boolean }
+export interface AmbientSettings { enabled: boolean; idleMinutes: number; clock: boolean; media: boolean; weather: boolean; dim: boolean; takeOverScreensaver: boolean }
 export interface TransferFile { id:string; name:string; size:number; createdAt:number }
 export interface TransferStatus {
   active:boolean

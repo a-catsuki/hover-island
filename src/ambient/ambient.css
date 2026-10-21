@@ -1,19 +1,51 @@
 html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; cursor: none; }
-.ambient { position: fixed; inset: 0; display: grid; place-items: center; background: #000; color: #fff; font-family: 'Inter Variable', Inter, system-ui, sans-serif; user-select: none; }
-.ambient--dim { color: rgba(255, 255, 255, 0.72); }
-.ambient__stage { display: flex; align-items: center; justify-content: center; gap: clamp(48px, 8vw, 140px); padding: 5vh 6vw; transition: transform 6s ease-in-out; }
-.ambient__clock { display: flex; flex-direction: column; gap: 10px; }
-.ambient__clock--solo { align-items: center; text-align: center; }
-.ambient__time { display: flex; align-items: baseline; gap: 14px; font-size: clamp(96px, 17vw, 260px); font-weight: 200; letter-spacing: -0.04em; line-height: 0.95; font-variant-numeric: tabular-nums; font-family: var(--clock-font, inherit); }
-.ambient__time small { font-size: 0.18em; font-weight: 400; letter-spacing: 0; opacity: 0.6; }
-.ambient__date { margin: 0; font-size: clamp(20px, 2.4vw, 38px); font-weight: 400; opacity: 0.7; }
-.ambient__weather { margin: 4px 0 0; font-size: clamp(18px, 2vw, 30px); font-weight: 500; opacity: 0.8; }
-.ambient__weather span { font-weight: 400; opacity: 0.7; }
-.ambient__media { flex: none; display: flex; flex-direction: column; align-items: center; gap: 28px; width: 320px; height: auto; max-width: 36vw; }
-.ambient__media .media__art { width: 260px; height: 260px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7); }
-.ambient__media.media--paused .media__art { opacity: 0.7; }
-.ambient__meta { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; text-align: center; }
-.ambient__meta strong { max-width: 100%; overflow: hidden; font-size: 26px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.ambient__meta span { max-width: 100%; overflow: hidden; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; opacity: 0.65; }
+.ambient { --c1: #3b5bff; --c2: #8a4dff; --c3: #0b1030; position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden; background: #05060a; color: #fff; font-family: 'Inter Variable', Inter, system-ui, sans-serif; user-select: none; opacity: 0; transition: opacity 1.4s ease; }
+.ambient--ready { opacity: 1; }
+.ambient--dim { color: rgba(255, 255, 255, 0.82); }
+
+/* living colour wash */
+.ambient__sky { position: absolute; inset: 0; overflow: hidden; transition: filter 1.2s; }
+.ambient--dim .ambient__sky { filter: brightness(0.72) saturate(0.9); }
+.ambient__orb { position: absolute; display: block; border-radius: 50%; filter: blur(110px); opacity: 0.55; mix-blend-mode: screen; transition: background 2.4s ease; will-change: transform; }
+.ambient__orb--a { width: 62vmax; height: 62vmax; left: -14vmax; top: -22vmax; background: var(--c1); animation: ambient-a 42s ease-in-out infinite alternate; }
+.ambient__orb--b { width: 54vmax; height: 54vmax; right: -16vmax; top: 6vmax; background: var(--c2); animation: ambient-b 54s ease-in-out infinite alternate; }
+.ambient__orb--c { width: 48vmax; height: 48vmax; left: 22vw; bottom: -30vmax; background: var(--c3); opacity: 0.7; animation: ambient-c 60s ease-in-out infinite alternate; }
+@keyframes ambient-a { to { transform: translate(16vw, 12vh) scale(1.18); } }
+@keyframes ambient-b { to { transform: translate(-14vw, 18vh) scale(0.88); } }
+@keyframes ambient-c { to { transform: translate(-18vw, -10vh) scale(1.25); } }
+.ambient__vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 35%, rgba(0, 0, 0, 0.72) 100%); }
+.ambient__grain { position: absolute; inset: 0; opacity: 0.07; mix-blend-mode: overlay; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+
+.ambient__stage { position: relative; display: flex; align-items: center; justify-content: center; gap: clamp(56px, 9vw, 160px); padding: 5vh 6vw; transition: transform 6s ease-in-out; }
+
+/* clock */
+.ambient__clock { display: flex; flex-direction: column; gap: clamp(10px, 1.6vh, 20px); animation: ambient-rise 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.ambient--solo .ambient__clock { align-items: center; text-align: center; }
+.ambient__eyebrow { display: flex; align-items: center; gap: 14px; margin: 0; font-size: clamp(13px, 1.25vw, 20px); font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; color: rgba(255, 255, 255, 0.62); }
+.ambient__eyebrow i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.6; }
+.ambient__time { display: flex; align-items: baseline; gap: 14px; font-size: clamp(110px, 18vw, 300px); font-weight: 200; letter-spacing: -0.05em; line-height: 0.92; font-variant-numeric: tabular-nums; font-family: var(--clock-font, inherit); background: linear-gradient(180deg, #fff 30%, rgba(255, 255, 255, 0.55)); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 12px 50px color-mix(in srgb, var(--c1) 55%, transparent)); }
+.ambient__time small { font-size: 0.17em; font-weight: 400; letter-spacing: 0.02em; opacity: 0.6; -webkit-text-fill-color: rgba(255, 255, 255, 0.6); }
+.ambient__minute { width: min(100%, 360px); height: 2px; border-radius: 2px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
+.ambient--solo .ambient__minute { width: min(60%, 320px); }
+.ambient__minute i { display: block; height: 100%; transform-origin: left; background: linear-gradient(90deg, var(--c2), #fff); transition: transform 1s linear; }
+.ambient__weather { display: inline-flex; align-items: baseline; gap: 12px; margin: 6px 0 0; font-size: clamp(18px, 1.8vw, 30px); color: rgba(255, 255, 255, 0.78); }
+.ambient__weather b { font-size: 1.5em; font-weight: 300; letter-spacing: -0.03em; color: #fff; }
+.ambient__weather span { font-weight: 500; }
+.ambient__weather em { font-style: normal; font-weight: 400; opacity: 0.55; }
+
+/* now playing, on frosted glass */
+.ambient__card { flex: none; display: flex; flex-direction: column; align-items: center; gap: 22px; width: 340px; max-width: 36vw; height: auto; padding: 28px 28px 24px; border-radius: 36px; background: linear-gradient(160deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04)); border: 1px solid rgba(255, 255, 255, 0.14); box-shadow: 0 40px 120px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.18); backdrop-filter: blur(34px) saturate(1.5); -webkit-backdrop-filter: blur(34px) saturate(1.5); animation: ambient-rise 1.8s 0.15s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.ambient__card .media__art { width: 248px; height: 248px; box-shadow: 0 26px 70px rgba(0, 0, 0, 0.55); transition: opacity 0.6s, transform 0.6s; }
+.ambient__card.media--paused .media__art { opacity: 0.72; transform: scale(0.97); }
+.ambient__meta { display: flex; flex-direction: column; align-items: center; gap: 5px; max-width: 100%; text-align: center; }
+.ambient__meta strong { max-width: 100%; overflow: hidden; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.ambient__meta span { max-width: 100%; overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; opacity: 0.62; }
+.ambient__progress { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; width: 100%; }
+.ambient__progress em { font-style: normal; font-size: 12px; font-variant-numeric: tabular-nums; opacity: 0.55; }
+.ambient__progress span { display: block; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+.ambient__progress i { display: block; height: 100%; transform-origin: left; border-radius: inherit; background: #fff; transition: transform 1s linear; }
 .ambient__empty { font-size: 20px; opacity: 0.5; }
-@media (max-width: 900px) { .ambient__stage { flex-direction: column; } .ambient__media { max-width: none; } }
+
+@keyframes ambient-rise { from { opacity: 0; transform: translateY(26px) scale(0.985); } to { opacity: 1; transform: none; } }
+@media (max-width: 900px) { .ambient__stage { flex-direction: column; gap: 40px; } .ambient__card { max-width: none; } }
+@media (prefers-reduced-motion: reduce) { .ambient__orb, .ambient__clock, .ambient__card { animation: none; } }

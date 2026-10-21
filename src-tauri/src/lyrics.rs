@@ -526,11 +526,38 @@ async fn lookup_remote(
             result("unavailable", Vec::new())
         })?;
         if record_matches(&record, title, artist, duration, GET_DURATION_TOLERANCE) {
-            return Ok(record_result(&record, duration));
+            let first = record_result(&record, duration);
+            // Timed lyrics (or a real instrumental) are the answer. Plain lyrics are only a fallback:
+            // another LRCLIB entry for the same song often carries the timing.
+            if first.timed || record.instrumental.unwrap_or(false) {
+                return Ok(first);
+            }
+            return match search_remote(client, title, artist, duration).await {
+                Ok(found) if found.timed => Ok(found),
+                _ => Ok(first),
+            };
         }
     }
     // Not found, or found something that is not this track: search by name.
     search_remote(client, title, artist, duration).await
+}
+
+async fn search_records(
+    client: &reqwest::Client,
+    query: &[(&str, &str)],
+) -> Result<Vec<LrclibRecord>, LyricsResult> {
+    if let Err(wait) = wait_for_request_slot().await {
+        return Err(rate_limited(wait));
+    }
+    let response = send_checked(client.get("https://lrclib.net/api/search").query(query)).await?;
+    if !response.status().is_success() {
+        return Ok(Vec::new());
+    }
+    let bytes = read_limited(response).await?;
+    serde_json::from_slice(&bytes).map_err(|_| {
+        eprintln!("LRCLIB response: status=200 body=invalid_json");
+        result("unavailable", Vec::new())
+    })
 }
 
 async fn search_remote(
@@ -539,24 +566,22 @@ async fn search_remote(
     artist: &str,
     duration: f64,
 ) -> Result<LyricsResult, LyricsResult> {
-    if let Err(wait) = wait_for_request_slot().await {
-        return Err(rate_limited(wait));
-    }
     let search_title = clean_title(title);
-    let request = client
-        .get("https://lrclib.net/api/search")
-        .query(&[("track_name", search_title.as_str()), ("artist_name", artist)]);
-    let response = send_checked(request).await?;
-    if !response.status().is_success() {
-        return Ok(result("not_found", Vec::new()));
+    let span = if duration >= 1.0 { duration } else { 3600.0 };
+    let has_timed = |records: &[LrclibRecord]| {
+        best_record(records, title, artist, duration)
+            .is_some_and(|record| record.synced_lyrics.as_deref().is_some_and(|text| !text.trim().is_empty()))
+    };
+    let mut records = search_records(client, &[("track_name", search_title.as_str()), ("artist_name", artist)]).await?;
+    if !has_timed(&records) {
+        // A free-text search finds entries whose title or artist is spelled a little differently.
+        let free = format!("{search_title} {artist}");
+        if let Ok(more) = search_records(client, &[("q", free.as_str())]).await {
+            records.extend(more);
+        }
     }
-    let bytes = read_limited(response).await?;
-    let records: Vec<LrclibRecord> = serde_json::from_slice(&bytes).map_err(|_| {
-        eprintln!("LRCLIB response: status=200 body=invalid_json");
-        result("unavailable", Vec::new())
-    })?;
     Ok(match best_record(&records, title, artist, duration) {
-        Some(record) => record_result(record, if duration >= 1.0 { duration } else { 3600.0 }),
+        Some(record) => record_result(record, span),
         None => result("not_found", Vec::new()),
     })
 }

@@ -428,12 +428,7 @@
   .media .media__art--vinyl, .media .media__art--cd, .media .media__art--float { animation: none; }
 }
 
-/* Karaoke: the current line fills from left to right as it is sung. */
-.media__lyrics-line--active:not(.media__lyrics-line--gap) {
-  color: transparent;
-  background: linear-gradient(90deg, #fff 0, #fff var(--fill, 0%), rgba(255, 255, 255, 0.42) calc(var(--fill, 0%) + 6%), rgba(255, 255, 255, 0.42) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  text-shadow: none;
-}
-.media__lyrics-line--past { color: rgba(255, 255, 255, 0.62); }
+/* Spotify-style: the current line lights up whole, the rest stay dim. */
+.media__lyrics-line { transition: color 320ms ease, opacity 320ms ease, transform 320ms ease, text-shadow 320ms ease; transform-origin: left center; }
+.media__lyrics-line--active:not(.media__lyrics-line--gap) { color: #fff; opacity: 1; transform: scale(1.03); text-shadow: 0 0 22px rgba(255, 255, 255, 0.28); }
+.media__lyrics-line--past { color: rgba(255, 255, 255, 0.5); }
