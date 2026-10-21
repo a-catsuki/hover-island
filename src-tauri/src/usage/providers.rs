@@ -925,7 +925,10 @@ pub(crate) fn snapshots_in(spec: &Spec, dirs: &Dirs, now: u64) -> Vec<UsageSnaps
     let recently_used = scan.sessions_7d > 0 || scan.last_active_at.is_some_and(|t| t >= week);
     // For Claude Code the plan limits matter, not how many tokens went through.
     let has_tokens = scan.has_usage_data && spec.id != "claude-code";
-    let detail = if from_stats {
+    let limits_problem = (spec.id == "claude-code").then(super::claude_limits::problem).flatten();
+    let detail = if let Some(problem) = limits_problem {
+        problem.to_string()
+    } else if from_stats {
         format!("{} this week, from Claude Code stats", plural(scan.sessions_7d, "session", "sessions"))
     } else if has_tokens {
         format!("Tokens recorded in local logs across {} session files", scan.files)

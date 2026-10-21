@@ -32,6 +32,8 @@ use crate::usage::{clean_title, collect_files, content_text, is_sidecar, modifie
 
 const EVENT_NAME: &str = "ai://activity";
 const MARK: &str = "src=hover-island";
+/// The `hook` name our Claude Code status line posts with. Carries plan limits only.
+const STATUS_LINE: &str = "StatusLine";
 const WALK_EVERY_MS: u64 = 6_000;
 const TRACK_WINDOW_MS: u64 = 30 * 60_000;
 const MAX_TRACKERS: usize = 24;
@@ -96,6 +98,33 @@ fn snippet(text: &str, max: usize) -> String {
     out
 }
 
+/// A reply cut to `max` characters. A reply that ends by asking something keeps its
+/// question, since that is what the user has to answer (and how a finished turn that
+/// waits on the user is told apart from one that is done).
+fn reply_snippet(text: &str, max: usize) -> String {
+    let text = text.trim();
+    if !text.ends_with('?') {
+        return snippet(text, max);
+    }
+    let body = &text[..text.len() - 1];
+    let start = body
+        .rfind(|c: char| matches!(c, '.' | '!' | '?' | '\n' | ':'))
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    let question = snippet(&text[start..], usize::MAX);
+    if question.chars().count() <= max {
+        return question;
+    }
+    let keep = max.saturating_sub(3);
+    let tail: String = question.chars().skip(question.chars().count() - keep).collect();
+    format!("...{}", tail.trim_start())
+}
+
+/// The turn ended on a question to the user, so it waits on them instead of being done.
+fn asks_user(reply: &str) -> bool {
+    reply.trim_end().ends_with('?')
+}
+
 /// Codex names each thread itself and records it in `session_index.jsonl`
 /// (`{"id": "...", "thread_name": "..."}`). That is the title its own app
 /// shows, so it beats anything we can guess from the log.
@@ -143,6 +172,11 @@ fn humanize_slug(name: &str) -> String {
         text = first.to_uppercase() + &text[1..];
     }
     text
+}
+
+/// A folder name worth showing under a title, or nothing for a chat slug.
+fn project_hint(name: &str) -> String {
+    if humanize_slug(name) == name { name.to_string() } else { String::new() }
 }
 
 fn label_of(provider: &str) -> String {
@@ -333,7 +367,7 @@ fn classify_claude(line: &str) -> Vec<Signal> {
             match item.get("type").and_then(Value::as_str) {
                 Some("text") => {
                     let text = item.get("text").and_then(Value::as_str).unwrap_or_default();
-                    out.push(Signal::Text { ts, text: snippet(text, 140) });
+                    out.push(Signal::Text { ts, text: reply_snippet(text, 140) });
                 }
                 Some("tool_use") => {
                     let name = item.get("name").and_then(Value::as_str).unwrap_or("tool");
@@ -379,11 +413,24 @@ fn classify_codex(line: &str) -> Vec<Signal> {
     }
     if line.contains("\"type\":\"agent_message\"") {
         let text = payload_text("/payload/message").unwrap_or_default();
-        return vec![Signal::Text { ts, text: snippet(&text, 140) }];
+        return vec![Signal::Text { ts, text: reply_snippet(&text, 140) }];
+    }
+    // Newer Codex builds can skip `agent_message` and leave `last_agent_message` empty;
+    // the reply is still recorded as a response item.
+    if line.contains("\"type\":\"response_item\"") && line.contains("\"role\":\"assistant\"") {
+        let text = serde_json::from_str::<Value>(line)
+            .ok()
+            .filter(|root| root.pointer("/payload/type").and_then(Value::as_str) == Some("message"))
+            .and_then(|root| root.pointer("/payload/content").and_then(content_text))
+            .unwrap_or_default();
+        if !text.trim().is_empty() {
+            return vec![Signal::Text { ts, text: reply_snippet(&text, 140) }];
+        }
+        return Vec::new();
     }
     if line.contains("\"type\":\"task_complete\"") || line.contains("\"type\":\"turn_complete\"") {
         let text = payload_text("/payload/last_agent_message").unwrap_or_default();
-        return vec![Signal::Done { ts, text: snippet(&text, 140) }];
+        return vec![Signal::Done { ts, text: reply_snippet(&text, 140) }];
     }
     if line.contains("\"type\":\"turn_aborted\"") {
         return vec![Signal::Aborted];
@@ -407,6 +454,15 @@ fn classify_codex(line: &str) -> Vec<Signal> {
             .and_then(Value::as_str)
             .unwrap_or("shell")
             .to_string();
+        if name == "request_user_input" {
+            let args = root.pointer("/payload/arguments").and_then(Value::as_str).unwrap_or("{}");
+            let question = serde_json::from_str::<Value>(args)
+                .ok()
+                .and_then(|v| v.pointer("/questions/0/question").and_then(Value::as_str).map(|q| snippet(q, 120)))
+                .filter(|q| !q.is_empty())
+                .unwrap_or_else(|| "Needs your input".into());
+            return vec![Signal::Question { ts, text: question }];
+        }
         if name == "update_plan" {
             let args = root.pointer("/payload/arguments").and_then(Value::as_str).unwrap_or("{}");
             if let Ok(parsed) = serde_json::from_str::<Value>(args) {
@@ -442,7 +498,7 @@ fn classify_copilot(line: &str) -> Vec<Signal> {
             ts,
             text: Some(snippet(&text, 90)).filter(|t| !t.is_empty()),
         }],
-        "assistant.message" => vec![Signal::Text { ts, text: snippet(&text, 140) }],
+        "assistant.message" => vec![Signal::Text { ts, text: reply_snippet(&text, 140) }],
         "assistant.turn_end" | "session.idle" => vec![Signal::Done { ts, text: String::new() }],
         "tool.execution_start" => {
             let name = root
@@ -558,8 +614,14 @@ impl SessionState {
         }
     }
 
+    /// The subtitle when there is nothing better: the project folder. Codex app chats
+    /// live in folders named after the first message (`can-you-take-a-look-at`), which
+    /// only repeats the title, so those give no subtitle at all.
     fn project_or_label(&self) -> String {
-        self.project.clone().unwrap_or_else(|| label_of(&self.provider))
+        match self.project.as_deref() {
+            Some(name) => project_hint(name),
+            None => label_of(&self.provider),
+        }
     }
 
     fn resume(&mut self, ts: Option<u64>, now: u64) {
@@ -588,9 +650,17 @@ impl SessionState {
             .filter(|d| !d.is_empty())
             .or_else(|| Some(self.last_text.clone()).filter(|d| !d.is_empty()))
             .unwrap_or_else(|| self.project_or_label());
-        let mut event = self.event("completed", detail, now);
-        event.duration_ms = Some(duration);
-        out.push(event);
+        if asks_user(&detail) {
+            // A turn that ends on a question waits on the user. Skip it when a question
+            // signal already said so.
+            if !(self.question_sent && self.phase == Phase::Waiting) {
+                out.push(self.event("question", detail, now));
+            }
+        } else {
+            let mut event = self.event("completed", detail, now);
+            event.duration_ms = Some(duration);
+            out.push(event);
+        }
         self.phase = Phase::Idle;
         self.last = Last::None;
         self.tool = None;
@@ -843,7 +913,7 @@ impl Tracker {
                                 call.get("status").and_then(Value::as_str) == Some("awaiting_approval")
                             })
                         });
-                    self.state.apply(Signal::Text { ts, text: snippet(&text, 140) }, now, out);
+                    self.state.apply(Signal::Text { ts, text: reply_snippet(&text, 140) }, now, out);
                     if waiting {
                         self.state.apply(
                             Signal::Question { ts, text: "Approval needed".into() },
@@ -1205,6 +1275,11 @@ async fn post_event(
     let value: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
     let provider = query.get("provider").map(String::as_str).unwrap_or_default();
     let hook = query.get("hook").map(String::as_str).unwrap_or_default();
+    if hook == STATUS_LINE {
+        // Not activity: Claude Code redraws its status line all the time.
+        crate::usage::claude_limits::store_reported(&value);
+        return reply(StatusCode::OK, "{}");
+    }
     match event_from_hook(provider, hook, &value, now_millis()) {
         Some(event) => {
             lock(hook_map()).insert(event.provider.clone(), Instant::now());
@@ -1260,6 +1335,7 @@ fn event_from_hook(provider: &str, hook: &str, body: &Value, now: u64) -> Option
     let key = format!("{provider}:{session}");
     let tasks = HOOK_TASKS.get_or_init(|| Mutex::new(HashMap::new()));
     let project = cwd.as_deref().map(humanize_slug).unwrap_or_else(|| label_of(&provider));
+    let hint = cwd.as_deref().map(project_hint).unwrap_or_else(|| label_of(&provider));
     let make = |kind: &str, title: String, detail: String, duration: Option<u64>| AgentEvent {
         kind: kind.into(),
         provider: provider.clone(),
@@ -1280,7 +1356,7 @@ fn event_from_hook(provider: &str, hook: &str, body: &Value, now: u64) -> Option
                 map.clear();
             }
             map.insert(key, (now, title.clone()));
-            Some(make("started", title, project, None))
+            Some(make("started", title, hint, None))
         }
         "notification" | "permissionrequest" => {
             let title = lock(tasks).get(&key).map(|t| t.1.clone()).unwrap_or(project);
@@ -1302,11 +1378,12 @@ fn event_from_hook(provider: &str, hook: &str, body: &Value, now: u64) -> Option
                 })
                 .unwrap_or_else(|| project.clone());
             let duration = started.map(|t| now.saturating_sub(t.0));
-            let last = snippet(str_at(body, "last-assistant-message"), 140);
-            let detail = if last.is_empty() { project } else { last };
+            let last = reply_snippet(str_at(body, "last-assistant-message"), 140);
+            let detail = if last.is_empty() { hint } else { last };
             match status {
                 "error" => Some(make("failed", title, detail, duration)),
                 "aborted" => None,
+                _ if asks_user(&detail) => Some(make("question", title, detail, None)),
                 _ => Some(make("completed", title, detail, duration)),
             }
         }
@@ -1485,10 +1562,42 @@ fn edit_json(root: &mut Value, target: &HookTarget, endpoint: Option<&Endpoint>)
             obj.remove("hooks");
         }
     }
+    if target.id == "claude-code" {
+        edit_status_line(obj, endpoint);
+    }
     if target.shape == Shape::Flat && endpoint.is_some() && !obj.contains_key("version") {
         obj.insert("version".into(), json!(1));
     }
     Ok(())
+}
+
+/// Claude Code hands its status line command the plan limits (`rate_limits`), the
+/// same numbers Codex writes to its logs. Ours forwards them and prints nothing, so
+/// it is only added when there is no status line yet. A user's own is never touched.
+fn edit_status_line(obj: &mut serde_json::Map<String, Value>, endpoint: Option<&Endpoint>) {
+    let ours = obj
+        .get("statusLine")
+        .and_then(|v| v.get("command"))
+        .and_then(Value::as_str)
+        .is_some_and(is_ours);
+    if obj.contains_key("statusLine") && !ours {
+        return;
+    }
+    match endpoint {
+        Some(endpoint) => {
+            let command = hook_command(endpoint, "claude-code", STATUS_LINE, true);
+            obj.insert("statusLine".into(), json!({ "type": "command", "command": command, "padding": 0 }));
+        }
+        None => {
+            obj.remove("statusLine");
+        }
+    }
+}
+
+/// Our Claude Code hooks are in, but the status line that reports limits is not,
+/// and nothing else holds that spot.
+fn status_line_missing(text: &str) -> bool {
+    serde_json::from_str::<Value>(text).is_ok_and(|root| root.get("statusLine").is_none())
 }
 
 fn toml_line_is_table(line: &str) -> bool {
@@ -1793,9 +1902,10 @@ pub fn agent_hooks_status() -> Vec<HookStatus> {
             let text = std::fs::read_to_string(&path).unwrap_or_default();
             let installed = text.contains(MARK);
             let stale = installed
-                && endpoint
+                && (endpoint
                     .as_ref()
-                    .is_some_and(|e| !text.contains(&e.token) || !text.contains(&format!("127.0.0.1:{}/", e.port)));
+                    .is_some_and(|e| !text.contains(&e.token) || !text.contains(&format!("127.0.0.1:{}/", e.port)))
+                    || (target.id == "claude-code" && status_line_missing(&text)));
             HookStatus {
                 provider: target.id.into(),
                 label: target.label.into(),
@@ -1971,6 +2081,82 @@ mod tests {
         assert_eq!(root["hooks"]["Stop"].as_array().unwrap().len(), 2);
         edit_json(&mut root, target, None).unwrap();
         assert_eq!(root, original);
+    }
+
+    #[test]
+    fn claude_status_line_reports_limits_but_never_replaces_the_users_own() {
+        let target = target_for("claude-code").unwrap();
+        let mut root = json!({});
+        edit_json(&mut root, target, Some(&endpoint())).unwrap();
+        let command = root["statusLine"]["command"].as_str().unwrap();
+        assert!(command.contains("hook=StatusLine") && command.contains(MARK));
+        assert!(!status_line_missing(&root.to_string()));
+        edit_json(&mut root, target, None).unwrap();
+        assert!(root.get("statusLine").is_none());
+
+        let mine = json!({"statusLine": {"type": "command", "command": "my-line.sh"}});
+        let mut root = mine.clone();
+        edit_json(&mut root, target, Some(&endpoint())).unwrap();
+        assert_eq!(root["statusLine"], mine["statusLine"]);
+        edit_json(&mut root, target, None).unwrap();
+        assert_eq!(root, mine);
+        assert!(status_line_missing(r#"{"hooks":{}}"#));
+    }
+
+    #[test]
+    fn a_turn_ending_on_a_question_waits_instead_of_completing() {
+        let mut state = SessionState::new("codex", "s11", Some("hover-island".into()));
+        let done = r#"{"type":"event_msg","payload":{"type":"task_complete","last_agent_message":"I found two crash logs. Want me to dig into the second one, or should I check the firmware notes first?"}}"#;
+        let mut signals = vec![Signal::Prompt { ts: Some(1), text: Some("Diagnose".into()) }];
+        signals.extend(classify_codex(done));
+        let out = run(&mut state, signals, 5);
+        let last = out.last().unwrap();
+        assert_eq!(last.kind, "question");
+        assert_eq!(last.detail, "Want me to dig into the second one, or should I check the firmware notes first?");
+        assert_eq!(state.phase, Phase::Idle);
+
+        let hook = json!({"type":"agent-turn-complete","turn-id":"t2","last-assistant-message":"Which port?"});
+        assert_eq!(event_from_hook("codex", "", &hook, 9).unwrap().kind, "question");
+    }
+
+    #[test]
+    fn codex_request_user_input_is_a_question() {
+        let line = r#"{"type":"response_item","payload":{"type":"function_call","name":"request_user_input","arguments":"{\"questions\":[{\"question\":\"Which TV model?\"}]}"}}"#;
+        match classify_codex(line).as_slice() {
+            [Signal::Question { text, .. }] => assert_eq!(text, "Which TV model?"),
+            _ => panic!("expected a question"),
+        }
+    }
+
+    #[test]
+    fn long_questions_keep_their_end() {
+        let text = format!("{}. Should I keep going?", "word ".repeat(80));
+        assert_eq!(reply_snippet(&text, 140), "Should I keep going?");
+        let long = format!("Should I {} go?", "really ".repeat(40));
+        let cut = reply_snippet(&long, 50);
+        assert!(cut.starts_with("...") && cut.ends_with("go?") && cut.chars().count() <= 50);
+        assert_eq!(reply_snippet("All done.", 140), "All done.");
+    }
+
+    #[test]
+    fn chat_slug_folders_give_no_subtitle() {
+        let mut state = SessionState::new("codex", "s9", Some("can-you-take-a-look-at".into()));
+        let out = run(&mut state, vec![Signal::Prompt { ts: Some(1), text: Some("Look at it".into()) }], 1);
+        assert_eq!(out[0].detail, "");
+        let mut state = SessionState::new("codex", "s10", Some("hover-island".into()));
+        let out = run(&mut state, vec![Signal::Prompt { ts: Some(1), text: Some("Look at it".into()) }], 1);
+        assert_eq!(out[0].detail, "hover-island");
+    }
+
+    #[test]
+    fn codex_reply_is_read_from_response_items_too() {
+        let line = r#"{"timestamp":"2026-10-21T10:00:00Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"The TV app leaks a socket."}]}}"#;
+        match classify_codex(line).as_slice() {
+            [Signal::Text { text, .. }] => assert_eq!(text, "The TV app leaks a socket."),
+            _ => panic!("expected the reply text"),
+        }
+        let user = r#"{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}}"#;
+        assert!(classify_codex(user).is_empty());
     }
 
     #[test]

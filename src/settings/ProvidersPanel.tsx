@@ -122,7 +122,7 @@ export default function ProvidersPanel() {
         <For each={detected()}>{(provider) => <ProviderRow provider={provider} />}</For>
         <Toggle
           label="Claude session and weekly limits"
-          hint="Asks Claude for how much of your plan is left, using the sign-in Claude Code already has. The token goes only to Anthropic and is never stored"
+          hint="Claude Code reports these itself once its hooks are set up under AI. Until then, Hover Island asks Claude using the sign-in Claude Code already has. The token goes only to Anthropic and is never stored"
           checked={settings.usage.claudeLiveLimits}
           onChange={(value) => patchSettings({ usage: { ...settings.usage, claudeLiveLimits: value } })}
         />
