@@ -1,0 +1,272 @@
+//! Face unlock for the ambient soft lock. The ambient page runs the face models on webcam
+//! frames and sends only face descriptors (number vectors) here; no image ever leaves the
+//! page. Enrolled descriptors stay on disk under Windows DPAPI and never go back to the page,
+//! so matching and the attempt limit live on this side.
+//!
+//! A 2D webcam is weaker than Windows Hello's IR camera. The page requires a blink and the
+//! anti-spoof and liveness scores to pass, which stops a held-up photo, not a replayed video
+//! or a determined attacker. The soft lock is a privacy
+//! screen; the real Windows lock after time away is the security boundary.
+
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Manager};
+
+use crate::ambient::{self, Hello};
+
+const STORE_FILE: &str = "face-unlock.dpapi";
+const STORE_VERSION: u32 = 1;
+const MAX_STORE_BYTES: usize = 512 * 1024;
+const MIN_DESCRIPTOR: usize = 64;
+const MAX_DESCRIPTOR: usize = 2048;
+const MAX_TEMPLATES: usize = 24;
+const MIN_TEMPLATES: usize = 3;
+const MAX_SAMPLES: usize = 8;
+/// Frames from one scan that must agree before a match counts.
+const MIN_SAMPLES: usize = 2;
+/// Normalized similarity (0..1) of the face model; its authors treat 0.5 as a match, so this is stricter.
+const MATCH_THRESHOLD: f32 = 0.62;
+/// Anti-spoof ("real") and liveness ("live") model scores, 0..1.
+const MIN_REAL: f32 = 0.55;
+const MIN_LIVE: f32 = 0.55;
+/// Failed scans before only Windows Hello can unlock, as with Face ID and a passcode.
+const MAX_ATTEMPTS: u32 = 5;
+/// How long the page's check-mark and padlock animation runs after a match.
+const UNLOCK_ANIMATION: Duration = Duration::from_millis(950);
+
+static ATTEMPTS: AtomicU32 = AtomicU32::new(0);
+/// Set once Hello confirms the user in Settings; one enrollment may then be saved.
+static ENROLL_ALLOWED: AtomicBool = AtomicBool::new(false);
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct Store {
+    version: u32,
+    templates: Vec<Vec<f32>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FaceStatus {
+    enrolled: bool,
+    attempts_left: u32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FaceSample {
+    descriptor: Vec<f32>,
+    real: f32,
+    live: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FaceVerdict {
+    /// The face matched; the ambient page closes once its animation has played.
+    Match,
+    NoMatch,
+    /// Too many failed scans, or the face looked like a photo or screen too often.
+    LockedOut,
+    NotEnrolled,
+}
+
+pub(crate) fn reset_attempts() {
+    ATTEMPTS.store(0, Ordering::Release);
+}
+
+fn attempts_left() -> u32 {
+    MAX_ATTEMPTS.saturating_sub(ATTEMPTS.load(Ordering::Acquire))
+}
+
+fn storage_path(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|dir| dir.join(STORE_FILE))
+        .map_err(|_| "Could not locate face unlock storage.".into())
+}
+
+fn read_store(app: &AppHandle) -> Result<Store, String> {
+    let bytes = match std::fs::read(storage_path(app)?) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Store::default()),
+        Err(_) => return Err("Could not read face unlock data.".into()),
+    };
+    if bytes.len() > MAX_STORE_BYTES {
+        return Err("Face unlock data is invalid.".into());
+    }
+    let clear = crate::erp::unprotect(&bytes)?;
+    let store: Store = serde_json::from_slice(&clear).map_err(|_| "Face unlock data is invalid.".to_string())?;
+    if store.version != STORE_VERSION {
+        return Ok(Store::default());
+    }
+    Ok(store)
+}
+
+fn write_store(app: &AppHandle, store: &Store) -> Result<(), String> {
+    let path = storage_path(app)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|_| "Could not save face unlock.".to_string())?;
+    }
+    let clear = serde_json::to_vec(store).map_err(|_| "Could not save face unlock.".to_string())?;
+    let encrypted = crate::erp::protect(&clear)?;
+    let temp = path.with_extension("dpapi.tmp");
+    std::fs::write(&temp, encrypted).map_err(|_| "Could not save face unlock.".to_string())?;
+    std::fs::rename(&temp, &path).map_err(|_| {
+        let _ = std::fs::remove_file(&temp);
+        "Could not save face unlock.".to_string()
+    })
+}
+
+fn valid_descriptor(descriptor: &[f32]) -> bool {
+    (MIN_DESCRIPTOR..=MAX_DESCRIPTOR).contains(&descriptor.len()) && descriptor.iter().all(|value| value.is_finite())
+}
+
+/// The face model's own similarity: scaled euclidean distance, inverted and normalized from
+/// 0.2..0.8 to 0..1 (Human `match.similarity` with its defaults), so its thresholds carry over.
+fn similarity(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() {
+        return 0.0;
+    }
+    let sum: f64 = a.iter().zip(b).map(|(x, y)| f64::from(x - y).powi(2)).sum();
+    let distance = (100.0 * 25.0 * sum).round() / 100.0;
+    if distance == 0.0 {
+        return 1.0;
+    }
+    let norm = (1.0 - distance.sqrt() / 100.0 - 0.2) / 0.6;
+    norm.clamp(0.0, 1.0) as f32
+}
+
+/// Mean over the scan's frames of each frame's best match against the enrolled templates.
+fn scan_similarity(samples: &[FaceSample], templates: &[Vec<f32>]) -> f32 {
+    let best = |sample: &FaceSample| {
+        templates
+            .iter()
+            .map(|template| similarity(&sample.descriptor, template))
+            .fold(0.0_f32, f32::max)
+    };
+    samples.iter().map(best).sum::<f32>() / samples.len().max(1) as f32
+}
+
+fn verdict(samples: &[FaceSample], templates: &[Vec<f32>]) -> bool {
+    samples.len() >= MIN_SAMPLES
+        && samples.iter().all(|sample| sample.real >= MIN_REAL && sample.live >= MIN_LIVE)
+        && scan_similarity(samples, templates) >= MATCH_THRESHOLD
+}
+
+#[tauri::command]
+pub async fn face_status(app: AppHandle) -> Result<FaceStatus, String> {
+    let enrolled = read_store(&app).map(|store| !store.templates.is_empty()).unwrap_or(false);
+    Ok(FaceStatus { enrolled, attempts_left: attempts_left() })
+}
+
+/// From Settings: confirm with Windows Hello (like Face ID asking for the passcode), then open
+/// the full-screen enrollment page.
+#[tauri::command]
+pub async fn face_enroll_start(app: AppHandle) -> Result<(), String> {
+    let hwnd = ambient::window_hwnd(&app, "settings");
+    let hello = tauri::async_runtime::spawn_blocking(move || ambient::hello_verify(hwnd))
+        .await
+        .unwrap_or(Hello::Cancelled);
+    // Without Hello there is no PIN to ask for; the user is already at an unlocked desktop.
+    if hello == Hello::Cancelled {
+        return Err("Windows Hello did not confirm it is you.".into());
+    }
+    ENROLL_ALLOWED.store(true, Ordering::Release);
+    ambient::open_enroll(&app).inspect_err(|_| ENROLL_ALLOWED.store(false, Ordering::Release))
+}
+
+#[tauri::command]
+pub async fn face_enroll_save(app: AppHandle, templates: Vec<Vec<f32>>) -> Result<(), String> {
+    if !ambient::is_enrolling() || !ENROLL_ALLOWED.swap(false, Ordering::AcqRel) {
+        return Err("Start face setup from Settings.".into());
+    }
+    if templates.len() < MIN_TEMPLATES
+        || templates.len() > MAX_TEMPLATES
+        || !templates.iter().all(|template| valid_descriptor(template) && template.len() == templates[0].len())
+    {
+        return Err("The face scan was incomplete. Try again.".into());
+    }
+    write_store(&app, &Store { version: STORE_VERSION, templates })?;
+    reset_attempts();
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn face_reset(app: AppHandle) -> Result<(), String> {
+    match std::fs::remove_file(storage_path(&app)?) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err("Could not remove face unlock.".into()),
+    }
+}
+
+/// One scan from the locked page: a few frames' descriptors with their anti-spoof and liveness
+/// scores. Every call that does not match uses up an attempt.
+#[tauri::command]
+pub async fn face_verify(app: AppHandle, samples: Vec<FaceSample>, blinked: bool) -> Result<FaceVerdict, String> {
+    if !ambient::is_locked() {
+        return Err("The screen is not locked.".into());
+    }
+    // The page only asks after seeing a blink; refuse anything else outright.
+    if !blinked {
+        return Ok(FaceVerdict::NoMatch);
+    }
+    if attempts_left() == 0 {
+        return Ok(FaceVerdict::LockedOut);
+    }
+    let store = read_store(&app)?;
+    if store.templates.is_empty() {
+        return Ok(FaceVerdict::NotEnrolled);
+    }
+    let samples: Vec<FaceSample> = samples
+        .into_iter()
+        .take(MAX_SAMPLES)
+        .filter(|sample| valid_descriptor(&sample.descriptor))
+        .collect();
+    if verdict(&samples, &store.templates) {
+        // Stay locked while the page plays its unlock animation, then close.
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(UNLOCK_ANIMATION).await;
+            if ambient::is_locked() {
+                ambient::close(&app);
+            }
+        });
+        return Ok(FaceVerdict::Match);
+    }
+    let used = ATTEMPTS.fetch_add(1, Ordering::AcqRel) + 1;
+    Ok(if used >= MAX_ATTEMPTS { FaceVerdict::LockedOut } else { FaceVerdict::NoMatch })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample(descriptor: Vec<f32>) -> FaceSample {
+        FaceSample { descriptor, real: 0.9, live: 0.9 }
+    }
+
+    #[test]
+    fn identical_descriptors_match_fully() {
+        let a = vec![0.1_f32; 128];
+        assert_eq!(similarity(&a, &a), 1.0);
+    }
+
+    #[test]
+    fn distant_descriptors_do_not_match() {
+        let a = vec![0.0_f32; 128];
+        let b = vec![1.0_f32; 128];
+        assert!(similarity(&a, &b) < MATCH_THRESHOLD);
+    }
+
+    #[test]
+    fn needs_several_live_frames() {
+        let template = vec![0.1_f32; 128];
+        let templates = vec![template.clone()];
+        assert!(!verdict(&[sample(template.clone())], &templates));
+        assert!(verdict(&[sample(template.clone()), sample(template.clone())], &templates));
+        let spoof = FaceSample { descriptor: template.clone(), real: 0.2, live: 0.9 };
+        assert!(!verdict(&[sample(template.clone()), spoof], &templates));
+    }
+}

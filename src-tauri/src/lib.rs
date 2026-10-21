@@ -35,6 +35,7 @@ mod state;
 mod system;
 mod system_events;
 mod ambient;
+mod face;
 mod single_instance;
 mod transfer;
 mod tray;
@@ -832,6 +833,13 @@ pub fn run() {
             reset_watch::reset_watch_get,
             ambient::ambient_open,
             ambient::ambient_close,
+            ambient::ambient_unlock,
+            ambient::ambient_mode,
+            face::face_status,
+            face::face_enroll_start,
+            face::face_enroll_save,
+            face::face_reset,
+            face::face_verify,
             transfer::transfer_status,
             transfer::transfer_start,
             transfer::transfer_stage_dropped_paths,

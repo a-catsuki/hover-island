@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite'
 import solid from 'vite-plugin-solid'
+import faceModels from './scripts/face-models.mjs'
 
 export default defineConfig({
-  plugins: [solid()],
+  plugins: [solid(), faceModels()],
   // Shown in Settings so you can tell at a glance which build is installed.
   define: { __BUILD_TIME__: JSON.stringify(new Date().toISOString()) },
   clearScreen: false,

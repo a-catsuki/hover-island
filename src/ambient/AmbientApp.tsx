@@ -4,6 +4,7 @@ import { cmd, type WeatherSnapshot } from '../lib/ipc'
 import { getAlbumPalette, type AlbumPalette } from '../lib/albumPalette'
 import { loadSettings, settings } from '../state/settings'
 import { interpolatedPosition, mediaReceivedAt, nowPlaying, subscribeMedia } from '../state/media'
+import SoftLock from './SoftLock'
 
 const WEATHER_REFRESH_MS = 15 * 60_000
 const DRIFT_MS = 45_000
@@ -21,7 +22,7 @@ const clock = (seconds: number) => {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
 }
 
-/** Full-screen ambient page. Native code closes the window on any input, so this page only draws. */
+/** Full-screen ambient page. Native code closes the window on any input unless soft lock is on; then `SoftLock` handles unlocking. */
 export default function AmbientApp() {
   const [now, setNow] = createSignal(new Date())
   const [tickMs, setTickMs] = createSignal(performance.now())
@@ -29,6 +30,7 @@ export default function AmbientApp() {
   const [drift, setDrift] = createSignal({ x: 0, y: 0 })
   const [palette, setPalette] = createSignal<AlbumPalette | null>(null)
   const [ready, setReady] = createSignal(false)
+  const [cursor, setCursor] = createSignal(false)
   const ambient = () => settings.ambient
 
   onMount(() => {
@@ -87,7 +89,7 @@ export default function AmbientApp() {
   })
 
   return (
-    <main class="ambient" classList={{ 'ambient--dim': ambient().dim, 'ambient--ready': ready(), 'ambient--solo': !hasMedia() }}
+    <main class="ambient" classList={{ 'ambient--dim': ambient().dim, 'ambient--ready': ready(), 'ambient--solo': !hasMedia(), 'ambient--cursor': cursor() }}
       style={{ '--c1': colors()[0], '--c2': colors()[1], '--c3': colors()[2] }}>
       <div class="ambient__sky" aria-hidden="true">
         <i class="ambient__orb ambient__orb--a" />
@@ -96,6 +98,9 @@ export default function AmbientApp() {
         <i class="ambient__vignette" />
         <i class="ambient__grain" />
       </div>
+      <Show when={ambient().softLock}>
+        <SoftLock onAwake={setCursor} />
+      </Show>
       <div class="ambient__stage" style={{ transform: `translate(${ambient().dim ? drift().x : 0}px, ${ambient().dim ? drift().y : 0}px)` }}>
         <Show when={ambient().clock}>
           <section class="ambient__clock">

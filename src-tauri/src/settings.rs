@@ -144,10 +144,24 @@ pub struct AmbientCfg {
     pub dim: bool,
     /// Appear just before the Windows screen saver would, and keep the screen saver and display sleep off while shown.
     pub take_over_screensaver: bool,
+    /// Input does not close the screen; Windows Hello has to confirm it is you first.
+    pub soft_lock: bool,
+    /// Further minutes away, after the screen appears, before Windows locks for real. 0 = never.
+    pub lock_after_minutes: u32,
 }
 impl Default for AmbientCfg {
     fn default() -> Self {
-        Self { enabled: false, idle_minutes: 5, clock: true, media: true, weather: true, dim: true, take_over_screensaver: true }
+        Self {
+            enabled: false,
+            idle_minutes: 5,
+            clock: true,
+            media: true,
+            weather: true,
+            dim: true,
+            take_over_screensaver: true,
+            soft_lock: true,
+            lock_after_minutes: 10,
+        }
     }
 }
 
@@ -720,6 +734,7 @@ impl Settings {
         self.ai_toast_providers.dedup();
         self.ai_toast_providers.truncate(32);
         self.ambient.idle_minutes = self.ambient.idle_minutes.clamp(1, 120);
+        self.ambient.lock_after_minutes = self.ambient.lock_after_minutes.min(240);
         if !matches!(self.cover_style.as_str(), "classic" | "vinyl" | "cd" | "polaroid" | "stack" | "float") {
             self.cover_style = "classic".into();
         }

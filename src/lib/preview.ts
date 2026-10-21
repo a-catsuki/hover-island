@@ -114,6 +114,13 @@ export async function previewInvoke<T>(command:string,args:Record<string,unknown
     case 'apps_list':case 'apps_refresh':result=apps;break
     case 'apps_usage':result={apps:[{id:'notes',lastUsed:Date.now()-3600000,useCount:41},{id:'browser',lastUsed:Date.now()-86400000*2,useCount:120}],recentFiles:[{name:'Budget 2026.xlsx',path:'C:\\Users\\Preview\\Documents\\Budget 2026.xlsx',lastUsed:Date.now()-7200000}]};break
     case 'apps_icon':result=null;break
+    // Face unlock: ?enroll opens the setup flow; ?face=match|miss fakes the native verdict.
+    case 'ambient_mode':result=new URLSearchParams(location.search).has('enroll')?'enroll':'ambient';break
+    case 'ambient_unlock':result='cancelled';break
+    case 'ambient_close':case 'face_enroll_save':case 'face_reset':break
+    case 'face_enroll_start':throw new Error('Face unlock setup needs the Windows app.')
+    case 'face_status':result={enrolled:new URLSearchParams(location.search).has('face'),attemptsLeft:5};break
+    case 'face_verify':result=new URLSearchParams(location.search).get('face')==='match'?'match':'noMatch';break
     case 'notifications_get':result=sampleInbox();if(notifyFlag())setTimeout(()=>emit('notifications://popup',samplePopup()),1500);break
     case 'notifications_dismiss':inboxGone.add(String(args.id));emit('notifications://changed',sampleInbox());break
     case 'notifications_clear':sampleCleared=true;emit('notifications://changed',[]);break

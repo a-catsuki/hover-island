@@ -1,11 +1,19 @@
 //! Ambient mode: after the PC has been idle for a while, show a full-screen clock, now-playing
 //! and weather page. Any keyboard or mouse input closes it again. Idle time comes from
 //! `GetLastInputInfo`, so it needs no hooks and reads nothing about what is typed.
+//!
+//! With soft lock on, input does not close the page: the page asks for `ambient_unlock`, which
+//! runs Windows Hello. This is a privacy screen, not a security boundary (Ctrl+Alt+Del still
+//! works), so after `lock_after_minutes` more away the real Windows lock takes over. When a face
+//! is enrolled the page tries webcam face unlock first (see `face.rs`) and keeps Hello as the
+//! fallback, like a passcode.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use tauri::{AppHandle, Manager, WebviewUrl};
+use serde::Serialize;
+use tauri::webview::{PermissionKind, PermissionResponse};
+use tauri::{AppHandle, Manager, WebviewUrl, WindowEvent};
 
 use crate::state::AppState;
 
@@ -67,6 +75,91 @@ fn spawn_display_holder() {
 #[cfg(not(windows))]
 fn spawn_display_holder() {}
 
+/// The open page needs Windows Hello before it closes.
+static LOCKED: AtomicBool = AtomicBool::new(false);
+/// A Hello prompt is showing, so a second key press must not open another.
+static VERIFYING: AtomicBool = AtomicBool::new(false);
+/// The page is the face enrollment flow: input never closes it and it never locks.
+static ENROLLING: AtomicBool = AtomicBool::new(false);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Ambient { soft_lock: bool },
+    Enroll,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UnlockOutcome {
+    /// Hello confirmed the user; the page closed.
+    Verified,
+    /// The user dismissed the prompt, or one is already showing.
+    Cancelled,
+    /// Hello is not set up, so Windows locked for real instead.
+    Locked,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Hello {
+    Verified,
+    Cancelled,
+    Unavailable,
+}
+
+/// Blocks until the user answers, so run it off the async runtime.
+#[cfg(windows)]
+pub(crate) fn hello_verify(hwnd: isize) -> Hello {
+    use windows::core::{factory, HSTRING};
+    use windows::Foundation::IAsyncOperation;
+    use windows::Security::Credentials::UI::{
+        UserConsentVerificationResult, UserConsentVerifier, UserConsentVerifierAvailability,
+    };
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::System::WinRT::IUserConsentVerifierInterop;
+
+    let available = UserConsentVerifier::CheckAvailabilityAsync().and_then(|operation| operation.get());
+    if available != Ok(UserConsentVerifierAvailability::Available) {
+        return Hello::Unavailable;
+    }
+    // Desktop apps must name an owner window, or the prompt opens behind the full-screen page.
+    let result = factory::<UserConsentVerifier, IUserConsentVerifierInterop>().and_then(|interop| {
+        // SAFETY: `hwnd` is the live ambient window; the message outlives the call.
+        let operation: IAsyncOperation<UserConsentVerificationResult> = unsafe {
+            interop.RequestVerificationForWindowAsync(HWND(hwnd), &HSTRING::from("Unlock Hover Island"))?
+        };
+        operation.get()
+    });
+    match result {
+        Ok(UserConsentVerificationResult::Verified) => Hello::Verified,
+        Ok(_) => Hello::Cancelled,
+        // A broken prompt must not trap the user behind the page.
+        Err(_) => Hello::Unavailable,
+    }
+}
+
+#[cfg(not(windows))]
+pub(crate) fn hello_verify(_hwnd: isize) -> Hello {
+    Hello::Unavailable
+}
+
+#[cfg(windows)]
+fn lock_workstation() {
+    use windows::Win32::System::Shutdown::LockWorkStation;
+    // SAFETY: no arguments; it only asks Windows to switch to the lock screen.
+    if let Err(error) = unsafe { LockWorkStation() } {
+        eprintln!("Could not lock the PC: {error}");
+    }
+}
+
+#[cfg(not(windows))]
+fn lock_workstation() {}
+
+/// Hand over to the real Windows lock. The page closes so the desktop is what you return to.
+fn lock_pc(app: &AppHandle) {
+    lock_workstation();
+    close(app);
+}
+
 #[cfg(windows)]
 fn idle_millis() -> Option<u64> {
     use windows::Win32::System::SystemInformation::GetTickCount;
@@ -93,10 +186,34 @@ fn is_open(app: &AppHandle) -> bool {
     app.get_webview_window(LABEL).is_some()
 }
 
-fn open(app: &AppHandle) -> Result<(), String> {
+pub(crate) fn is_locked() -> bool {
+    LOCKED.load(Ordering::Acquire)
+}
+
+pub(crate) fn is_enrolling() -> bool {
+    ENROLLING.load(Ordering::Acquire)
+}
+
+/// Raw handle of a window, for owning a Hello prompt. Tauri links a newer `windows` crate.
+pub(crate) fn window_hwnd(app: &AppHandle, label: &str) -> isize {
+    app.get_webview_window(label)
+        .and_then(|window| window.hwnd().ok())
+        .map(|handle| handle.0 as isize)
+        .unwrap_or(0)
+}
+
+fn open(app: &AppHandle, mode: Mode) -> Result<(), String> {
     if is_open(app) {
-        return Ok(());
+        if mode == Mode::Enroll && !is_enrolling() {
+            // Replace a showing ambient page; enrollment was asked for from Settings.
+            close(app);
+        } else {
+            return Ok(());
+        }
     }
+    LOCKED.store(matches!(mode, Mode::Ambient { soft_lock: true }), Ordering::Release);
+    ENROLLING.store(mode == Mode::Enroll, Ordering::Release);
+    crate::face::reset_attempts();
     let window = tauri::WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("ambient.html".into()))
         .title("Hover Island Ambient")
         .decorations(false)
@@ -105,16 +222,31 @@ fn open(app: &AppHandle) -> Result<(), String> {
         .skip_taskbar(true)
         .transparent(false)
         .disable_drag_drop_handler()
+        // Face unlock reads frames in this page only; without this WebView2 asks every time.
+        .on_permission_request(|_, kind| match kind {
+            PermissionKind::Camera => PermissionResponse::Allow,
+            _ => PermissionResponse::Default,
+        })
         .visible(false)
         .build()
         .map_err(|error| format!("Could not open ambient mode: {error}"))?;
+    // Alt+F4 must not skip Hello. `close` uses `destroy`, which does not ask.
+    window.on_window_event(|event| {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            if LOCKED.load(Ordering::Acquire) {
+                api.prevent_close();
+            }
+        }
+    });
     window.set_fullscreen(true).map_err(|error| error.to_string())?;
     window.show().map_err(|error| error.to_string())?;
     let _ = window.set_focus();
     Ok(())
 }
 
-fn close(app: &AppHandle) {
+pub(crate) fn close(app: &AppHandle) {
+    LOCKED.store(false, Ordering::Release);
+    ENROLLING.store(false, Ordering::Release);
     if let Some(window) = app.get_webview_window(LABEL) {
         let _ = window.destroy();
     }
@@ -149,15 +281,25 @@ pub fn spawn(app: AppHandle) {
                 }
             }
             if let Some(idle) = idle_millis() {
-                if open_now {
+                if open_now && is_enrolling() {
+                    // Enrollment ends from the page itself.
+                } else if open_now {
                     let since_open = opened_at.get_or_insert_with(Instant::now).elapsed();
-                    // Input after the grace period means the user is back.
-                    if since_open > OPEN_GRACE && idle + OPEN_GRACE.as_millis() as u64 + 200 < since_open.as_millis() as u64 {
+                    let since_open_ms = since_open.as_millis() as u64;
+                    // Away time counts from the page opening or the last input, whichever is later.
+                    let away = idle.min(since_open_ms);
+                    if cfg.lock_after_minutes > 0 && away >= u64::from(cfg.lock_after_minutes) * 60_000 {
+                        lock_pc(&app);
+                        opened_at = None;
+                    } else if LOCKED.load(Ordering::Acquire) {
+                        // The page itself asks for Hello on input.
+                    } else if since_open > OPEN_GRACE && idle + OPEN_GRACE.as_millis() as u64 + 200 < since_open_ms {
+                        // Input after the grace period means the user is back.
                         close(&app);
                         opened_at = None;
                     }
                 } else if cfg.enabled && idle >= threshold {
-                    if open(&app).is_ok() {
+                    if open(&app, Mode::Ambient { soft_lock: cfg.soft_lock }).is_ok() {
                         opened_at = Some(Instant::now());
                     }
                 }
@@ -168,9 +310,59 @@ pub fn spawn(app: AppHandle) {
     });
 }
 
+fn soft_lock_enabled(app: &AppHandle) -> bool {
+    app.state::<AppState>()
+        .settings
+        .lock()
+        .map(|settings| settings.ambient.soft_lock)
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 pub async fn ambient_open(app: AppHandle) -> Result<(), String> {
-    open(&app)
+    open(&app, Mode::Ambient { soft_lock: soft_lock_enabled(&app) })
+}
+
+pub(crate) fn open_enroll(app: &AppHandle) -> Result<(), String> {
+    open(app, Mode::Enroll)
+}
+
+/// Which flow the page should draw.
+#[tauri::command]
+pub async fn ambient_mode() -> &'static str {
+    if is_enrolling() {
+        "enroll"
+    } else {
+        "ambient"
+    }
+}
+
+/// Called by the page on a key press or click while soft-locked.
+#[tauri::command]
+pub async fn ambient_unlock(app: AppHandle) -> Result<UnlockOutcome, String> {
+    if !LOCKED.load(Ordering::Acquire) {
+        close(&app);
+        return Ok(UnlockOutcome::Verified);
+    }
+    if VERIFYING.swap(true, Ordering::AcqRel) {
+        return Ok(UnlockOutcome::Cancelled);
+    }
+    let hwnd = window_hwnd(&app, LABEL);
+    let hello = tauri::async_runtime::spawn_blocking(move || hello_verify(hwnd))
+        .await
+        .unwrap_or(Hello::Unavailable);
+    VERIFYING.store(false, Ordering::Release);
+    Ok(match hello {
+        Hello::Verified => {
+            close(&app);
+            UnlockOutcome::Verified
+        }
+        Hello::Cancelled => UnlockOutcome::Cancelled,
+        Hello::Unavailable => {
+            lock_pc(&app);
+            UnlockOutcome::Locked
+        }
+    })
 }
 
 #[tauri::command]

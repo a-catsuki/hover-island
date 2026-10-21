@@ -18,6 +18,7 @@ import EmailCodesPanel from '../components/settings/EmailCodesPanel'
 import ShortcutsPanel from './ShortcutsPanel'
 import NativeAppsPanel from './NativeAppsPanel'
 import AiPanel from './AiPanel'
+import FaceUnlockRow from './FaceUnlockRow'
 import UpdatesPanel from './UpdatesPanel'
 import LocationPanel from './LocationPanel'
 import { formatShortcut } from '../lib/shortcuts'
@@ -338,7 +339,7 @@ export default function SettingsApp() {
                   <Group title="Album cover" description="How the cover looks in the media widget. Vinyl, CD and Float move while music plays." flush>
                     <div class="scene-presets"><For each={[['classic', 'Classic'], ['vinyl', 'Vinyl'], ['cd', 'CD'], ['polaroid', 'Polaroid'], ['stack', 'Stack'], ['float', 'Float']] as const}>{([key, label]) => <button type="button" aria-pressed={settings.coverStyle === key} classList={{ selected: settings.coverStyle === key }} onClick={() => set({ coverStyle: key })}><span class={`cover-swatch cover-swatch--${key}`} aria-hidden="true" /><span>{label}</span></button>}</For></div>
                   </Group>
-                  <Group title="Ambient mode" description="A calm full-screen clock, now playing and weather page that appears when you step away. Move the mouse or press any key to leave. It cannot show on the Windows lock screen, which Windows keeps closed to apps.">
+                  <Group title="Ambient mode" description="A calm full-screen clock, now playing and weather page that appears when you step away. Move the mouse or press any key to leave. It cannot show on the Windows lock screen, which Windows keeps closed to apps, but it can act as a privacy lock in front of it.">
                     <Toggle label="Show when idle" hint="Starts after you stop using the PC" checked={settings.ambient.enabled} onChange={value => set({ ambient: { ...settings.ambient, enabled: value } })} />
                     <Select label="Start after" value={String(settings.ambient.idleMinutes)} options={[['1', '1 minute'], ['2', '2 minutes'], ['5', '5 minutes'], ['10', '10 minutes'], ['15', '15 minutes'], ['30', '30 minutes'], ['60', '1 hour']]} onChange={value => set({ ambient: { ...settings.ambient, idleMinutes: Number(value) } })} />
                     <Toggle label="Clock and date" checked={settings.ambient.clock} onChange={value => set({ ambient: { ...settings.ambient, clock: value } })} />
@@ -346,7 +347,10 @@ export default function SettingsApp() {
                     <Toggle label="Weather" checked={settings.ambient.weather} onChange={value => set({ ambient: { ...settings.ambient, weather: value } })} />
                     <Toggle label="Take over from the screen saver" hint="Shows just before the Windows screen saver would, and keeps it and display sleep off while ambient is up. Windows does not let apps draw over the screen saver or lock screen itself." checked={settings.ambient.takeOverScreensaver} onChange={value => set({ ambient: { ...settings.ambient, takeOverScreensaver: value } })} />
                     <Toggle label="Dim and drift" hint="Softer brightness and a slow wander to protect the screen" checked={settings.ambient.dim} onChange={value => set({ ambient: { ...settings.ambient, dim: value } })} />
-                    <Field label="Preview" hint="Opens it now. Move the mouse after a couple of seconds to close it.">
+                    <Toggle label="Unlock with Windows Hello" hint="Press a key to unlock with your face, or with your Windows PIN or fingerprint. A privacy screen, not a replacement for the Windows lock." checked={settings.ambient.softLock} onChange={value => set({ ambient: { ...settings.ambient, softLock: value } })} />
+                    <FaceUnlockRow disabled={!settings.ambient.softLock} />
+                    <Select label="Lock Windows after" value={String(settings.ambient.lockAfterMinutes)} options={[['0', 'Never'], ['2', '2 more minutes'], ['5', '5 more minutes'], ['10', '10 more minutes'], ['15', '15 more minutes'], ['30', '30 more minutes'], ['60', '1 more hour']]} onChange={value => set({ ambient: { ...settings.ambient, lockAfterMinutes: Number(value) } })} />
+                    <Field label="Preview" hint={settings.ambient.softLock ? 'Opens it now. Press a key after a couple of seconds to unlock it.' : 'Opens it now. Move the mouse after a couple of seconds to close it.'}>
                       <button type="button" class="button" onClick={() => void cmd.ambientOpen().catch(error => reportError('Could not open ambient mode', error))}>Preview</button>
                     </Field>
                   </Group>
