@@ -336,7 +336,7 @@ export default function SettingsApp() {
                     <Field label="Accent color" hint="Buttons, meters and selected controls"><input class="set-color" type="color" aria-label="Accent color" value={settings.accent} onInput={event => set({ accent: event.currentTarget.value })} /></Field>
                     <Slider label="Opacity" hint={`${Math.round(settings.opacity * 100)}%`} min={0.9} max={1} step={0.01} value={settings.opacity} onInput={value => set({ opacity: value })} />
                   </Group>
-                  <Group title="Album cover" description="How the cover looks in the media widget. Vinyl, CD and Float move while music plays." flush>
+                  <Group title="Album cover" description="How the cover looks in the media widget and ambient mode. Vinyl, CD and Float move while music plays." flush>
                     <div class="scene-presets"><For each={[['classic', 'Classic'], ['vinyl', 'Vinyl'], ['cd', 'CD'], ['polaroid', 'Polaroid'], ['stack', 'Stack'], ['float', 'Float']] as const}>{([key, label]) => <button type="button" aria-pressed={settings.coverStyle === key} classList={{ selected: settings.coverStyle === key }} onClick={() => set({ coverStyle: key })}><span class={`cover-swatch cover-swatch--${key}`} aria-hidden="true" /><span>{label}</span></button>}</For></div>
                   </Group>
                   <Group title="Ambient mode" description="A calm full-screen clock, now playing and weather page that appears when you step away. Move the mouse or press any key to leave. It cannot show on the Windows lock screen, which Windows keeps closed to apps, but it can act as a privacy lock in front of it.">
