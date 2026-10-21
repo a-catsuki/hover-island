@@ -532,66 +532,113 @@ fn reveal_band_rect(
     }
 }
 
-/// True when another process owns the foreground and its window is maximized or fills
-/// its monitor. Settings and island windows belong to this process and are ignored.
+/// True when the topmost real window over the collapsed pill (physical `x, y, w, h`)
+/// is maximized or fills its monitor, such as a fullscreen game, video or F11 browser.
+/// Walks the Z-order instead of trusting the foreground window, so a maximized window
+/// on another monitor never hides this island, a window that is not over the notch
+/// is ignored, and clicking the notch or the desktop does not change the answer.
 #[cfg(windows)]
-pub fn foreground_maximized() -> bool {
-    // Interacting with the notch makes our own WebView foreground. Keep the
-    // external window's context so collapsing after a click restores its veil.
-    static LAST_EXTERNAL_MAXIMIZED: std::sync::atomic::AtomicBool =
-        std::sync::atomic::AtomicBool::new(false);
+pub fn covered_by_maximized(pill: (i32, i32, i32, i32)) -> bool {
     use windows::Win32::Foundation::{HWND, RECT};
+    use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
     use windows::Win32::Graphics::Gdi::{
         GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId, IsZoomed,
+        GetClassNameW, GetTopWindow, GetWindow, GetWindowLongW, GetWindowRect,
+        GetWindowThreadProcessId, IsIconic, IsWindowVisible, IsZoomed, GWL_EXSTYLE,
+        GW_HWNDNEXT, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
     };
 
+    let (px, py, pw, ph) = pill;
+    let own_process = std::process::id();
     unsafe {
-        let hwnd: HWND = GetForegroundWindow();
-        if hwnd.0 == 0 {
-            return false;
+        let mut hwnd: HWND = GetTopWindow(HWND(0));
+        // Bounded so a Z-order that changes mid-walk can never spin.
+        for _ in 0..1024 {
+            if hwnd.0 == 0 {
+                return false;
+            }
+            let current = hwnd;
+            hwnd = GetWindow(current, GW_HWNDNEXT);
+
+            if !IsWindowVisible(current).as_bool() || IsIconic(current).as_bool() {
+                continue;
+            }
+            let mut process_id = 0u32;
+            GetWindowThreadProcessId(current, Some(&mut process_id));
+            if process_id == own_process {
+                continue;
+            }
+            // Click-through overlays and tool windows (game overlays, tooltips) sit
+            // above everything without hiding what is under them.
+            let ex_style = GetWindowLongW(current, GWL_EXSTYLE) as u32;
+            if ex_style & (WS_EX_TOOLWINDOW.0 | WS_EX_TRANSPARENT.0) != 0 {
+                continue;
+            }
+            // Suspended UWP apps and windows on other virtual desktops stay "visible".
+            let mut cloaked = 0u32;
+            if DwmGetWindowAttribute(
+                current,
+                DWMWA_CLOAKED,
+                &mut cloaked as *mut u32 as *mut _,
+                std::mem::size_of::<u32>() as u32,
+            )
+            .is_ok()
+                && cloaked != 0
+            {
+                continue;
+            }
+            let mut class = [0u16; 64];
+            let length = GetClassNameW(current, &mut class).max(0) as usize;
+            match String::from_utf16_lossy(&class[..length]).as_str() {
+                // Reached the desktop: nothing covers the notch.
+                "Progman" | "WorkerW" => return false,
+                "Shell_TrayWnd" | "Shell_SecondaryTrayWnd" => continue,
+                _ => {}
+            }
+            let mut rect = RECT::default();
+            if GetWindowRect(current, &mut rect).is_err() {
+                continue;
+            }
+            let over_pill =
+                rect.left < px + pw && rect.right > px && rect.top < py + ph && rect.bottom > py;
+            if !over_pill {
+                continue;
+            }
+            if IsZoomed(current).as_bool() {
+                return true;
+            }
+            let monitor = MonitorFromWindow(current, MONITOR_DEFAULTTONEAREST);
+            let mut info = MONITORINFO {
+                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+                rcMonitor: RECT::default(),
+                rcWork: RECT::default(),
+                dwFlags: 0,
+            };
+            if monitor.0 == 0 || !GetMonitorInfoW(monitor, &mut info).as_bool() {
+                return false;
+            }
+            return fills_monitor(rect, info.rcMonitor);
         }
-        let mut process_id = 0u32;
-        GetWindowThreadProcessId(hwnd, Some(&mut process_id));
-        if process_id == std::process::id() {
-            return LAST_EXTERNAL_MAXIMIZED.load(Ordering::Relaxed);
-        }
-        if IsZoomed(hwnd).as_bool() {
-            LAST_EXTERNAL_MAXIMIZED.store(true, Ordering::Relaxed);
-            return true;
-        }
-        let mut window_rect = RECT::default();
-        if GetWindowRect(hwnd, &mut window_rect).is_err() {
-            return false;
-        }
-        let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-        if monitor.0 == 0 {
-            return false;
-        }
-        let mut info = MONITORINFO {
-            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-            rcMonitor: RECT::default(),
-            rcWork: RECT::default(),
-            dwFlags: 0,
-        };
-        if !GetMonitorInfoW(monitor, &mut info).as_bool() {
-            return false;
-        }
-        let bounds = info.rcMonitor;
-        let maximized = window_rect.left <= bounds.left + 1
-            && window_rect.top <= bounds.top + 1
-            && window_rect.right >= bounds.right - 1
-            && window_rect.bottom >= bounds.bottom - 1;
-        LAST_EXTERNAL_MAXIMIZED.store(maximized, Ordering::Relaxed);
-        maximized
+        false
     }
 }
 
 #[cfg(not(windows))]
-pub fn foreground_maximized() -> bool {
+pub fn covered_by_maximized(_pill: (i32, i32, i32, i32)) -> bool {
     false
+}
+
+#[cfg(windows)]
+fn fills_monitor(
+    window: windows::Win32::Foundation::RECT,
+    monitor: windows::Win32::Foundation::RECT,
+) -> bool {
+    window.left <= monitor.left + 1
+        && window.top <= monitor.top + 1
+        && window.right >= monitor.right - 1
+        && window.bottom >= monitor.bottom - 1
 }
 
 /// Keep the large transparent WebView click-through except when the cursor is over the
@@ -617,6 +664,8 @@ pub fn spawn_ignore_poll(app: AppHandle) {
         let mut last_settings_probe: Option<Instant> = None;
         let mut over_settings = false;
         let mut settings_focused = false;
+        let mut last_cover_probe: Option<Instant> = None;
+        let mut covered = false;
         loop {
             if app.state::<AppState>().shutdown.load(Ordering::Relaxed) {
                 break;
@@ -661,7 +710,13 @@ pub fn spawn_ignore_poll(app: AppHandle) {
                     .is_some_and(|win| win.is_focused().unwrap_or(false));
                 last_settings_probe = Some(Instant::now());
             }
-            let maximized = foreground_maximized();
+            // The Z-order walk is cheap but needn't run at hover speed.
+            if last_cover_probe.map_or(true, |at| at.elapsed() >= Duration::from_millis(150)) {
+                covered = main_window_rect(&app)
+                    .is_some_and(|(x, y, w, h, _, _)| covered_by_maximized((x, y, w, h)));
+                last_cover_probe = Some(Instant::now());
+            }
+            let maximized = covered;
             let foreground = hide_behind && maximized;
             if Some(maximized) != last_foreground {
                 last_foreground = Some(maximized);
@@ -815,7 +870,10 @@ pub fn spawn_ignore_poll(app: AppHandle) {
                 let _ = app.emit("island://hover", hovered);
             }
 
-            let ignore = !dragging && (user_hidden || !over_active_bounds);
+            // An invisible, veiled pill must not swallow clicks meant for the
+            // maximized window under it (browser tabs, title bar buttons).
+            let veiled = foreground && !expanded && !revealed_long;
+            let ignore = !dragging && (user_hidden || veiled || !over_active_bounds);
             if Some(ignore) != last_ignore {
                 if let Some(win) = app.get_webview_window("main") {
                     if win.set_ignore_cursor_events(ignore).is_ok() {
