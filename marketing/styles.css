@@ -46,6 +46,19 @@ p { margin: 0; }
 .stars-count::before, .stars-inline:not(:empty)::before { content: "★"; color: #FFC94A; font-size: 12px; margin-right: 3px; }
 .nav-dl { display: inline-flex; align-items: center; height: 34px; padding: 0 16px; border-radius: 999px; background: linear-gradient(100deg, var(--a), var(--b)); text-decoration: none; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .navnotch :focus-visible { outline-color: #fff; }
+.nav-toggle { display: none; }
+/* touch and narrow screens: no hover, so the notch drops its links down on tap */
+@media (max-width: 1000px), (hover: none) {
+  .navnotch { gap: 10px; min-width: min(92vw, 320px); justify-content: space-between; padding: 0 6px 0 16px; }
+  .nav-toggle { order: 9; display: inline-grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.1); color: #fff; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .nav-toggle svg { width: 20px; height: 20px; transition: transform 380ms var(--spring); }
+  .nav-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+  .navnotch nav { position: absolute; left: 0; right: 0; top: 56px; flex-direction: column; justify-content: flex-start; gap: 0; width: auto !important; margin: 0 !important; padding: 0 10px; font-size: 17px; }
+  .navnotch nav a { display: flex; align-items: center; flex: none; height: 48px; padding: 0 14px; border-radius: 12px; color: rgba(255, 255, 255, 0.85); }
+  .navnotch nav a + a { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+  .stars, .nav-dl { height: 40px; }
+  .navnotch nav a:active { background: rgba(255, 255, 255, 0.1); }
+}
 
 /* ---------------- buttons ---------------- */
 .btn { --mx: 0px; --my: 0px; display: inline-flex; align-items: center; gap: 10px; padding: 14px 22px; border-radius: 999px; font-weight: 600; font-size: 15px; text-decoration: none; transform: translate(var(--mx), var(--my)); transition: transform 300ms var(--spring), box-shadow 240ms var(--ease), background 200ms; }
@@ -383,8 +396,6 @@ p { margin: 0; }
   .play, .open-card { grid-template-columns: 1fr; }
   .t-spot, .t-awake, .t-qs, .t-amb, .t-rem { grid-column: span 6; grid-row: auto; }
   .floaters { display: none; }
-  .navnotch nav { display: none; }
-  .navnotch { gap: 12px; padding-left: 20px; }
 }
 @media (max-width: 560px) {
   .stars-label, .brand span:last-child { display: none; }

@@ -42,30 +42,62 @@
     return `M${f(L - e)} 0 Q${f(L)} 0 ${f(L)} ${f(e)} L${f(L)} ${f(h - r)} Q${f(L)} ${f(h)} ${f(L + r)} ${f(h)} L${f(R - r)} ${f(h)} Q${f(R)} ${f(h)} ${f(R)} ${f(h - r)} L${f(R)} ${f(e)} Q${f(R)} 0 ${f(R + e)} 0 Z`
   }
 
-  /* ---------- nav notch: name, star and download; the links unfold on hover ---------- */
-  const nav = $('#navnotch'), navPath = $('#navnotch-path'), navLinks = $('#navnotch-links')
-  let linksW = 0, navOpen = false
-  const navSpring = springs({ h: 56, w: 0 }, ({ h, w }) => {
-    const f = linksW ? clamp(w / linksW, 0, 1) : 0
-    navLinks.style.width = `${Math.max(0, w)}px`
-    navLinks.style.opacity = String(clamp(f * 1.5 - 0.25, 0, 1))
-    navLinks.style.marginInline = `${-11 * (1 - f)}px`
+  /* ---------- nav notch: name, star and download; the links unfold on hover, or on tap with touch ---------- */
+  const nav = $('#navnotch'), navPath = $('#navnotch-path'), navLinks = $('#navnotch-links'), navShape = $('.navnotch-shape'), navToggle = $('.nav-toggle')
+  const touchNav = matchMedia('(max-width: 1000px), (hover: none)')
+  let linksW = 0, panelH = 0, navOpen = false, openedAt = 0
+  const navSpring = springs({ h: 56, w: 0, ph: 0 }, ({ h, w, ph }) => {
+    let total = h
+    if (touchNav.matches) {
+      const p = Math.max(0, ph)
+      navLinks.style.height = `${p}px`; navLinks.style.top = `${h}px`
+      navLinks.style.opacity = String(clamp(panelH ? (p / panelH) * 1.4 - 0.2 : 0, 0, 1))
+      total = h + p
+    } else {
+      const f = linksW ? clamp(w / linksW, 0, 1) : 0
+      navLinks.style.height = ''; navLinks.style.top = ''
+      navLinks.style.width = `${Math.max(0, w)}px`
+      navLinks.style.opacity = String(clamp(f * 1.5 - 0.25, 0, 1))
+      navLinks.style.marginInline = `${-11 * (1 - f)}px`
+    }
     const bw = nav.offsetWidth
     nav.style.height = `${h}px`
-    navPath.setAttribute('d', notchPath(bw / 2 + 14, bw, h, 14))
-  }, () => ({ k: 240, d: 0.55 }))
-  const measureNav = () => { const as = [...navLinks.children]; linksW = Math.ceil(as.reduce((n, a) => n + a.offsetWidth, 0) + (parseFloat(getComputedStyle(navLinks).columnGap) || 0) * Math.max(0, as.length - 1)); navSpring.to({ w: navOpen ? linksW : 0 }); navSpring.redraw() }
+    navShape.style.height = total === h ? '' : `${total}px`
+    navPath.setAttribute('d', notchPath(bw / 2 + 14, bw, total, 14))
+  }, (key) => (key === 'ph' ? { k: 210, d: 0.62 } : { k: 240, d: 0.55 }))
+  const setNav = (open) => {
+    navOpen = open
+    const touch = touchNav.matches
+    navSpring.to({ w: !touch && open ? linksW : 0, ph: touch && open ? panelH : 0 })
+    navToggle.setAttribute('aria-expanded', String(open))
+    navLinks.inert = touch && !open
+    if (open) openedAt = scrollY
+  }
+  const measureNav = () => {
+    const as = [...navLinks.children]
+    linksW = Math.ceil(as.reduce((n, a) => n + a.offsetWidth, 0) + (parseFloat(getComputedStyle(navLinks).columnGap) || 0) * Math.max(0, as.length - 1))
+    panelH = as.length * 48 + 14
+    setNav(navOpen); navSpring.redraw()
+  }
   let navLeave = 0
-  const openNav = (open) => { clearTimeout(navLeave); navOpen = open; navSpring.to({ w: open ? linksW : 0 }) }
-  nav.addEventListener('pointerenter', () => openNav(true))
-  nav.addEventListener('pointerleave', () => { navLeave = setTimeout(() => openNav(false), 240) })
-  nav.addEventListener('focusin', () => openNav(true))
-  nav.addEventListener('focusout', (e) => { if (!nav.contains(e.relatedTarget)) openNav(false) })
-  const onScrollNav = () => { const s = scrollY > 40; nav.classList.toggle('is-scrolled', s); navSpring.to({ h: s ? 46 : 56 }) }
-  onScrollNav()
+  const hoverNav = (open) => { clearTimeout(navLeave); if (open) setNav(true); else navLeave = setTimeout(() => setNav(false), 240) }
+  nav.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && !touchNav.matches) hoverNav(true) })
+  nav.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !touchNav.matches) hoverNav(false) })
+  nav.addEventListener('focusin', () => { if (!touchNav.matches) hoverNav(true) })
+  nav.addEventListener('focusout', (e) => { if (!touchNav.matches && !nav.contains(e.relatedTarget)) hoverNav(false) })
+  navToggle.addEventListener('click', () => setNav(!navOpen))
+  navLinks.addEventListener('click', (e) => { if (e.target.closest('a') && touchNav.matches) setNav(false) })
+  addEventListener('pointerdown', (e) => { if (navOpen && touchNav.matches && !nav.contains(e.target)) setNav(false) })
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && navOpen && touchNav.matches) { setNav(false); navToggle.focus() } })
+  touchNav.addEventListener?.('change', () => { navOpen = false; navLinks.style.width = ''; navLinks.style.marginInline = ''; measureNav() })
+  const onScrollNav = () => {
+    const s = scrollY > 40; nav.classList.toggle('is-scrolled', s); navSpring.to({ h: s ? 46 : 56 })
+    if (navOpen && touchNav.matches && Math.abs(scrollY - openedAt) > 60) setNav(false)
+  }
   addEventListener('resize', measureNav)
-  measureNav()
   ;(document.fonts?.ready ?? Promise.resolve()).then(measureNav)
+  measureNav()
+  onScrollNav()
   const links = $$('.navnotch nav a')
   if ('IntersectionObserver' in window) {
     const spy = new IntersectionObserver((entries) => { for (const e of entries) if (e.isIntersecting) for (const a of links) a.classList.toggle('is-here', a.getAttribute('href') === `#${e.target.id}`) }, { rootMargin: '-45% 0px -50% 0px' })
