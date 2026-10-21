@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hover Island: the notch for Windows. Free.</title>
+<meta name="description" content="Hover Island docks a notch to the top of Windows: media with a real speaker visualizer, weather and calendar, quick controls and a local QR file beam to your phone. Built with Rust and Tauri, so it stays tiny. Free.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" type="image/png" href="assets/logo-mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62.5..125,100..900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script>document.documentElement.classList.add('js');</script>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav" id="nav">
+  <div class="nav-notch" id="nav-notch">
+    <a class="nav-brand" href="#top" aria-label="Hover Island home">
+      <span class="brand-name">Hover Island</span>
+      <span class="nav-live" aria-hidden="true"></span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="nav-links" id="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#themes">Themes</a></li>
+        <li><a href="#sharing">File beaming</a></li>
+        <li><a href="#open-source">Open source</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </nav>
+    <a class="nav-cta" href="#download">Download</a>
+    <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links" aria-label="Open menu">
+      <span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- HERO: cinematic keynote notch -->
+  <section class="hero notch-hero" id="top">
+    <canvas class="hero-canvas" id="gl" aria-hidden="true"></canvas>
+    <div class="hero-veil" aria-hidden="true"></div>
+    <div class="notch-glow" data-parallax="0.1" aria-hidden="true"></div>
+
+    <div class="container hero-inner">
+      <p class="eyebrow reveal">Free and open source · Windows 10 &amp; 11</p>
+      <h1 class="hero-title reveal">The notch,<br>for Windows.</h1>
+      <p class="hero-sub reveal">Media, weather, AI usage and file beaming. One hover away.</p>
+      <div class="hero-actions reveal">
+        <a class="btn-pill" href="#download" data-magnetic>Download free</a>
+        <a class="btn-pill btn-pill-secondary" href="#features">See it in action</a>
+        <a class="btn-pill btn-pill-secondary" href="https://github.com/a-catsuki/hover-island" target="_blank" rel="noopener">View source on GitHub</a>
+      </div>
+
+      <div class="screen reveal">
+        <span class="screen-art" aria-hidden="true"></span>
+        <span class="screen-glow" aria-hidden="true"></span>
+        <div class="desk-windows" aria-hidden="true">
+          <span class="desk-win desk-win-a">
+            <span class="dw-bar">
+              <span class="dw-dot"></span><span class="dw-dot"></span><span class="dw-dot"></span>
+              <span class="dw-title">Q4 Launch Brief.docx - Word</span>
+            </span>
+            <span class="dw-ribbon">
+              <span class="dw-tab dw-tab--on">File</span>
+              <span class="dw-tab">Home</span>
+              <span class="dw-tab">Insert</span>
+              <span class="dw-tab">Layout</span>
+              <span class="dw-tab">Review</span>
+              <span class="dw-tab">View</span>
+            </span>
+            <span class="dw-page">
+              <span class="dw-doc-title">Q4 Launch Brief</span>
+              <span class="dw-doc-sub">Draft 3 · Hover Island</span>
+              <span class="dw-line" style="--w:97%"></span>
+              <span class="dw-line" style="--w:91%"></span>
+              <span class="dw-line" style="--w:95%"></span>
+              <span class="dw-line dw-line--break" style="--w:70%"></span>
+              <span class="dw-line" style="--w:93%"></span>
+              <span class="dw-line" style="--w:86%"></span>
+              <span class="dw-line" style="--w:58%"></span>
+            </span>
+          </span>
+          <span class="desk-win desk-win-b">
+            <span class="dw-bar">
+              <span class="dw-dot"></span><span class="dw-dot"></span><span class="dw-dot"></span>
+              <span class="dw-title">Inbox (3) - Google Mail</span>
+            </span>
+            <span class="dw-mail">
+              <span class="dw-mail-top">
+                <span class="dw-mail-logo">M</span>
+                <span class="dw-mail-search">Search mail</span>
+              </span>
+              <span class="dw-mail-body">
+                <span class="dw-mail-rail">
+                  <span class="dw-mail-compose">Compose</span>
+                  <span class="dw-mail-item dw-mail-item--on">Inbox<span class="dw-mail-count">3</span></span>
+                  <span class="dw-mail-item">Starred</span>
+                  <span class="dw-mail-item">Sent</span>
+                  <span class="dw-mail-item">Drafts</span>
+                </span>
+                <span class="dw-mail-list">
+                  <span class="dw-mail-row">
+                    <span class="dw-avatar" style="--a:#0a65ff">A</span>
+                    <span class="dw-mail-meta"><span class="dw-mail-from">Ana Ribeiro</span><span class="dw-mail-sub">Re: Q4 launch assets</span></span>
+                  </span>
+                  <span class="dw-mail-row">
+                    <span class="dw-avatar" style="--a:#c5221f">M</span>
+                    <span class="dw-mail-meta"><span class="dw-mail-from">Marcus Oduya</span><span class="dw-mail-sub">Notch build passed QA</span></span>
+                  </span>
+                  <span class="dw-mail-row">
+                    <span class="dw-avatar" style="--a:#188038">L</span>
+                    <span class="dw-mail-meta"><span class="dw-mail-from">Lena Kostic</span><span class="dw-mail-sub">Windows 11 tour screens</span></span>
+                  </span>
+                </span>
+              </span>
+            </span>
+          </span>
+        </div>
+        <div class="screen-bar" aria-hidden="true">
+          <span class="sb-start"></span>
+          <span class="sb-pill"><span></span><span></span><span></span></span>
+          <span class="sb-tray"><span class="sb-mini"></span><span class="sb-mini"></span><span class="sb-clock">15:40</span></span>
+        </div>
+
+        <iframe class="hero-app" id="hero-app" src="app-preview/index.html?embed=1" title="Interactive Hover Island preview with sample data" loading="eager" tabindex="0"></iframe>
+      </div>
+      <p class="demo-caption reveal"><span>Hover the notch to open it · switch pages · press Esc to close</span><span>Interactive preview · sample data</span></p>
+    </div>
+  </section>
+
+  <!-- PAGE BEAM: the relay runs the length of the page as a parallax background -->
+  <div class="beam-flow">
+    <!-- BEAM ORIGIN: the phone bridges the hero seam on a glass body -->
+    <div class="hero-phone" aria-hidden="true">
+      <div class="phone">
+        <span class="phone-island"></span>
+        <div class="phone-screen">
+          <div class="ps-bar"><span class="ps-url">Local link · browser</span></div>
+          <div class="ps-body">
+            <span class="ps-bucket">
+              <span class="ps-bucket-glyph"><svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.1l1.6 1.9h8.3A2.5 2.5 0 0 1 21 9.4v7.1A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/><path d="M12 16.4v-4.6m0 0-2 2m2-2 2 2"/></svg></span>
+              <span class="ps-bucket-title">Bucket</span>
+              <span class="ps-bucket-hint">Tap to add files</span>
+            </span>
+            <span class="ps-queue">
+              <span class="ps-queue-item"><span class="ps-queue-mark"></span><span class="ps-queue-name">report.pdf</span></span>
+            </span>
+            <span class="ps-send">Send to PC</span>
+          </div>
+        </div>
+        <span class="phone-home"></span>
+      </div>
+    </div>
+
+    <div class="beam-layer" aria-hidden="true">
+      <svg class="beam" viewBox="0 0 1000 1000" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="beamGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop class="stop-a" offset="0" />
+            <stop class="stop-b" offset="0.5" />
+            <stop class="stop-c" offset="1" />
+          </linearGradient>
+        </defs>
+        <path class="beam-track" d="M500,0 C180,90 180,170 500,250 C820,330 820,410 500,490 C180,570 180,650 500,730 C820,810 820,890 500,1000" />
+        <path class="beam-progress" id="beam-progress" stroke="url(#beamGrad)" d="M500,0 C180,90 180,170 500,250 C820,330 820,410 500,490 C180,570 180,650 500,730 C820,810 820,890 500,1000" />
+      </svg>
+      <div class="beam-chip" id="beam-chip"><span class="beam-chip-mark"></span></div>
+    </div>
+
+  <!-- INTRO -->
+  <!-- Product workflow: glance, open the workspace, then beam to a phone. -->
+  <section class="counter-hero" aria-labelledby="counter-hero-title">
+    <div class="container">
+      <div class="ch-panel reveal">
+        <div class="ch-copy">
+          <p class="ch-eyebrow">A desktop companion for Windows</p>
+          <h2 class="ch-title" id="counter-hero-title">Your most-used things, <span class="ch-hl">right at the edge.</span></h2>
+          <p class="ch-lede">
+            Hover Island stays compact until you need more: a quick glance,
+            a flexible workspace, or a local handoff to your phone.
+          </p>
+        </div>
+
+        <ol class="ch-steps" aria-label="How Hover Island fits into your day">
+          <li class="ch-step">
+            <span class="ch-index">01</span>
+            <div><h3 class="ch-step-title">At a glance</h3><p>Choose what appears in the compact notch: media, local time, weather, battery, or reported AI usage.</p></div>
+          </li>
+          <li class="ch-step">
+            <span class="ch-index">02</span>
+            <div><h3 class="ch-step-title">Room to work</h3><p>Open the Today, Desk, or Activity panel with a hover, click, or Alt + Space. Rearrange widgets to suit you.</p></div>
+          </li>
+          <li class="ch-step">
+            <span class="ch-index">03</span>
+            <div><h3 class="ch-step-title">A local handoff</h3><p>Drop files into Beam and scan its QR link on the same Wi-Fi. No phone app or cloud relay; links expire after 30 minutes.</p></div>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">One island, your whole day</p>
+        <h2>Rust and Tauri. Light on your PC.</h2>
+        <p class="lead">
+          No bundled browser engine and no separate background service. Hover Island runs in the WebView Windows already ships, docks as a notch, a top bar or a side rail, and springs
+          between a compact pill, an activity peek and the full workspace.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAPTER: MEDIA -->
+  <section class="section band-soft">
+    <div class="container chapter">
+      <div class="chapter-copy reveal">
+        <p class="eyebrow">Media</p>
+        <h2>Now playing, with twelve ways to see the music.</h2>
+        <p class="lead">
+          Album art, player controls and lyrics that scroll in time with the song,
+          from Spotify, Apple Music or anything that reports to Windows. A 24-band visualizer reads your speaker output, twelve
+          styles including album-derived ambient lighting. It never touches
+          your microphone.
+        </p>
+      </div>
+      <div class="chapter-media reveal">
+        <div class="tilt">
+        <div class="visual-media glass" data-parallax="0.07" aria-hidden="true">
+          <span class="vm-art"></span>
+          <div class="vm-meta"><span class="t1">Midnight City</span><span class="t2">M83 · Hurry Up, We're Dreaming</span></div>
+          <div class="vm-bars"><span style="--d:0s"></span><span style="--d:.1s"></span><span style="--d:.2s"></span><span style="--d:.3s"></span><span style="--d:.4s"></span><span style="--d:.5s"></span><span style="--d:.6s"></span><span style="--d:.7s"></span><span style="--d:.8s"></span><span style="--d:.9s"></span><span style="--d:1s"></span><span style="--d:1.1s"></span></div>
+        </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAPTER: SHARING -->
+  <section class="section" id="sharing">
+    <div class="container chapter rev">
+      <div class="chapter-copy reveal">
+        <p class="eyebrow">File beaming</p>
+        <h2>Drag it to the notch. Beam it to your phone.</h2>
+        <p class="lead">
+          Drop files on the island and beam them to any phone on your Wi-Fi.
+          Scan the QR shown on your PC; the phone page stages what you send
+          and receives what you add. Files land in Downloads / Hover Island,
+          paired devices only, and the link expires after 30 minutes.
+        </p>
+        <p class="chapter-note">iPhone, Android or any browser. Nothing to install on the phone. Local HTTP over your own Wi-Fi, not AirDrop.</p>
+      </div>
+      <div class="chapter-media reveal">
+        <div class="tilt">
+        <div class="visual-bucket glass" data-parallax="-0.07" aria-hidden="true">
+          <span class="vb-drop">
+            <span class="vb-drop-glyph"><svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.1l1.6 1.9h8.3A2.5 2.5 0 0 1 21 9.4v7.1A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/><path d="M12 16.4v-4.6m0 0-2 2m2-2 2 2"/></svg></span>
+            <strong>Drop files onto the notch</strong>
+            <span>Drop it here, then beam it to your phone.</span>
+            <span class="vb-choose">Choose files</span>
+          </span>
+        </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAPTER: AI USAGE -->
+  <section class="section band-soft">
+    <div class="container chapter">
+      <div class="chapter-copy reveal">
+        <p class="eyebrow">AI usage &amp; reset watch</p>
+        <h2>Know exactly where your limits stand.</h2>
+        <p class="lead">
+          Usage comes from recorded provider reports, not guesses. Reset Watch
+          tracks global and banked resets from codex-resets.com and links the
+          original announcement. It never redeems grants or changes quotas.
+        </p>
+      </div>
+      <div class="chapter-media reveal">
+        <div class="tilt">
+        <div class="visual-usage glass" aria-hidden="true">
+          <div class="usage-row">
+            <span class="ring" style="--p:62"><span></span></span>
+            <span class="stack"><span class="t1">Codex</span><span class="t2">62% remaining · resets in 3 h</span></span>
+          </div>
+          <div class="usage-row">
+            <span class="ring" style="--p:38"><span></span></span>
+            <span class="stack"><span class="t1">Claude</span><span class="t2">38% remaining · reported 14:02</span></span>
+          </div>
+          <div class="reset-line"><span class="dot"></span><span class="t2">Global reset posted · banked grants tracked separately</span></div>
+        </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAPTER: CALENDAR / CLOCK / NOTES -->
+  <section class="section">
+    <div class="container chapter rev">
+      <div class="chapter-copy reveal">
+        <p class="eyebrow">Calendar, world clock &amp; to-dos</p>
+        <h2>The month, the hour, and the to-do list.</h2>
+        <p class="lead">
+          A full month calendar with local editing and read-only Google,
+          Outlook or other ICS subscriptions that refresh every five minutes.
+          A world clock for the cities you work with, and a to-do list that
+          persists.
+        </p>
+      </div>
+      <div class="chapter-media reveal">
+        <div class="tilt">
+        <div class="visual-cal glass" aria-hidden="true">
+          <div class="cal-grid">
+            <span class="cal-head">M</span><span class="cal-head">T</span><span class="cal-head">W</span><span class="cal-head">T</span><span class="cal-head">F</span><span class="cal-head">S</span><span class="cal-head">S</span>
+            <span>1</span><span>2</span><span>3</span><span class="cal-today">4</span><span>5</span><span>6</span><span>7</span>
+            <span>8</span><span>9</span><span>10</span><span>11</span><span class="cal-event">12</span><span>13</span><span>14</span>
+            <span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span>
+          </div>
+          <div class="clock-stack">
+            <div class="clock-row"><span class="t2">Lisbon</span><span class="clock-time">15:40</span></div>
+            <div class="clock-row"><span class="t2">London</span><span class="clock-time">15:40</span></div>
+            <div class="clock-row"><span class="t2">San Francisco</span><span class="clock-time">07:40</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAPTER: FOCUS -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">Stay on task</p>
+        <h2>Keep going until it is done.</h2>
+        <p class="lead">
+          A few small tools that earn their spot at the top of your screen.
+        </p>
+      </div>
+      <div class="spec-grid">
+        <div class="spec reveal"><strong>Keep me awake</strong><span>pick a finish time. The PC stays on and a gentle alarm nudges you until you are done.</span></div>
+        <div class="spec reveal"><strong>Timed reminders</strong><span>type "call Ana at 4pm" and it taps you on the notch at 4pm.</span></div>
+        <div class="spec reveal"><strong>Spotlight, your way</strong><span>apps and files ranked by what you actually open, not alphabet order.</span></div>
+        <div class="spec reveal"><strong>Every app, with its logo</strong><span>search all installed apps and pin the ones you want in the island.</span></div>
+        <div class="spec reveal"><strong>Real quick settings</strong><span>vertical sliders for volume and brightness, Wi-Fi, Bluetooth, Do Not Disturb.</span></div>
+        <div class="spec reveal"><strong>Windows alerts, your call</strong><span>hide the Windows banners and still get every alert in the notch.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAPTER: WEATHER -->
+  <section class="section band-soft">
+    <div class="container chapter">
+      <div class="chapter-copy reveal">
+        <p class="eyebrow">Weather</p>
+        <h2>Local conditions, at a glance.</h2>
+        <p class="lead">
+          Current details with a 24-hour strip and seven-day ranges. Your
+          location comes from your public IP, or search any city and it sticks.
+        </p>
+        <p class="chapter-note">AQI is a modeled value, not a local sensor reading.</p>
+      </div>
+      <div class="chapter-media reveal">
+        <div class="tilt">
+        <div class="visual-weather glass" aria-hidden="true">
+          <span class="wx-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg></span>
+          <span class="wx-temp">21°</span>
+          <span class="t2">Clear · Lisbon</span>
+          <div class="wx-aqi"><span class="aqi-bar"><span style="--w:32%"></span></span><span class="t2">US AQI 32 · Good</span></div>
+        </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- THEMES -->
+  <section class="section themes-band" id="themes">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">Make it yours</p>
+        <h2>Seven themes. Five scenes.</h2>
+        <p class="lead">
+          Each theme retunes the accent and material across the island. Five
+          scene presets, Graphite to Paper, layer atmosphere from the
+          pointer, your album art or the audio, and freeze under reduced
+          motion.
+        </p>
+      </div>
+
+      <div class="theme-rail od-rail" style="--od-rail-pad: 0px" role="list">
+        <article class="theme-card glass" role="listitem" data-reveal><span class="swatch sw-frost"></span><span class="t1">Frost</span></article>
+        <article class="theme-card glass" role="listitem" data-reveal><span class="swatch sw-midnight"></span><span class="t1">Midnight</span></article>
+        <article class="theme-card glass" role="listitem" data-reveal><span class="swatch sw-aurora"></span><span class="t1">Aurora</span></article>
+        <article class="theme-card glass" role="listitem" data-reveal><span class="swatch sw-sunset"></span><span class="t1">Sunset</span></article>
+        <article class="theme-card glass" role="listitem" data-reveal><span class="swatch sw-neon"></span><span class="t1">Neon</span></article>
+        <article class="theme-card glass" role="listitem" data-reveal><span class="swatch sw-mono"></span><span class="t1">Mono</span></article>
+        <article class="theme-card glass" role="listitem" data-reveal><span class="swatch sw-matcha"></span><span class="t1">Matcha</span></article>
+      </div>
+
+      <div class="scenes-row reveal">
+        <span class="scene-chip">Graphite</span>
+        <span class="scene-chip">Contour</span>
+        <span class="scene-chip">Aurora</span>
+        <span class="scene-chip">Ember</span>
+        <span class="scene-chip">Paper</span>
+        <span class="sizes-chip">Sizes: Small · Medium · Large</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPEC STRIP -->
+  <section class="section">
+    <div class="container">
+      <div class="spec-grid">
+        <div class="spec reveal"><strong>Updates itself</strong><span>check in Settings, install in one click, nothing to uninstall</span></div>
+        <div class="spec reveal"><strong>Rust + Tauri</strong><span>no bundled browser engine</span></div>
+        <div class="spec reveal"><strong>Light</strong><span>small download, no separate background service</span></div>
+        <div class="spec reveal"><strong>Keyboard-first</strong><span>Alt + Space island, Ctrl + Space spotlight</span></div>
+        <div class="spec reveal"><strong>No microphone</strong><span>visualizer reads speaker output</span></div>
+        <div class="spec reveal"><strong>Three dock styles</strong><span>notch, top bar or side rail</span></div>
+        <div class="spec reveal"><strong>Local by design</strong><span>phone sharing is HTTP on your Wi-Fi, not a cloud relay</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OPEN SOURCE -->
+  <section class="section band-soft" id="open-source">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">Open source</p>
+        <h2>Built in the open. Read it, fork it, make it yours.</h2>
+        <p class="lead">Hover Island is MIT licensed and lives on GitHub. Every line that touches your media, notifications and files is there to read, so you never have to take our word for it.</p>
+      </div>
+      <div class="spec-grid">
+        <div class="spec reveal"><strong>MIT licensed</strong><span>use it, change it, ship your own build</span></div>
+        <div class="spec reveal"><strong>Auditable</strong><span>Rust backend, SolidJS front end, no closed binaries hiding in the middle</span></div>
+        <div class="spec reveal"><strong>Contributions welcome</strong><span>bug reports, widgets, themes and translations all help</span></div>
+      </div>
+      <div class="hero-actions reveal">
+        <a class="btn-pill" href="https://github.com/a-catsuki/hover-island" target="_blank" rel="noopener" data-magnetic>Star on GitHub</a>
+        <a class="btn-pill btn-pill-secondary" href="https://github.com/a-catsuki/hover-island/issues" target="_blank" rel="noopener">Report a bug or idea</a>
+        <a class="btn-pill btn-pill-secondary" href="https://github.com/a-catsuki/hover-island/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">How to contribute</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOWNLOAD -->
+  <section class="download-band" id="download">
+    <div class="container download-inner">
+      <p class="eyebrow reveal">Free, always</p>
+      <h2 class="reveal">Put an island on your desktop.</h2>
+      <p class="lead download-lede reveal">
+        No Hover Island account, subscription, or ads. One small download, and it
+        disappears into your work.
+      </p>
+      <div class="hero-actions reveal">
+        <a class="btn-pill" href="downloads/HoverIsland-Windows.zip" id="download-btn" data-magnetic download>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+          Download for Windows
+        </a>
+      </div>
+      <p class="download-meta reveal">
+        <span class="os-badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM3 12.5h7.5v7L3 18.5zM11.5 4.3 21 3v8.5h-9.5zM11.5 12.5H21V21l-9.5-1.3z"/></svg> Windows 10 &amp; 11</span>
+        <span class="dot-sep">·</span><span>Rust + Tauri build</span><span class="dot-sep">·</span><a href="https://github.com/a-catsuki/hover-island" target="_blank" rel="noopener">Open source (MIT)</a><span class="dot-sep">·</span><span>v0.1.6</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section" id="faq">
+    <div class="container faq-wrap">
+      <div class="section-head reveal">
+        <p class="eyebrow">Good questions</p>
+        <h2>Frequently asked</h2>
+      </div>
+      <div class="faq">
+        <details class="faq-item glass reveal" open>
+          <summary><span>Is Hover Island really free?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Yes. No Hover Island account, premium tier, subscription or ads. It's a desktop companion, not a storefront.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>Is it open source?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Yes. The full source is MIT licensed on <a href="https://github.com/a-catsuki/hover-island" target="_blank" rel="noopener">GitHub</a>. You can build it yourself, open issues, or send a pull request.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>Does it use my microphone?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>No. The visualizer reads your speaker output through a shared audio session. Microphone input is never requested.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>How does file beaming work?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Your phone scans the QR shown on your PC, over the same Wi-Fi. The page stages files before you send, and downloads files you add from the PC. Links expire after 30 minutes. It's plain local HTTP, not AirDrop.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>Does it sync Google Calendar or Outlook?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Partially, and read-only. You can subscribe to Google, Outlook or any ICS calendar URL; subscriptions refresh every five minutes and never write back. The local calendar stays editable. Full two-way synchronization isn't offered.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>What can I put in the island?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Sixteen widget types, including media, weather, calendar, to-do notes, AI usage, notifications, focus timer, system, PC controls, world clock, website alerts, connections, Reset Watch and the file bucket. Place them in panels you add, rename or remove, and Hover Island opens extra pages when a panel fills up.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>What does it need to run?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Windows 11, or Windows 10 with the free WebView2 runtime. Hover Island is built with Rust, Tauri 2 and SolidJS and runs in the system WebView. It installs as a signed package, not a browser app.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>Where can it dock?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Three modes: the classic notch on the top, left, or right screen edge, a monitor-wide top or bottom bar, and a full-height side rail that opens into a narrow workspace. A side-attached notch becomes a vertical capsule, and dragging snaps to edge centers.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>What system controls are included?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Volume, display brightness, Do Not Disturb, Night Light, power mode, paired Bluetooth devices and a memory optimizer. The optimizer scans and trims eligible background apps' working sets. It closes or suspends nothing, and Windows may page the memory back in. Brightness and Bluetooth actions depend on what your drivers support.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>Can it read my Windows notifications or email codes?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Desktop alerts require installing the signed package and granting Windows notification access. The raw executable alone can't listen. Verification-code detection is a separate opt-in: you register your own Google or Microsoft desktop client, sign in, and codes appear in the notch. Nothing is connected by default.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>How do updates work?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Open Settings, then About, and press Check for updates. If there is a newer build it downloads, checks its hash, installs over the old one and reopens. Your settings stay. It also checks once a day if you leave that on, and never installs without your click.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>Does it work with Apple Music?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Yes. Apple Music, Spotify and most players show up through Windows media controls, so album art, play, pause, skip and timed lyrics all work.</p></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- BEAM RELAY: phone to bucket to PC -->
+  <section class="section band-soft beam-relay" id="relay">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">One gesture, end to end</p>
+        <h2>From your phone, into the notch, onto your PC.</h2>
+        <p class="lead">
+          The beam down this page is the whole trip: it leaves a phone, gathers
+          in the notch, then lands on your desktop. Any device with a browser
+          can start it, and there is nothing to install on the phone.
+        </p>
+      </div>
+
+      <ol class="relay-steps reveal">
+        <li><span class="relay-num">01</span><span class="relay-step-name">Send from any phone</span></li>
+        <li><span class="relay-num">02</span><span class="relay-step-name">Gather in the bucket</span></li>
+        <li><span class="relay-num">03</span><span class="relay-step-name">Drop onto the PC</span></li>
+      </ol>
+
+      <div class="any-device reveal">
+        <span class="device-chip">iPhone</span>
+        <span class="device-chip">Android</span>
+        <span class="device-chip">Tablet</span>
+        <span class="device-chip">Any browser</span>
+        <p class="device-note">No app to install on the phone. Your PC serves the page over your own Wi-Fi, so any device with a browser can beam to it.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- BEAM LANDING: the relay terminates on the PC, just above the footer -->
+  <section class="beam-landing" aria-label="Beam arrival">
+    <div class="container">
+      <p class="landing-note reveal">The beam ends on your desktop. No cable, no account, no cloud.</p>
+      <div class="landing-pc reveal" aria-hidden="true">
+        <div class="pc-frame">
+          <span class="pc-cam"></span>
+          <div class="pc-toast">
+            <span class="pc-toast-ico"></span>
+            <span class="pc-toast-copy">
+              <span class="pc-toast-title">Beamed to desktop</span>
+              <span class="pc-toast-sub">4 files from your phone</span>
+            </span>
+          </div>
+          <span class="pc-taskbar"><span></span><span></span><span></span></span>
+        </div>
+        <span class="pc-stand"></span>
+        <span class="pc-base"></span>
+      </div>
+    </div>
+  </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="foot-art" aria-hidden="true">
+    <img class="foot-cursor" src="assets/logo.png" loading="lazy" decoding="async" alt="">
+    <img class="foot-wordmark" src="assets/logo.png" loading="lazy" decoding="async" alt="">
+  </div>
+
+  <div class="container foot-base">
+    <span class="foot-mark">hover island</span>
+    <span>© <span id="year">2026</span> Hover Island · Free and open source (MIT) · Windows 10 &amp; 11</span>
+    <a class="foot-top-link" href="https://github.com/a-catsuki/hover-island" target="_blank" rel="noopener">GitHub</a>
+    <a class="foot-top-link" href="#top">Back to top</a>
+  </div>
+</footer>
+
+<script src="script.js" defer></script>
+</body>
+</html>

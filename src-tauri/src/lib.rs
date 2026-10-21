@@ -35,6 +35,7 @@ mod state;
 mod system;
 mod system_events;
 mod ambient;
+mod single_instance;
 mod transfer;
 mod tray;
 mod types;
@@ -665,6 +666,11 @@ fn configure_process_resources() {
         // if a runtime was already created. The runtime lives in the static.
         tauri::async_runtime::set(runtime.handle().clone());
     }
+}
+
+/// False when another Hover Island should keep running and this launch should exit.
+pub fn claim_single_instance() -> bool {
+    single_instance::claim()
 }
 
 pub fn run() {

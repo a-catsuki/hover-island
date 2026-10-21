@@ -12,5 +12,8 @@ fn main() {
     {
         std::process::exit(hover_island_lib::run_notification_diagnostics());
     }
+    if !hover_island_lib::claim_single_instance() {
+        return;
+    }
     hover_island_lib::run()
 }
