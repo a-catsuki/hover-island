@@ -1,4 +1,4 @@
-import type { Config, FaceResult, Human } from '@vladmandic/human'
+import type { Config, FaceResult, Human, Result } from '@vladmandic/human'
 import type { FaceSample } from '../lib/ipc'
 
 /** Face models run in this page on the GPU, offline. Only descriptors reach native code, which matches them. */
@@ -10,15 +10,19 @@ const FRONTAL = 0.32
 const MIN_FACE_WIDTH = 0.18
 /** Face mesh points (MediaPipe numbering): eye corners, then upper and lower lid, for each eye. */
 const EYES = [[33, 133, 159, 145], [362, 263, 386, 374]] as const
+/** A frame that takes longer than this has hung the GPU backend. */
+const FRAME_TIMEOUT_MS = 10_000
+/** Backend failures in a row before switching to the slower CPU backend. */
+const GPU_FAILURES = 2
 
 // Every frame must be scored afresh: cached results would let one good frame vouch for later ones.
 const CONFIG: Partial<Config> = {
-  backend: 'webgl',
   modelBasePath: '/models/face/',
   debug: false,
   cacheSensitivity: 0,
   warmup: 'none',
-  filter: { enabled: true, equalization: true },
+  // Human's image filters run in a second WebGL context, which some GPU drivers refuse.
+  filter: { enabled: false },
   face: {
     enabled: true,
     detector: { rotation: true, maxDetected: 2, skipFrames: 0, skipTime: 0, minConfidence: 0.5, return: false },
@@ -38,20 +42,56 @@ const CONFIG: Partial<Config> = {
 }
 
 let engine: Promise<Human> | null = null
+let backend: 'webgl' | 'cpu' = 'webgl'
+let gpuFailures = 0
 
-/** Loads the models once. Safe to call early to hide the first-scan delay. */
+const timeout = <T,>(promise: Promise<T>, ms: number, what: string) =>
+  Promise.race([promise, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${what} timed out`)), ms))])
+
+async function createEngine(kind: 'webgl' | 'cpu'): Promise<Human> {
+  const { Human } = await import('@vladmandic/human')
+  const human = new Human({ ...CONFIG, backend: kind })
+  await human.load()
+  // Runs the models once now, so the first real scan starts faster and a broken GPU shows up
+  // here. Human's own warmup fetches a data: URL, which the app's content security policy blocks.
+  const blank = document.createElement('canvas')
+  blank.width = blank.height = 128
+  const result = await timeout(human.detect(blank), FRAME_TIMEOUT_MS * 3, 'Face models')
+  if (result.error) throw new Error(result.error)
+  return human
+}
+
+/** Loads the models once, on the GPU, or on the CPU if the GPU backend fails. Safe to call early. */
 export function loadFaceEngine(): Promise<Human> {
-  engine ??= import('@vladmandic/human').then(async ({ Human }) => {
-    const human = new Human(CONFIG)
-    await human.load()
-    // Compiles the detector's GPU shaders now, so the first real scan starts faster. Human's own
-    // warmup fetches a data: URL, which the app's content security policy blocks.
-    const blank = document.createElement('canvas')
-    blank.width = blank.height = 128
-    await human.detect(blank)
-    return human
+  engine ??= createEngine(backend).catch(error => {
+    if (backend === 'cpu') throw error
+    console.error('Face unlock: GPU backend failed, using CPU', error)
+    backend = 'cpu'
+    return createEngine('cpu')
   }).catch(error => { engine = null; throw error })
   return engine
+}
+
+/** The backend in use, for the status line. */
+export const faceBackend = () => backend
+
+/** One detection. Repeated backend failures switch to the CPU backend for the next frame. */
+async function detect(video: HTMLVideoElement): Promise<Result> {
+  const human = await loadFaceEngine()
+  try {
+    const result = await timeout(human.detect(video), FRAME_TIMEOUT_MS, 'Face detection')
+    gpuFailures = 0
+    // A soft error, such as the video not being ready yet; the next frame may be fine.
+    if (result.error) throw new Error(result.error)
+    return result
+  } catch (error) {
+    if (backend === 'webgl' && !(error instanceof Error && /tensor|input/i.test(error.message)) && ++gpuFailures >= GPU_FAILURES) {
+      console.error('Face unlock: GPU detection keeps failing, using CPU', error)
+      backend = 'cpu'
+      engine = null
+    }
+    throw error
+  }
 }
 
 export interface FaceFrame {
@@ -75,6 +115,10 @@ export class FaceCamera {
     this.stream = await navigator.mediaDevices.getUserMedia({ video: CAMERA, audio: false })
     this.video.srcObject = this.stream
     await this.video.play()
+    // Detection skips a video that has no current frame yet.
+    if (this.video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
+      await new Promise(resolve => this.video.addEventListener('canplay', resolve, { once: true }))
+    }
   }
 
   /** Turns the camera (and its light) off straight away. */
@@ -84,8 +128,9 @@ export class FaceCamera {
     this.video.srcObject = null
   }
 
-  async read(human: Human, frontalOnly = true): Promise<FaceFrame> {
-    const result = await human.detect(this.video)
+  /** Reads one frame. Throws when detection itself fails, so callers can say so. */
+  async read(frontalOnly = true): Promise<FaceFrame> {
+    const result = await detect(this.video)
     const faces = result.face.filter(face => face.score >= 0.5)
     if (faces.length === 0) return { problem: null, yaw: 0, pitch: 0, eyes: null, sample: null }
     if (faces.length > 1) return { problem: 'many', yaw: 0, pitch: 0, eyes: null, sample: null }

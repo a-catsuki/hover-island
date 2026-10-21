@@ -1,8 +1,7 @@
 import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from 'solid-js'
-import type { Human } from '@vladmandic/human'
 import { cmd, type FaceSample } from '../lib/ipc'
 import FaceGlyph from './FaceGlyph'
-import { FaceCamera, frontal, loadFaceEngine } from './face'
+import { FaceCamera, faceBackend, frontal, loadFaceEngine, type FaceFrame } from './face'
 
 const TICKS = 72
 /** Head turned at least this far (radians) lights the ticks it points at. */
@@ -18,6 +17,10 @@ const KEEP = 6
 const MIN_KEEP = 3
 const MIN_REAL = 0.55
 const MIN_LIVE = 0.55
+/** With no face for this long, say why that may be. */
+const NO_FACE_HINT_MS = 6000
+/** Detection failures in a row before the error is shown. */
+const SHOW_ERROR_AFTER = 3
 
 type Step = 'intro' | 'loading' | 'scan' | 'between' | 'saving' | 'done' | 'error'
 
@@ -33,10 +36,10 @@ export default function EnrollApp() {
   const [lit, setLit] = createSignal<boolean[]>(Array(TICKS).fill(false))
   const [prompt, setPrompt] = createSignal('Position your face within the frame.')
   const [error, setError] = createSignal('')
+  const [status, setStatus] = createSignal('')
   const camera = new FaceCamera()
   const kept: FaceSample[][] = [[], []]
   let preview: HTMLDivElement | undefined
-  let human: Human | undefined
   let running = false
 
   const litCount = () => lit().filter(Boolean).length
@@ -63,16 +66,34 @@ export default function EnrollApp() {
     const candidates: { sample: FaceSample; turn: number }[] = []
     const started = Date.now()
     let lastSample = 0
+    let lastFace = Date.now()
+    let frames = 0
+    let failures = 0
     setLit(Array(TICKS).fill(false))
     setStep('scan')
+    setStatus('')
     running = true
-    while (running && human) {
-      const frame = await camera.read(human, false)
-      if (!running) return
-      if (frame.problem === null) {
-        setPrompt('Position your face within the frame.')
+    while (running) {
+      let frame: FaceFrame
+      try {
+        frame = await camera.read(false)
+        failures = 0
+        frames++
+      } catch (problem) {
+        if (!running) return
+        if (++failures >= SHOW_ERROR_AFTER) setStatus(`Face detection is not working: ${problem instanceof Error ? problem.message : String(problem)}`)
+        await new Promise(resolve => setTimeout(resolve, 300))
         continue
       }
+      if (!running) return
+      if (frame.problem === null) {
+        const lost = Date.now() - lastFace
+        setPrompt(lost > NO_FACE_HINT_MS ? 'No face found. Try facing a light, or sitting a little further back.' : 'Position your face within the frame.')
+        if (lost > NO_FACE_HINT_MS) setStatus(`Checked ${frames} frames on the ${faceBackend() === 'cpu' ? 'CPU' : 'GPU'}`)
+        continue
+      }
+      lastFace = Date.now()
+      setStatus('')
       if (frame.problem === 'many') {
         setPrompt('Make sure only your face is in the frame.')
         continue
@@ -120,7 +141,7 @@ export default function EnrollApp() {
   const begin = async () => {
     setStep('loading')
     try {
-      human = await loadFaceEngine()
+      await loadFaceEngine()
       await camera.start()
       preview?.replaceChildren(camera.video)
       setPass(1)
@@ -177,6 +198,9 @@ export default function EnrollApp() {
           </Match>
           <Match when={step() === 'scan'}>
             <p class="enroll__prompt">{prompt()}</p>
+            <Show when={status()}>
+              <p class="enroll__status">{status()}</p>
+            </Show>
           </Match>
           <Match when={step() === 'between'}>
             <h1>First Face Unlock scan complete.</h1>

@@ -1,5 +1,4 @@
 import { createSignal, onCleanup, onMount, Show } from 'solid-js'
-import type { Human } from '@vladmandic/human'
 import { cmd, type FaceSample } from '../lib/ipc'
 import FaceGlyph, { Padlock, type GlyphState } from './FaceGlyph'
 import { BlinkWatch, FaceCamera, loadFaceEngine, type FaceFrame } from './face'
@@ -75,7 +74,7 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
   }
 
   /** Frames until it has enough open-eyed samples and has seen a blink, or time runs out. */
-  const collect = async (human: Human) => {
+  const collect = async () => {
     const samples: FaceSample[] = []
     const blink = new BlinkWatch()
     let problem = ''
@@ -83,7 +82,14 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
     // Count from the first frame, so a slow camera start does not eat the scan.
     let started = 0
     while (!started || (Date.now() - started < SCAN_MS && !(blink.seen && samples.length >= SAMPLES))) {
-      const frame = await camera.read(human)
+      let frame: FaceFrame
+      try {
+        frame = await camera.read()
+      } catch {
+        started ||= Date.now()
+        await delay(200)
+        continue
+      }
       started ||= Date.now()
       blink.push(frame.eyes)
       if (frame.sample && blink.eyesOpen(frame.eyes)) {
@@ -106,9 +112,8 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
     setPhase('scanning')
     setMessage('')
     clearTimeout(failTimer)
-    let human: Human
     try {
-      human = await withTimeout(loadFaceEngine(), ENGINE_WAIT_MS)
+      await withTimeout(loadFaceEngine(), ENGINE_WAIT_MS)
       await camera.start()
     } catch {
       camera.stop()
@@ -116,7 +121,7 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
     }
     let result: Awaited<ReturnType<typeof collect>>
     try {
-      result = await collect(human)
+      result = await collect()
     } finally {
       camera.stop()
     }
