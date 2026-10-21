@@ -18,7 +18,9 @@ use crate::state::AppState;
 use crate::types::{now_millis, AppNotification};
 
 const DEVICE_EVENT: &str = "device://event";
-const POLL_INTERVAL: Duration = Duration::from_secs(3);
+/// Bluetooth is enumerated every 12th tick (3 s); the battery is cheap to read, so it is checked on every
+/// tick and a plug or unplug reaches the island within about a quarter of a second.
+const BLUETOOTH_EVERY_TICKS: u32 = 12;
 const SLEEP_QUANTUM: Duration = Duration::from_millis(250);
 const MAX_BLUETOOTH_DEVICES: usize = 64;
 const MAX_DEVICE_NAME_CHARS: usize = 128;
@@ -96,11 +98,13 @@ fn monitor(app: tauri::AppHandle) {
     let mut bluetooth_error: Option<String> = None;
     let mut battery_error: Option<String> = None;
 
+    let mut tick: u32 = 0;
     loop {
         if app.state::<AppState>().shutdown.load(Ordering::Acquire) {
             break;
         }
 
+        if tick % BLUETOOTH_EVERY_TICKS == 0 {
         match connected_bluetooth_devices() {
             Ok(current) => {
                 bluetooth_error = None;
@@ -115,6 +119,8 @@ fn monitor(app: tauri::AppHandle) {
             // Do not interpret an API/permission failure as an empty device list.
             Err(error) => bluetooth_error = Some(error),
         }
+        }
+        tick = tick.wrapping_add(1);
 
         match battery_snapshot() {
             Ok(Some(current)) => {
@@ -131,12 +137,10 @@ fn monitor(app: tauri::AppHandle) {
         }
         update_error_snapshot(&bluetooth_error, &battery_error);
 
-        for _ in 0..(POLL_INTERVAL.as_millis() / SLEEP_QUANTUM.as_millis()) {
-            if app.state::<AppState>().shutdown.load(Ordering::Acquire) {
-                return;
-            }
-            thread::sleep(SLEEP_QUANTUM);
+        if app.state::<AppState>().shutdown.load(Ordering::Acquire) {
+            return;
         }
+        thread::sleep(SLEEP_QUANTUM);
     }
 }
 

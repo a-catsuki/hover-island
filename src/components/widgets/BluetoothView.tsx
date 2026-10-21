@@ -181,13 +181,12 @@ export default function BluetoothView(props: { shape?: BluetoothOrientation }) {
 
   const batteryColor = (pct: number) => pct <= 20 ? '#FF453A' : pct <= 40 ? '#FF9F0A' : '#30D158'
   const connectedCount = createMemo(() => devices().filter(device => device.connected === true).length)
-  const subtitle = () => radioOff() ? 'Off' : connectedCount() ? `${connectedCount()} connected` : availableList().length ? `${availableList().length} in range` : devices().length ? `${devices().length} paired` : ''
+  const subtitle = () => radioOff() ? 'Off' : connectedCount() ? `${connectedCount()} connected` : availableList().length ? `${availableList().length} in range` : ''
   const statusText = (device: BluetoothManagedDevice) => device.connected === null ? 'Status unavailable' : device.connected ? 'Connected' : device.available ? 'In range' : 'Not connected'
 
   // Quick swap first: what is connected, then what is in range, then everything else Windows remembers.
   const connectedList = createMemo(() => devices().filter(device => device.connected === true))
   const availableList = createMemo(() => devices().filter(device => device.connected !== true && device.available === true))
-  const otherList = createMemo(() => devices().filter(device => device.connected !== true && device.available !== true))
 
   const Row = (device: BluetoothManagedDevice) => <article class="bluetooth-manage__device" classList={{ 'is-connected': device.connected === true }} title={shape() === 'compact' ? `${device.name} · ${statusText(device)}${device.batteryPct !== null ? ` · ${device.batteryPct}%` : ''}` : undefined}>
               <span class="bluetooth-manage__device-icon">{deviceGlyph(device, shape() === 'compact' ? 18 : 16)}</span>
@@ -251,12 +250,6 @@ export default function BluetoothView(props: { shape?: BluetoothOrientation }) {
             <Show when={connectedList().length}><p class="bluetooth-manage__group">Connected</p><For each={connectedList()}>{device => Row(device)}</For></Show>
             <Show when={availableList().length}><p class="bluetooth-manage__group">Available</p><For each={availableList()}>{device => Row(device)}</For></Show>
             <Show when={!connectedList().length && !availableList().length}><p class="bluetooth-manage__group bluetooth-manage__group--quiet">Nothing connected or in range</p></Show>
-            <Show when={otherList().length}>
-              <details class="bluetooth-manage__others" open={!connectedList().length && !availableList().length}>
-                <summary>Other paired devices ({otherList().length})</summary>
-                <For each={otherList()}>{device => Row(device)}</For>
-              </details>
-            </Show>
           </div>
         </Show>
       </Show>

@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { ArrowDown, ArrowUp, Cable, Network, Trash2, Wifi, WifiOff } from 'lucide-solid'
+import { ArrowDown, ArrowUp, Cable, Network, Play, Square, Trash2, Wifi, WifiOff } from 'lucide-solid'
 import {
   PING_TARGETS, cancelSpeedtest, clearSpeedHistory, history, host, info, pingError, pingStats, series, setPingHost, speed,
   startSpeedtest, watchNetwork,
@@ -10,9 +10,6 @@ import './NetworkWidget.css'
 
 const CUSTOM = 'custom'
 const GAUGE_MAX = 1000
-const RADIUS = 40
-const CIRC = 2 * Math.PI * RADIUS
-const ARC = CIRC * 0.75
 const DOWN = '#0A84FF'
 const UP = '#BF5AF2'
 
@@ -81,19 +78,16 @@ export default function NetworkWidget() {
   onMount(() => { const release = watchNetwork(); onCleanup(release) })
 
   const phase = () => state().phase
-  const activeColor = () => phase() === 'upload' ? UP : DOWN
-  // What the gauge shows: the live reading while testing, otherwise the latest download.
-  const shown = () => running() ? state().mbps : state().down ?? history()[0]?.down ?? null
-  const fraction = () => shown() == null ? 0 : gaugeFraction(shown()!)
+  const downShown = () => running() ? (phase() === 'download' ? state().mbps : state().down) : state().down ?? history()[0]?.down ?? null
+  const upShown = () => running() ? (phase() === 'upload' ? state().mbps : state().up) : state().up ?? history()[0]?.up ?? null
+  const latencyShown = () => state().latency ?? history()[0]?.latency ?? null
   const caption = () => {
-    if (running()) return phase() === 'latency' ? 'Testing latency' : phase() === 'upload' ? 'Upload' : 'Download'
+    if (running()) return phase() === 'latency' ? 'Checking latency' : phase() === 'upload' ? 'Testing upload' : 'Testing download'
     if (phase() === 'error') return 'Test failed'
     if (phase() === 'cancelled') return 'Stopped'
-    return state().down != null || history()[0] ? 'Download' : 'Ready'
+    if (phase() === 'done') return 'Complete'
+    return history()[0] ? `Last test ${timeLabel(history()[0].at)}` : 'Ready to test'
   }
-  const upShown = () => running() ? (phase() === 'upload' ? state().mbps : state().up) : state().up ?? history()[0]?.up ?? null
-  const downFinal = () => state().down ?? history()[0]?.down ?? null
-  const latencyShown = () => state().latency ?? history()[0]?.latency ?? null
   const link = () => info()
   const linkLabel = () => {
     const current = link()
@@ -115,44 +109,44 @@ export default function NetworkWidget() {
       <div class="net__grid">
       <header class="wk-head net__head">
         <span class="wk-title"><span class="wk-glyph" style={{ background: '#0A84FF' }}><Network size={13} strokeWidth={2.2} /></span><span>Network</span></span>
-        <span class="net__link" classList={{ 'net__link--off': link()?.kind === 'offline' }} title={linkDetail() || undefined}>
+        <span class="net__tools"><span class="net__link" classList={{ 'net__link--off': link()?.kind === 'offline' }} title={linkDetail() || undefined}>
           <Show when={link()?.kind === 'wired'} fallback={<Show when={link()?.kind === 'offline'} fallback={<Wifi size={13} />}><WifiOff size={13} /></Show>}><Cable size={13} /></Show>
           <span class="net__link-name">{linkLabel()}</span>
         </span>
+        <button type="button" class="net__go" classList={{ 'net__go--stop': running() }} aria-label={running() ? 'Stop speed test' : 'Start speed test'}
+          onClick={() => running() ? cancelSpeedtest() : void startSpeedtest()}>
+          {running() ? <Square size={10} fill="currentColor" strokeWidth={0} /> : <Play size={10} fill="currentColor" strokeWidth={0} />}{running() ? 'Stop' : history()[0] || phase() !== 'idle' ? 'Again' : 'Start'}
+        </button></span>
       </header>
 
-      <div class="net__gauge" style={{ '--gauge-color': activeColor() }}>
-        <svg viewBox="0 0 100 100" aria-hidden="true">
-          <circle class="net__track" cx="50" cy="50" r={RADIUS} fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray={`${ARC} ${CIRC}`} transform="rotate(135 50 50)" />
-          <circle class="net__fill" cx="50" cy="50" r={RADIUS} fill="none" stroke-width="7" stroke-linecap="round" stroke={activeColor()}
-            stroke-dasharray={`${ARC * fraction()} ${CIRC}`} transform="rotate(135 50 50)" style={{ opacity: shown() == null ? 0 : 1 }} />
-        </svg>
-        <div class="net__reading" role="status" aria-live="polite" aria-label={`${caption()} ${fmtSpeed(shown())} megabits per second`}>
-          <span class="net__value">{fmtSpeed(shown())}</span>
-          <span class="net__unit">Mbps</span>
-          <span class="net__caption">{caption()}</span>
-        </div>
-        <button type="button" class="net__go" classList={{ 'net__go--stop': running() }} aria-label={running() ? 'Stop speed test' : 'Start speed test'}
-          onClick={() => running() ? cancelSpeedtest() : void startSpeedtest()}>{running() ? 'Stop' : 'Go'}</button>
-        <Show when={running()}><div class="net__progress" aria-hidden="true"><i style={{ width: `${Math.round(state().progress * 100)}%`, background: activeColor() }} /></div></Show>
+      <div class="net__bar">
+        <span class="net__caption" role="status" aria-live="polite">{caption()}</span>
       </div>
 
-      <div class="net__results" aria-label="Speed test results">
-        <div class="net__tile"><span class="net__tile-label"><ArrowDown size={12} color={DOWN} strokeWidth={2.4} />Download</span><strong>{fmtSpeed(downFinal())}<small> Mbps</small></strong></div>
-        <div class="net__tile"><span class="net__tile-label"><ArrowUp size={12} color={UP} strokeWidth={2.4} />Upload</span><strong>{fmtSpeed(upShown())}<small> Mbps</small></strong></div>
-        <div class="net__tile"><span class="net__tile-label">Latency</span><strong>{fmtMs(latencyShown())}<small> ms</small></strong></div>
+      <div class="net__meters" aria-label="Speed test results">
+        <div class="net__meter" style={{ '--c': DOWN }} data-active={running() && phase() === 'download' ? '' : undefined}>
+          <span class="net__meter-label"><ArrowDown size={12} strokeWidth={2.6} />Download</span>
+          <strong class="net__meter-val">{fmtSpeed(downShown())}<small>Mbps</small></strong>
+          <span class="net__meter-track"><i style={{ width: `${Math.round(gaugeFraction(downShown() ?? 0) * 100)}%` }} /></span>
+        </div>
+        <div class="net__meter" style={{ '--c': UP }} data-active={running() && phase() === 'upload' ? '' : undefined}>
+          <span class="net__meter-label"><ArrowUp size={12} strokeWidth={2.6} />Upload</span>
+          <strong class="net__meter-val">{fmtSpeed(upShown())}<small>Mbps</small></strong>
+          <span class="net__meter-track"><i style={{ width: `${Math.round(gaugeFraction(upShown() ?? 0) * 100)}%` }} /></span>
+        </div>
       </div>
 
       <div class="net__latency" data-tone={latencyTone(stats()?.last)}>
         <div class="net__latency-head">
+          <span class="net__dot" aria-hidden="true" />
           <span class="net__latency-title">Ping</span>
-          <span class="net__latency-now">{stats()?.last != null ? fmtMs(stats()!.last) : stats()?.loss === 100 ? 'Timed out' : '--'}<Show when={stats()?.last != null}><small> ms</small></Show></span>
+          <span class="net__latency-now">{stats()?.last != null ? fmtMs(stats()!.last) : stats()?.loss === 100 ? 'Timed out' : fmtMs(latencyShown())}<Show when={stats()?.last != null || latencyShown() != null}><small> ms</small></Show></span>
+          <Sparkline values={series()} />
           <span class="net__target">
             <Dropdown class="net__target-dd" size="sm" align="end" ariaLabel="Ping target" value={targetValue()} options={options}
               onChange={(value) => { if (value === CUSTOM) { setCustomMode(true); setCustomDraft(isPreset() ? '' : host()) } else { setCustomMode(false); setPingHost(value) } }} />
           </span>
         </div>
-        <Sparkline values={series()} />
         <Show when={showCustom()}>
           <form class="net__custom" onSubmit={(event) => { event.preventDefault(); applyCustom() }}>
             <input type="text" inputmode="url" spellcheck={false} autocomplete="off" placeholder="example.com" aria-label="Custom host to ping" value={customDraft() || (isPreset() ? '' : host())}
@@ -163,7 +157,6 @@ export default function NetworkWidget() {
           <span><b>{stats() && stats()!.loss < 100 ? fmtMs(stats()!.avg) : '--'}</b> avg</span>
           <span><b>{stats() && stats()!.loss < 100 ? fmtMs(stats()!.jitter) : '--'}</b> jitter</span>
           <span classList={{ 'net__bad': (stats()?.loss ?? 0) > 0 }}><b>{stats() ? Math.round(stats()!.loss) : '--'}%</b> loss</span>
-          <span class="net__minmax"><b>{stats() && stats()!.loss < 100 ? `${fmtMs(stats()!.min)}-${fmtMs(stats()!.max)}` : '--'}</b> range</span>
         </div>
         <Show when={pingError()}><p class="wk-error net__error">{pingError()}</p></Show>
       </div>

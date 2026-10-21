@@ -3,7 +3,7 @@ export function magneticNotchPath(viewWidth: number, viewHeight: number, width: 
   const side = edge === 'left' || edge === 'right'
   const span = side ? height : width
   const depth = side ? width : height
-  const clamp = (value: number) => Number.isFinite(value) ? Math.max(-9, Math.min(9, value)) : 0
+  const clamp = (value: number) => Number.isFinite(value) ? Math.max(-4, Math.min(4, value)) : 0
   const along = clamp(side ? y : x) * .6
   const normal = clamp(edge === 'top' ? y : edge === 'bottom' ? -y : edge === 'left' ? x : -x) * .4
   const r = Math.max(0, Math.min(span / 2, depth / 2, radius ?? Math.min(14, depth * .28)))

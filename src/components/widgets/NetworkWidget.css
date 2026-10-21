@@ -1,56 +1,56 @@
 /* Network: speed gauge, live latency and recent tests. The arrangement follows the tile's shape. */
 .net { container-type: size; }
-.net__grid { width: 100%; height: 100%; min-height: 0; display: grid; gap: 8px 16px; padding: 2px; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: 'head head' 'gauge latency'; align-items: center; }
+.net__grid { width: 100%; height: 100%; min-height: 0; display: grid; gap: 7px; padding: 2px; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto auto; grid-template-areas: 'head' 'meters' 'latency' 'err'; align-content: start; }
 .net__head { grid-area: head; }
 .net__link { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 58%; font-size: 11.5px; font-weight: 500; color: var(--text-2); }
 .net__link svg { flex: none; }
 .net__link-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .net__link--off { color: #FF6961; }
 
-/* gauge */
-.net__gauge { --g: clamp(112px, 62cqh, 210px); grid-area: gauge; position: relative; width: var(--g); height: var(--g); justify-self: center; align-self: center; }
-.net__gauge > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.net__track { stroke: rgba(255, 255, 255, 0.1); }
-.net__fill { transition: stroke-dasharray 160ms linear, opacity 200ms; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--gauge-color) 45%, transparent)); }
-.net__reading { position: absolute; inset: 0 0 18% 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 0; }
-.net__value { font-size: calc(var(--g) * 0.25); font-weight: 600; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
-.net__unit { margin-top: 2px; font-size: 11px; font-weight: 600; color: var(--text-3); }
-.net__caption { margin-top: 3px; font-size: 11px; font-weight: 500; color: var(--text-3); }
-.net[data-running] .net__caption { color: var(--gauge-color); }
-.net__go { position: absolute; left: 50%; bottom: 4%; transform: translateX(-50%); min-width: 56px; height: 26px; padding: 0 16px; border: 0; border-radius: 999px; background: #fff; color: #000; font-size: 12px; font-weight: 700; letter-spacing: 0.01em; cursor: pointer; transition: transform 120ms, background 140ms; }
+/* header tools */
+.net__tools { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.net__head .net__link { max-width: 110px; }
+
+/* status bar */
+.net__bar { grid-area: bar; display: flex; align-items: center; min-width: 0; }
+.net__caption { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 500; color: var(--text-3); }
+.net[data-running] .net__caption { color: var(--text-1); }
+.net__go { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 13px 0 11px; border: 0; border-radius: 999px; background: #fff; color: #000; font-size: 12px; font-weight: 700; cursor: pointer; transition: transform 120ms, background 140ms; }
 .net__go:hover { background: #e8e8ea; }
-.net__go:active { transform: translateX(-50%) scale(0.95); }
+.net__go:active { transform: scale(0.95); }
 .net__go--stop { background: rgba(255, 69, 58, 0.22); color: #FF6961; }
 .net__go--stop:hover { background: rgba(255, 69, 58, 0.32); }
 .net__go:focus-visible { outline: 2px solid #0A84FF; outline-offset: 2px; }
-.net__progress { position: absolute; left: 22%; right: 22%; bottom: -3px; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
-.net__progress i { display: block; height: 100%; border-radius: inherit; transition: width 120ms linear; }
 
-/* result tiles */
-.net__results { grid-area: results; display: none; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.net__tile { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); }
-.net__tile-label { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
-.net__tile strong { font-size: 17px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.net__tile small { font-size: 11px; font-weight: 500; color: var(--text-3); letter-spacing: 0; }
+/* download and upload, side by side */
+.net__meters { grid-area: meters; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.net__meter { --c: #0A84FF; position: relative; display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 9px 12px 10px; border-radius: 14px; background: color-mix(in srgb, var(--c) 10%, rgba(255, 255, 255, 0.05)); overflow: hidden; transition: background 200ms, box-shadow 200ms; }
+.net__meter[data-active] { background: color-mix(in srgb, var(--c) 20%, rgba(255, 255, 255, 0.05)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 55%, transparent); }
+.net__meter-label { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--c); }
+.net__meter-val { display: flex; align-items: baseline; gap: 4px; font-size: 26px; font-weight: 600; letter-spacing: -0.04em; line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.net__meter-val small { font-size: 10.5px; font-weight: 600; letter-spacing: 0; color: var(--text-3); }
+.net__meter-track { display: block; height: 3px; margin-top: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.net__meter-track i { display: block; height: 100%; border-radius: inherit; background: var(--c); box-shadow: 0 0 8px color-mix(in srgb, var(--c) 60%, transparent); transition: width 160ms linear; }
+.net__meter[data-active] .net__meter-val { color: #fff; }
 
 /* latency */
-.net__latency { grid-area: latency; --tone: #8E8E93; min-width: 0; display: flex; flex-direction: column; gap: 6px; color: var(--tone); }
+.net__latency { grid-area: latency; --tone: #8E8E93; min-width: 0; display: flex; flex-direction: column; gap: 5px; padding: 8px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); color: var(--tone); }
 .net__latency[data-tone='good'] { --tone: #30D158; } .net__latency[data-tone='fair'] { --tone: #FF9F0A; } .net__latency[data-tone='poor'] { --tone: #FF453A; }
-.net__latency-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; color: var(--text-1); }
-.net__latency-title { font-size: 12px; font-weight: 600; color: var(--text-2); }
-.net__latency-now { flex: 1; font-size: 20px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.net__latency-now small { font-size: 11px; font-weight: 500; color: var(--text-3); letter-spacing: 0; }
-.net__target { display: none; align-self: center; }
-.net__target-dd { max-width: 140px; }
-.net__spark { display: block; width: 100%; height: clamp(34px, 18cqh, 64px); overflow: visible; }
+.net__latency-head { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--text-1); }
+.net__dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--tone); box-shadow: 0 0 6px var(--tone); }
+.net__latency-title { flex: none; font-size: 11.5px; font-weight: 600; color: var(--text-2); }
+.net__latency-now { flex: none; min-width: 52px; font-size: 15px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.net__latency-now small { font-size: 10.5px; font-weight: 500; color: var(--text-3); letter-spacing: 0; }
+.net__spark { display: block; flex: 1; min-width: 40px; height: 22px; overflow: visible; color: var(--tone); }
+.net__target { display: none; flex: none; }
+.net__target-dd { max-width: 120px; }
 .net__custom input { width: 100%; height: 26px; padding: 0 9px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, 0.1); color: var(--text-1); font: inherit; font-size: 12px; }
 .net__custom input:focus-visible { outline: 2px solid #0A84FF; outline-offset: 1px; }
-.net__stats { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 11px; font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.net__stats { display: none; gap: 2px 14px; font-size: 10.5px; font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .net__stats b { font-weight: 600; color: var(--text-1); }
 .net__bad b { color: #FF6961; }
-.net__minmax { display: none; }
-.net__error { font-size: 11.5px; }
-.net__error--test { grid-column: 1 / -1; }
+.net__error { margin: 0; font-size: 11.5px; }
+.net__error--test { grid-area: err; }
 
 /* history */
 .net__history { grid-area: history; display: none; flex-direction: column; gap: 4px; min-width: 0; min-height: 0; }
@@ -64,41 +64,28 @@
 .net__h-val { font-weight: 600; text-align: right; }
 .net__h-ms { text-align: right; color: var(--text-3); }
 
-/* short or narrow tiles */
-@container (max-height: 200px) { .net__grid { gap: 4px 14px; } .net__stats span:nth-child(n + 3) { display: none; } .net__latency-title { display: none; } }
-@container (max-width: 330px) { .net__grid { gap: 4px 10px; } .net__gauge { --g: clamp(100px, 56cqh, 150px); } .net__link-name { max-width: 90px; } }
+/* history */
+.net__history { display: none; }
 
-/* wide: gauge, latency and results across */
-@container (min-width: 560px) and (max-height: 330px) {
-  .net__grid { grid-template-columns: auto minmax(0, 1.2fr) minmax(0, 1fr); grid-template-areas: 'head head head' 'gauge latency results'; }
-  .net__results { display: grid; grid-template-columns: 1fr; align-content: center; gap: 6px; }
-  .net__tile { flex-direction: row; align-items: center; justify-content: space-between; padding: 6px 10px; }
-  .net__target { display: block; }
-  .net__minmax { display: inline; }
-}
+/* roomy: status bar and ping stats */
+@container (min-height: 215px) { .net__grid { grid-template-areas: 'head' 'bar' 'meters' 'latency' 'err'; } .net__stats { display: flex; } .net__meter-val { font-size: 28px; } }
+@container (max-height: 214px) { .net__bar { display: none; } .net__grid { grid-template-areas: 'head' 'meters' 'latency' 'err'; } }
 
-/* tall: stacked */
-@container (max-width: 480px) and (min-height: 330px) {
-  .net__grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto auto minmax(0, 1fr); grid-template-areas: 'head' 'gauge' 'results' 'latency' 'history'; gap: 8px; align-items: start; }
-  .net__gauge { --g: clamp(130px, 40cqh, 210px); }
-  .net__results { display: grid; }
-  .net__tile { padding: 6px 9px; } .net__tile strong { font-size: 15px; }
+/* tall: recent tests below */
+@container (min-height: 330px) {
+  .net__grid { grid-template-rows: auto auto auto auto auto minmax(0, 1fr); grid-template-areas: 'head' 'bar' 'meters' 'latency' 'err' 'history'; }
   .net__target { display: block; }
-  .net__minmax { display: inline; }
   .net__history { display: flex; }
-  .net__history li:nth-child(n + 3) { display: none; }
+  .net__history li:nth-child(n + 4) { display: none; }
 }
-@container (max-width: 480px) and (min-height: 330px) and (min-height: 430px) { .net__history li:nth-child(n + 3) { display: grid; } .net__history li:nth-child(n + 5) { display: none; } }
+@container (min-height: 430px) { .net__history li:nth-child(n + 4) { display: grid; } .net__history li:nth-child(n + 6) { display: none; } }
 
-/* large: everything, with history beside the latency graph */
-@container (min-width: 560px) and (min-height: 331px) {
-  .net__grid { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: 'head head head' 'gauge latency latency' 'results results history'; gap: 10px 18px; align-items: start; }
-  .net__gauge { --g: clamp(150px, 46cqh, 240px); grid-row: 2 / 4; grid-column: 1; align-self: center; }
-  .net__grid { grid-template-areas: 'head head head' 'gauge latency latency' 'gauge results history'; }
-  .net__results { display: grid; }
+/* wide: recent tests on the right */
+@container (min-width: 560px) {
+  .net__grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); grid-template-rows: auto auto auto auto minmax(0, 1fr); grid-template-areas: 'head head' 'bar history' 'meters history' 'latency history' 'err history'; gap: 8px 18px; }
   .net__target { display: block; }
-  .net__minmax { display: inline; }
   .net__history { display: flex; }
-  .net__history li:nth-child(n + 5) { display: none; }
+  .net__history li:nth-child(n + 6) { display: none; }
+  .net__stats { display: flex; }
 }
-@media (prefers-reduced-motion: reduce) { .net__fill, .net__progress i { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .net__meter-track i, .net__meter { transition: none; } }

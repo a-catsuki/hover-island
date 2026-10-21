@@ -15,7 +15,7 @@ export interface MagneticOffset {
 }
 
 /** The pill only leans a few pixels toward the cursor; anything more reads as a wobble. */
-export const MAGNET_MAX = 9
+export const MAGNET_MAX = 4
 
 export function clampMagneticOffset(offset: MagneticOffset): MagneticOffset {
   const clamp = (value: number) => Number.isFinite(value) ? Math.max(-MAGNET_MAX, Math.min(MAGNET_MAX, value)) : 0
@@ -31,8 +31,8 @@ export function stepMagneticOffset(
   const bounded = clampMagneticOffset(target)
   if (reducedMotion) return { x: { value: 0, velocity: 0 }, y: { value: 0, velocity: 0 } }
   return {
-    x: stepSpring(state.x, bounded.x, deltaSeconds, 190, 0.5),
-    y: stepSpring(state.y, bounded.y, deltaSeconds, 190, 0.5),
+    x: stepSpring(state.x, bounded.x, deltaSeconds, 170, 0.86),
+    y: stepSpring(state.y, bounded.y, deltaSeconds, 170, 0.86),
   }
 }
 
@@ -75,8 +75,8 @@ export function createMagneticSpring(onFrame: (offset: MagneticOffset) => void, 
     impulse(offset: MagneticOffset) {
       if (disposed || reducedMotion()) return
       const bounded = clampMagneticOffset(offset)
-      current.x.velocity += bounded.x * 9
-      current.y.velocity += bounded.y * 9
+      current.x.velocity += bounded.x * 3
+      current.y.velocity += bounded.y * 3
       schedule()
     },
     retarget(next: MagneticOffset) {
@@ -138,12 +138,12 @@ export function springStiffness(responseSeconds: number): number {
 
 /** Opening is quick with a hint of life (under 1% overshoot); closing is firm and never rebounds. */
 export const ISLAND_SPRING = {
-  open: { stiffness: springStiffness(0.4), damping: 0.86 },
-  close: { stiffness: springStiffness(0.31), damping: 0.98 },
+  open: { stiffness: springStiffness(0.42), damping: 0.72, heightStiffness: 0.7, heightDamping: 0.6 },
+  close: { stiffness: springStiffness(0.32), damping: 0.82, heightStiffness: 0.8, heightDamping: 0.7 },
 } as const
 
 /** The close spring is visually done by about 340ms; the native window may shrink after this. */
-export const ISLAND_CLOSE_SETTLE_MS = 360
+export const ISLAND_CLOSE_SETTLE_MS = 420
 
 export function createIslandSpring(
   initial: SpringFrame,
@@ -155,7 +155,7 @@ export function createIslandSpring(
   let current = { ...initial }
   let velocity: SpringFrame = { width: 0, height: 0, radius: 0 }
   let target = { ...initial }
-  let feel: { stiffness: number; damping: number } = ISLAND_SPRING.open
+  let feel: { stiffness: number; damping: number; heightStiffness?: number; heightDamping?: number } = ISLAND_SPRING.open
   let raf: number | undefined
   let lastTime: number | undefined
   let disposed = false
@@ -189,7 +189,8 @@ export function createIslandSpring(
     const delta = lastTime === undefined ? 1 / 60 : (time - lastTime) / 1000
     lastTime = time
     const width = stepSpring({ value: current.width, velocity: velocity.width }, target.width, delta, feel.stiffness, feel.damping)
-    const height = stepSpring({ value: current.height, velocity: velocity.height }, target.height, delta, feel.stiffness, feel.damping)
+    // Height follows a softer spring than width, so the island stretches and settles like jelly.
+    const height = stepSpring({ value: current.height, velocity: velocity.height }, target.height, delta, feel.stiffness * (feel.heightStiffness ?? 1), feel.heightDamping ?? feel.damping)
     const radius = stepSpring({ value: current.radius, velocity: velocity.radius }, target.radius, delta, feel.stiffness, feel.damping)
     current = { width: width.value, height: height.value, radius: radius.value }
     velocity = { width: width.velocity, height: height.velocity, radius: radius.velocity }

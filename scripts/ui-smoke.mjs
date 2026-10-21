@@ -178,7 +178,7 @@ try {
  assert.equal(await page.locator('.clock-dial').count(),0)
  await settings.getByRole('region',{name:'World clock settings',exact:true}).getByRole('button',{name:'Analog',exact:true}).click()
  await page.locator('.clock-dial').waitFor()
- await page.getByRole('button',{name:'Add city',exact:true}).click()
+ await page.getByRole('button',{name:'Choose cities',exact:true}).click()
  await page.getByRole('listbox',{name:'Available cities',exact:true}).waitFor()
  await page.getByRole('textbox',{name:'Search cities or countries',exact:true}).fill('Tokyo')
  await page.getByRole('option',{name:/Tokyo/}).click()

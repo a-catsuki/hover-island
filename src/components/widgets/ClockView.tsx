@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { ChevronLeft, ChevronRight, Plus, Search, X } from 'lucide-solid'
+import { Check, ChevronLeft, ChevronRight, Globe, Moon, Search, Sun, X } from 'lucide-solid'
 import './ClockView.css'
 import { clockTime } from '../../lib/clockDisplay'
 
@@ -77,7 +77,27 @@ const CITIES: CityOption[] = [
 ]
 
 const CITY_BY_ID = new Map(CITIES.map((city) => [city.id, city]))
+
+type Region = 'americas' | 'europe' | 'africa' | 'asia' | 'oceania'
+const REGIONS: { id: Region; label: string }[] = [
+  { id: 'americas', label: 'Americas' },
+  { id: 'europe', label: 'Europe' },
+  { id: 'africa', label: 'Africa' },
+  { id: 'asia', label: 'Asia' },
+  { id: 'oceania', label: 'Oceania' },
+]
+function regionOf(city: CityOption): Region {
+  if (city.id === 'honolulu') return 'americas'
+  const head = city.zone.split('/')[0]
+  if (head === 'America') return 'americas'
+  if (head === 'Europe') return 'europe'
+  if (head === 'Africa') return 'africa'
+  if (head === 'Asia') return 'asia'
+  return 'oceania'
+}
+type Filter = 'all' | 'selected' | Region
 const STORAGE_KEY = 'hover-island.clock.cities.v1'
+const LOCAL_KEY = 'hover-island.clock.local.v1'
 const DEFAULT_IDS = ['london', 'new-york']
 const MAX_CITIES = 12
 const LOCAL_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -100,6 +120,13 @@ function restoreCities(): string[] {
   } catch {
     return DEFAULT_IDS
   }
+}
+
+function restoreShowLocal(): boolean {
+  try { return localStorage.getItem(LOCAL_KEY) !== 'off' } catch { return true }
+}
+function persistShowLocal(show: boolean): void {
+  try { localStorage.setItem(LOCAL_KEY, show ? 'on' : 'off') } catch { /* in-memory only */ }
 }
 
 function persistCities(ids: string[]): void {
@@ -179,6 +206,8 @@ export default function ClockView(props: ClockViewProps) {
   const [picked, setPicked] = createSignal<string[]>(restoreCities())
   const [pickerOpen, setPickerOpen] = createSignal(false)
   const [query, setQuery] = createSignal('')
+  const [filter, setFilter] = createSignal<Filter>('all')
+  const [showLocal, setShowLocal] = createSignal(restoreShowLocal())
   const [page, setPage] = createSignal(0)
   const [box, setBox] = createSignal({ width: 342, height: 201 })
   let root: HTMLDivElement | undefined
@@ -194,7 +223,7 @@ export default function ClockView(props: ClockViewProps) {
   createEffect(() => { if (pickerOpen()) queueMicrotask(() => searchRef?.focus()) })
 
   const entries = createMemo<Entry[]>(() => [
-    { id: 'local', name: LOCAL_LABEL, zone: LOCAL_ZONE, local: true },
+    ...(showLocal() ? [{ id: 'local', name: LOCAL_LABEL, zone: LOCAL_ZONE, local: true } as Entry] : []),
     ...picked().map((id) => CITY_BY_ID.get(id)).filter((city): city is CityOption => Boolean(city)).map((city) => ({ id: city.id, name: city.city, zone: city.zone, city })),
   ])
   // Grid geometry from the real tile size so nothing is ever cut off.
@@ -216,10 +245,14 @@ export default function ClockView(props: ClockViewProps) {
   const pages = () => Math.max(1, Math.ceil(entries().length / grid().capacity))
   const currentPage = () => Math.min(page(), pages() - 1)
   const visible = () => entries().slice(currentPage() * grid().capacity, (currentPage() + 1) * grid().capacity)
-  const available = createMemo(() => {
+  const regionCount = (region: Region) => picked().filter((id) => { const city = CITY_BY_ID.get(id); return city && regionOf(city) === region }).length
+  const listed = createMemo(() => {
     const term = query().trim().toLowerCase()
+    const mode = filter()
+    const chosen = new Set(picked())
     return CITIES.filter((city) => {
-      if (picked().includes(city.id)) return false
+      if (mode === 'selected' && !chosen.has(city.id)) return false
+      if (mode !== 'all' && mode !== 'selected' && regionOf(city) !== mode) return false
       if (!term) return true
       return city.city.toLowerCase().includes(term) || city.country.toLowerCase().includes(term) || city.zone.toLowerCase().includes(term)
     })
@@ -235,10 +268,16 @@ export default function ClockView(props: ClockViewProps) {
     commit([...picked(), id])
   }
   const removeCity = (id: string) => commit(picked().filter((item) => item !== id))
+  const toggleCity = (id: string) => (picked().includes(id) ? removeCity(id) : addCity(id))
+  const toggleLocal = () => { const next = !showLocal(); setShowLocal(next); persistShowLocal(next) }
+  const regionCities = (region: Region) => CITIES.filter((city) => regionOf(city) === region).map((city) => city.id)
+  const selectRegion = (region: Region) => commit([...picked(), ...regionCities(region).filter((id) => !picked().includes(id))])
+  const clearRegion = (region: Region) => { const ids = new Set(regionCities(region)); commit(picked().filter((id) => !ids.has(id))) }
+  const activeRegion = () => { const mode = filter(); return mode === 'all' || mode === 'selected' ? null : mode }
 
   return <div ref={root} class="clock-widget" classList={{ 'clock-widget--digital': props.style !== 'analog' }}>
     <Show when={!pickerOpen()} fallback={
-      <div id="clock-city-picker" class="clock-picker" aria-label="Add a city" onKeyDown={(event) => { if (event.key === 'Escape') setPickerOpen(false) }}>
+      <div id="clock-city-picker" class="clock-picker" aria-label="Choose cities" onKeyDown={(event) => { if (event.key === 'Escape') setPickerOpen(false) }}>
         <div class="clock-picker__head">
           <label class="clock-picker__search">
             <Search size={13} aria-hidden="true" />
@@ -246,17 +285,41 @@ export default function ClockView(props: ClockViewProps) {
           </label>
           <button type="button" class="clock-link" aria-label="Close city picker" onClick={() => setPickerOpen(false)}>Done</button>
         </div>
-        <div class="clock-picker__list" role="listbox" aria-label="Available cities">
-          <For each={available()} fallback={<p class="clock-picker__empty">No cities match “{query()}”.</p>}>{(city) =>
-            <button type="button" class="clock-picker__item" role="option" aria-selected="false" onClick={() => addCity(city.id)}>
+        <div class="clock-chips" role="tablist" aria-label="Regions">
+          <button type="button" role="tab" class="clock-chip" aria-selected={filter() === 'all'} classList={{ 'clock-chip--on': filter() === 'all' }} onClick={() => setFilter('all')}>All</button>
+          <For each={REGIONS}>{(region) =>
+            <button type="button" role="tab" class="clock-chip" aria-selected={filter() === region.id} classList={{ 'clock-chip--on': filter() === region.id }} onClick={() => setFilter(region.id)}>
+              {region.label}<Show when={regionCount(region.id) > 0}><b>{regionCount(region.id)}</b></Show>
+            </button>
+          }</For>
+          <button type="button" role="tab" class="clock-chip" aria-selected={filter() === 'selected'} classList={{ 'clock-chip--on': filter() === 'selected' }} onClick={() => setFilter('selected')}>Selected<b>{picked().length}</b></button>
+        </div>
+        <div class="clock-picker__list" role="listbox" aria-label="Available cities" aria-multiselectable="true">
+          <Show when={filter() === 'all' && !query().trim()}>
+            <button type="button" class="clock-picker__item" role="option" aria-selected={showLocal()} onClick={toggleLocal}>
+              <span class="clock-picker__flag" aria-hidden="true">📍</span>
+              <span class="clock-picker__meta"><span class="clock-picker__city">{LOCAL_LABEL}</span><span class="clock-picker__country">This PC</span></span>
+              <strong class="clock-picker__time">{timeAt(now(), LOCAL_ZONE)}</strong>
+              <span class="clock-tick" classList={{ 'clock-tick--on': showLocal() }} aria-hidden="true"><Check size={11} strokeWidth={3} /></span>
+            </button>
+          </Show>
+          <For each={listed()} fallback={<p class="clock-picker__empty">{filter() === 'selected' && !query().trim() ? 'No cities picked yet.' : `No cities match “${query()}”.`}</p>}>{(city) => {
+            const on = () => picked().includes(city.id)
+            return <button type="button" class="clock-picker__item" role="option" aria-selected={on()} disabled={!on() && picked().length >= MAX_CITIES} onClick={() => toggleCity(city.id)}>
               <span class="clock-picker__flag" aria-hidden="true">{city.flag}</span>
               <span class="clock-picker__meta"><span class="clock-picker__city">{city.city}</span><span class="clock-picker__country">{city.country}</span></span>
               <strong class="clock-picker__time">{timeAt(now(), city.zone)}</strong>
-              <Plus size={13} aria-hidden="true" />
+              <span class="clock-tick" classList={{ 'clock-tick--on': on() }} aria-hidden="true"><Check size={11} strokeWidth={3} /></span>
             </button>
-          }</For>
+          }}</For>
         </div>
-        <Show when={picked().length >= MAX_CITIES}><p class="clock-picker__note">Tracking up to {MAX_CITIES} cities.</p></Show>
+        <div class="clock-picker__foot">
+          <span>{picked().length}/{MAX_CITIES} cities</span>
+          <Show when={activeRegion()}>{(region) => <span class="clock-picker__bulk">
+            <button type="button" class="clock-link clock-link--sm" onClick={() => selectRegion(region())}>Add all</button>
+            <button type="button" class="clock-link clock-link--sm clock-link--mute" disabled={regionCount(region()) === 0} onClick={() => clearRegion(region())}>Clear</button>
+          </span>}</Show>
+        </div>
       </div>
     }>
       <header class="clock-head">
@@ -267,13 +330,15 @@ export default function ClockView(props: ClockViewProps) {
             <span class="clock-head__page">{currentPage() + 1}/{pages()}</span>
             <button type="button" class="clock-icon" aria-label="Next clock cities" disabled={currentPage() >= pages() - 1} onClick={() => setPage(currentPage() + 1)}><ChevronRight size={15} /></button>
           </Show>
-          <button type="button" class="clock-icon clock-add__btn" aria-label="Add city" title="Add city" aria-expanded={pickerOpen()} aria-controls="clock-city-picker" onClick={() => setPickerOpen(true)}><Plus size={16} strokeWidth={2.2} /></button>
+          <button type="button" class="clock-pill" aria-label="Choose cities" title="Choose cities and regions" aria-expanded={pickerOpen()} aria-controls="clock-city-picker" onClick={() => setPickerOpen(true)}><Globe size={12} strokeWidth={2.2} /><span>{picked().length + (showLocal() ? 1 : 0)}</span></button>
         </span>
       </header>
+      <Show when={entries().length > 0} fallback={<button type="button" class="clock-empty" onClick={() => setPickerOpen(true)}><Globe size={18} strokeWidth={1.8} /><span>Pick the cities you want to see</span></button>}>
       <div class="world-clocks" role="list" style={{ '--clock-cols': grid().columns, '--clock-rows': grid().rows }}>
         <For each={visible()}>{(entry) =>
           <div class="clock-row" classList={{ 'clock-row--local': !!entry.local }} role="listitem">
             <Show when={analog()}><Face date={now()} zone={entry.zone} label={entry.name} /></Show>
+            <Show when={!analog()}><span class="clock-row__phase" classList={{ 'clock-row__phase--night': !isDaytime(now(), entry.zone) }} aria-hidden="true">{isDaytime(now(), entry.zone) ? <Sun size={13} strokeWidth={2.2} /> : <Moon size={12} strokeWidth={2.2} />}</span></Show>
             <div class="clock-row__id">
               <span class="clock-row__name">{entry.name}<Show when={entry.city}><span class="clock-row__flag" aria-hidden="true"> {entry.city!.flag}</span></Show></span>
               <span class="clock-row__sub">{entry.local ? 'Today, local' : offsetCaption(now(), entry.zone)}</span>
@@ -285,6 +350,7 @@ export default function ClockView(props: ClockViewProps) {
           </div>
         }</For>
       </div>
+      </Show>
     </Show>
   </div>
 }
