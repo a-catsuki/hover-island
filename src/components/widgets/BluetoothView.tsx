@@ -181,8 +181,43 @@ export default function BluetoothView(props: { shape?: BluetoothOrientation }) {
 
   const batteryColor = (pct: number) => pct <= 20 ? '#FF453A' : pct <= 40 ? '#FF9F0A' : '#30D158'
   const connectedCount = createMemo(() => devices().filter(device => device.connected === true).length)
-  const subtitle = () => radioOff() ? 'Off' : connectedCount() ? `${connectedCount()} connected` : devices().length ? `${devices().length} paired` : ''
-  const statusText = (device: BluetoothManagedDevice) => device.connected === null ? 'Status unavailable' : device.connected ? 'Connected' : 'Not connected'
+  const subtitle = () => radioOff() ? 'Off' : connectedCount() ? `${connectedCount()} connected` : availableList().length ? `${availableList().length} in range` : devices().length ? `${devices().length} paired` : ''
+  const statusText = (device: BluetoothManagedDevice) => device.connected === null ? 'Status unavailable' : device.connected ? 'Connected' : device.available ? 'In range' : 'Not connected'
+
+  // Quick swap first: what is connected, then what is in range, then everything else Windows remembers.
+  const connectedList = createMemo(() => devices().filter(device => device.connected === true))
+  const availableList = createMemo(() => devices().filter(device => device.connected !== true && device.available === true))
+  const otherList = createMemo(() => devices().filter(device => device.connected !== true && device.available !== true))
+
+  const Row = (device: BluetoothManagedDevice) => <article class="bluetooth-manage__device" classList={{ 'is-connected': device.connected === true }} title={shape() === 'compact' ? `${device.name} · ${statusText(device)}${device.batteryPct !== null ? ` · ${device.batteryPct}%` : ''}` : undefined}>
+              <span class="bluetooth-manage__device-icon">{deviceGlyph(device, shape() === 'compact' ? 18 : 16)}</span>
+              <div class="bluetooth-manage__identity">
+                <strong title={device.name}>{device.name}</strong>
+                <span class="bluetooth-manage__meta">
+                  <span classList={{ 'is-connected': device.connected === true }}>{statusText(device)}</span>
+                  <Show when={device.batteryPct !== null}><span class="bluetooth-manage__battery" style={{ color: batteryColor(device.batteryPct!) }}>{device.batteryPct! <= 20 ? <BatteryLow size={13}/> : <Battery size={13}/>}{device.batteryPct}%</span></Show>
+                </span>
+              </div>
+              <Show when={device.canConnect || device.canDisconnect}>
+                <button class="wk-pill bluetooth-manage__action" classList={{ 'wk-pill--blue': !device.connected }} disabled={!!busyId() || radioOff()} title={device.actionReason || ''} onClick={() => void setAudioConnection(device)}>
+                  <Show when={busyId() !== device.id} fallback={<LoaderCircle size={13} class="bluetooth-manage__spin"/>}>
+                    {device.connected ? 'Disconnect' : 'Connect'}
+                  </Show>
+                </button>
+              </Show>
+              <Show when={device.canUnpair}>
+                <button class="wk-icon-btn bluetooth-manage__forget" aria-label={`Forget ${device.name}`} title="Forget device" disabled={!!busyId()} onClick={() => setForgetId(forgetId() === device.id ? '' : device.id)}><Trash2 size={13}/></button>
+                <Show when={forgetId() === device.id}>
+                  <div class="bluetooth-manage__confirm" role="group" aria-label={`Confirm forgetting ${device.name}`}>
+                    <span>Remove pairing for <b>{device.name}</b>?</span>
+                    <button class="wk-pill bluetooth-manage__confirm-yes" disabled={!!busyId()} onClick={() => void forgetDevice(device)}>
+                      <Show when={busyId() !== device.id} fallback={<LoaderCircle size={12} class="bluetooth-manage__spin"/>}><Check size={12}/> Forget</Show>
+                    </button>
+                    <button class="wk-pill bluetooth-manage__confirm-no" disabled={!!busyId()} onClick={() => setForgetId('')}>Cancel</button>
+                  </div>
+                </Show>
+              </Show>
+            </article>
 
   return <section class="wk bluetooth-manage" ref={element => (root = element)} data-shape={shape()} aria-label="Bluetooth devices">
     <header class="wk-head">
@@ -213,35 +248,15 @@ export default function BluetoothView(props: { shape?: BluetoothOrientation }) {
           </div>
         </Show>}>
           <div class="bluetooth-manage__list" classList={{ 'is-off': radioOff() }}>
-            <For each={devices()}>{device => <article class="bluetooth-manage__device" classList={{ 'is-connected': device.connected === true }} title={shape() === 'compact' ? `${device.name} · ${statusText(device)}${device.batteryPct !== null ? ` · ${device.batteryPct}%` : ''}` : undefined}>
-              <span class="bluetooth-manage__device-icon">{deviceGlyph(device, shape() === 'compact' ? 18 : 16)}</span>
-              <div class="bluetooth-manage__identity">
-                <strong title={device.name}>{device.name}</strong>
-                <span class="bluetooth-manage__meta">
-                  <span classList={{ 'is-connected': device.connected === true }}>{statusText(device)}</span>
-                  <Show when={device.batteryPct !== null}><span class="bluetooth-manage__battery" style={{ color: batteryColor(device.batteryPct!) }}>{device.batteryPct! <= 20 ? <BatteryLow size={13}/> : <Battery size={13}/>}{device.batteryPct}%</span></Show>
-                </span>
-              </div>
-              <Show when={device.canConnect || device.canDisconnect}>
-                <button class="wk-pill bluetooth-manage__action" classList={{ 'wk-pill--blue': !device.connected }} disabled={!!busyId() || radioOff()} title={device.actionReason || ''} onClick={() => void setAudioConnection(device)}>
-                  <Show when={busyId() !== device.id} fallback={<LoaderCircle size={13} class="bluetooth-manage__spin"/>}>
-                    {device.connected ? 'Disconnect' : 'Connect'}
-                  </Show>
-                </button>
-              </Show>
-              <Show when={device.canUnpair}>
-                <button class="wk-icon-btn bluetooth-manage__forget" aria-label={`Forget ${device.name}`} title="Forget device" disabled={!!busyId()} onClick={() => setForgetId(forgetId() === device.id ? '' : device.id)}><Trash2 size={13}/></button>
-                <Show when={forgetId() === device.id}>
-                  <div class="bluetooth-manage__confirm" role="group" aria-label={`Confirm forgetting ${device.name}`}>
-                    <span>Remove pairing for <b>{device.name}</b>?</span>
-                    <button class="wk-pill bluetooth-manage__confirm-yes" disabled={!!busyId()} onClick={() => void forgetDevice(device)}>
-                      <Show when={busyId() !== device.id} fallback={<LoaderCircle size={12} class="bluetooth-manage__spin"/>}><Check size={12}/> Forget</Show>
-                    </button>
-                    <button class="wk-pill bluetooth-manage__confirm-no" disabled={!!busyId()} onClick={() => setForgetId('')}>Cancel</button>
-                  </div>
-                </Show>
-              </Show>
-            </article>}</For>
+            <Show when={connectedList().length}><p class="bluetooth-manage__group">Connected</p><For each={connectedList()}>{device => Row(device)}</For></Show>
+            <Show when={availableList().length}><p class="bluetooth-manage__group">Available</p><For each={availableList()}>{device => Row(device)}</For></Show>
+            <Show when={!connectedList().length && !availableList().length}><p class="bluetooth-manage__group bluetooth-manage__group--quiet">Nothing connected or in range</p></Show>
+            <Show when={otherList().length}>
+              <details class="bluetooth-manage__others" open={!connectedList().length && !availableList().length}>
+                <summary>Other paired devices ({otherList().length})</summary>
+                <For each={otherList()}>{device => Row(device)}</For>
+              </details>
+            </Show>
           </div>
         </Show>
       </Show>

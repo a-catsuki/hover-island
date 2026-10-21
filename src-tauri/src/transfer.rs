@@ -34,6 +34,8 @@ use tokio::net::TcpListener;
 use tokio::sync::{oneshot, Mutex as AsyncMutex, Semaphore};
 
 const SESSION_TTL: Duration = Duration::from_secs(30 * 60);
+/// With "remembered phones connect without a QR code" on, the server stays up for a long time.
+const TRUSTED_TTL: Duration = Duration::from_secs(30 * 24 * 3600);
 const MAX_FILE_BYTES: u64 = 100 * 1024 * 1024;
 const MAX_BUCKET_BYTES: u64 = 500 * 1024 * 1024;
 const MAX_FILES: usize = 50;
@@ -61,6 +63,8 @@ pub struct TransferStatus {
     pub phone_url: Option<String>,
     pub desktop_url: Option<String>,
     pub bookmark_url: Option<String>,
+    pub bookmark_host_url: Option<String>,
+    pub persistent: bool,
     pub stable_bookmark: bool,
     pub qr_data_url: Option<String>,
     pub expires_at: Option<u64>,
@@ -116,6 +120,7 @@ struct Session {
     port: u16,
     lan_ip: Ipv4Addr,
     stable_bookmark: bool,
+    ttl: Duration,
     save_dir: PathBuf,
     expires: Instant,
     expires_at: u64,
@@ -145,6 +150,21 @@ impl Session {
 
     fn bookmark_url(&self) -> String {
         format!("http://{}:{}/device", self.lan_ip, self.port)
+    }
+
+    /// The same bookmark by computer name, which keeps working when the router hands out a new IP.
+    fn bookmark_host_url(&self) -> Option<String> {
+        host_label().map(|name| format!("http://{name}.local:{}/device", self.port))
+    }
+
+    fn host_allowed(&self, host: &str) -> bool {
+        if host == format!("{}:{}", self.lan_ip, self.port) {
+            return true;
+        }
+        host_label().is_some_and(|name| {
+            let host = host.to_ascii_lowercase();
+            host == format!("{name}.local:{}", self.port) || host == format!("{name}:{}", self.port)
+        })
     }
 
     fn is_expired(&self) -> bool {
@@ -194,14 +214,49 @@ pub async fn transfer_status() -> TransferStatus {
 
 #[tauri::command]
 pub async fn transfer_start(app: AppHandle) -> Result<TransferStatus, String> {
+    let trusted = app
+        .state::<crate::state::AppState>()
+        .settings
+        .lock()
+        .map(|settings| settings.transfer.trusted_phones)
+        .unwrap_or(false);
+    start_session(app, trusted).await
+}
+
+/// Called at launch: when remembered phones may connect on their own and at least one exists,
+/// bring the Beam server up so their saved bookmark works without a QR code.
+pub async fn auto_start(app: AppHandle) {
+    let trusted = app
+        .state::<crate::state::AppState>()
+        .settings
+        .lock()
+        .map(|settings| settings.transfer.trusted_phones)
+        .unwrap_or(false);
+    if !trusted {
+        return;
+    }
+    let has_phones = app
+        .path()
+        .app_data_dir()
+        .ok()
+        .and_then(|dir| PairedDeviceStore::load(paired_storage_path(&dir)).ok())
+        .is_some_and(|store| !store.views(now_ms()).is_empty());
+    if has_phones {
+        let _ = start_session(app, true).await;
+    }
+}
+
+async fn start_session(app: AppHandle, trusted: bool) -> Result<TransferStatus, String> {
+    let ttl = if trusted { TRUSTED_TTL } else { SESSION_TTL };
     let mut active = active().lock().await;
     if let Some(entry) = active.as_ref() {
-        if !entry.session.is_expired() {
+        // A short QR session is replaced when "connect without a QR code" asks for a long-lived one.
+        if !entry.session.is_expired() && entry.session.ttl >= ttl {
             return Ok(status_for(&entry.session));
         }
     }
-    if let Some(mut expired) = active.take() {
-        close_session(expired);
+    if let Some(previous) = active.take() {
+        close_session(previous);
     }
 
     let lan_ip = discover_lan_ip().ok_or_else(|| {
@@ -210,8 +265,17 @@ pub async fn transfer_start(app: AppHandle) -> Result<TransferStatus, String> {
     let save_dir = download_folder()?;
     std::fs::create_dir_all(&save_dir)
         .map_err(|e| format!("Could not create the download folder: {e}"))?;
-    let preferred =
+    // A session that just closed can hold the port for a moment; wait for it so saved bookmarks keep working.
+    let mut preferred =
         TcpListener::bind(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, PREFERRED_LAN_PORT)).await;
+    for _ in 0..15 {
+        if preferred.is_ok() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        preferred =
+            TcpListener::bind(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, PREFERRED_LAN_PORT)).await;
+    }
     let (listener, stable_bookmark) = match preferred {
         Ok(listener) => (listener, true),
         Err(_) => (
@@ -237,7 +301,7 @@ pub async fn transfer_start(app: AppHandle) -> Result<TransferStatus, String> {
             svg_doc.as_bytes()
         )
     );
-    let expires_at = now_ms().saturating_add(SESSION_TTL.as_millis() as u64);
+    let expires_at = now_ms().saturating_add(ttl.as_millis() as u64);
     let app_data = app
         .path()
         .app_data_dir()
@@ -249,8 +313,9 @@ pub async fn transfer_start(app: AppHandle) -> Result<TransferStatus, String> {
         port,
         lan_ip,
         stable_bookmark,
+        ttl,
         save_dir,
-        expires: Instant::now() + SESSION_TTL,
+        expires: Instant::now() + ttl,
         expires_at,
         qr_data_url,
         app: Some(app),
@@ -337,7 +402,7 @@ pub async fn transfer_pairing_status(app: AppHandle) -> Result<PairingStatus, St
     if let Some(session) = &session {
         let started_at = session
             .expires_at
-            .saturating_sub(SESSION_TTL.as_millis() as u64);
+            .saturating_sub(session.ttl.as_millis() as u64);
         for device in &mut devices {
             device.online &= device.last_seen.is_some_and(|seen| seen >= started_at);
         }
@@ -849,12 +914,11 @@ async fn device_bookmark(
     if session.is_expired() {
         return (StatusCode::GONE, "Start the phone bucket on your PC first.").into_response();
     }
-    let expected_host = format!("{}:{}", session.lan_ip, session.port);
     if !is_local_address(remote.ip())
-        || headers
+        || !headers
             .get(header::HOST)
             .and_then(|value| value.to_str().ok())
-            != Some(expected_host.as_str())
+            .is_some_and(|host| session.host_allowed(host))
     {
         return (
             StatusCode::FORBIDDEN,
@@ -2087,6 +2151,15 @@ fn is_local_address(ip: std::net::IpAddr) -> bool {
     }
 }
 
+/// This PC's name as a lowercase DNS label, or None if it is not a plain hostname.
+fn host_label() -> Option<String> {
+    let name = std::env::var("COMPUTERNAME").ok()?.to_ascii_lowercase();
+    let valid = !name.is_empty()
+        && name.len() <= 63
+        && name.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-');
+    valid.then_some(name)
+}
+
 fn discover_lan_ip() -> Option<Ipv4Addr> {
     let socket = StdUdpSocket::bind(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0)).ok()?;
     // UDP connect only asks the OS for a route; it sends no packet.
@@ -2111,6 +2184,8 @@ fn status_for(session: &Session) -> TransferStatus {
         phone_url: Some(session.phone_base()),
         desktop_url: Some(session.desktop_base()),
         bookmark_url: Some(session.bookmark_url()),
+        bookmark_host_url: session.bookmark_host_url(),
+        persistent: session.ttl > SESSION_TTL,
         stable_bookmark: session.stable_bookmark,
         qr_data_url: Some(session.qr_data_url.clone()),
         expires_at: Some(session.expires_at),
@@ -2128,6 +2203,8 @@ fn inactive_status() -> TransferStatus {
         phone_url: None,
         desktop_url: None,
         bookmark_url: None,
+        bookmark_host_url: None,
+        persistent: false,
         stable_bookmark: false,
         qr_data_url: None,
         expires_at: None,
@@ -3016,6 +3093,7 @@ mod tests {
             port,
             lan_ip,
             stable_bookmark: false,
+            ttl: lifetime,
             save_dir: std::env::temp_dir().join(format!(
                 "hover-island-transfer-test-{}",
                 uuid::Uuid::new_v4()

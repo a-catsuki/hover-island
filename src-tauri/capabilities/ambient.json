@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "ambient-window",
+  "description": "Ambient screen WebView permissions",
+  "windows": ["ambient"],
+  "permissions": [
+    "core:event:default"
+  ]
+}

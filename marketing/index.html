@@ -28,6 +28,7 @@
         <li><a href="#features">Features</a></li>
         <li><a href="#themes">Themes</a></li>
         <li><a href="#sharing">File beaming</a></li>
+        <li><a href="#open-source">Open source</a></li>
         <li><a href="#faq">FAQ</a></li>
       </ul>
     </nav>
@@ -47,12 +48,13 @@
     <div class="notch-glow" data-parallax="0.1" aria-hidden="true"></div>
 
     <div class="container hero-inner">
-      <p class="eyebrow reveal">Free for Windows 10 &amp; 11</p>
+      <p class="eyebrow reveal">Free and open source · Windows 10 &amp; 11</p>
       <h1 class="hero-title reveal">The notch,<br>for Windows.</h1>
       <p class="hero-sub reveal">Media, weather, AI usage and file beaming. One hover away.</p>
       <div class="hero-actions reveal">
         <a class="btn-pill" href="#download" data-magnetic>Download free</a>
         <a class="btn-pill btn-pill-secondary" href="#features">See it in action</a>
+        <a class="btn-pill btn-pill-secondary" href="https://github.com/a-catsuki/hover-island" target="_blank" rel="noopener">View source on GitHub</a>
       </div>
 
       <div class="screen reveal">
@@ -126,212 +128,9 @@
           <span class="sb-tray"><span class="sb-mini"></span><span class="sb-mini"></span><span class="sb-clock">15:40</span></span>
         </div>
 
-        <div class="island" id="island" data-state="idle" tabindex="0" role="button" aria-label="Interactive product preview with sample data. Hover or press Enter to open; choose a panel tab to switch views.">
-        <span class="notch-cam" aria-hidden="true"></span>
-
-        <div class="face face-peek" data-face="peek">
-          <div class="peekx">
-            <span class="peekx-ring" aria-hidden="true">
-              <svg viewBox="0 0 48 48"><circle class="peekx-track" cx="24" cy="24" r="21"/><circle class="peekx-progress" cx="24" cy="24" r="21"/></svg>
-              <span class="peekx-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5m0 0-6 6m6-6 6 6"/></svg></span>
-            </span>
-            <span class="peekx-body">
-              <span class="peekx-meta"><span class="peekx-app">Phone bucket</span><span class="peekx-pct">64%</span></span>
-              <span class="peekx-status">Sending…</span>
-              <span class="peekx-file"><span class="peekx-name">presentation.pdf</span><span class="peekx-size">8.4 MB</span></span>
-              <span class="peekx-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.1l1.6 1.9h8.3A2.5 2.5 0 0 1 21 9.4v7.1A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/></svg>Open Files</span>
-            </span>
-          </div>
-        </div>
-
-        <div class="face face-idle" data-face="idle">
-          <span class="pill-compact">
-            <span class="pill-item pill-media">
-              <span class="pill-art"></span>
-              <span class="pill-title">Dance In The Dark</span>
-            </span>
-            <span class="pill-item pill-clock"><strong>15:40</strong><span class="pill-label">Local</span></span>
-            <span class="pill-item pill-weather"><strong>32°</strong><span class="pill-label">Delhi</span></span>
-            <span class="pill-item pill-ai"><span class="pill-ring"></span><strong>62%</strong><span class="pill-label">AI left</span></span>
-          </span>
-        </div>
-
-        <div class="island__panel" aria-hidden="true">
-          <header class="panel__head">
-            <span class="panel-tabs">
-              <span class="ptab" data-tab="today">Today</span>
-              <span class="ptab" data-tab="desk">Desk</span>
-              <span class="ptab" data-tab="activity">Activity</span>
-            </span>
-            <span class="panel__spacer"></span>
-            <span class="panel__tools">
-              <span class="search-button"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg><span>Search</span><kbd>Ctrl Space</kbd></span>
-              <span class="icon-button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6 18 18M18 6l-1.4 1.4M7.4 16.6 6 18"/></svg></span>
-              <span class="icon-button"><svg viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg></span>
-              <span class="icon-button"><svg viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/></svg></span>
-            </span>
-          </header>
-
-          <div class="panel__body">
-
-            <div class="widget-grid widget-grid--today">
-              <section class="widget widget--weather">
-                <div class="widget__head"><span class="widget__title">Weather</span></div>
-                <div class="widget-content">
-                  <div class="weather">
-                    <div class="weather__now">
-                      <span class="weather__temp">32<span class="weather__deg">°</span></span>
-                      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.4"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4 17 7M7 17l-1.6 1.6"/></svg>
-                    </div>
-                    <span class="weather__desc">Mostly Clear</span>
-                    <div class="weather__range">
-                      <span class="weather__range-item"><span class="w-range-k">H</span>32°</span>
-                      <span class="weather__range-item"><span class="w-range-k">L</span>24°</span>
-                    </div>
-                    <div class="weather__aqi">
-                      <div class="weather__aqi-head">
-                        <span class="weather__aqi-label">Air quality</span>
-                        <span class="weather__aqi-value">165<small>US AQI</small></span>
-                      </div>
-                      <div class="weather__aqi-track"><span class="weather__aqi-fill"></span></div>
-                    </div>
-                    <div class="weather__foot">Delhi · Unhealthy · Model estimate · CAMS ENSEMBLE / Open-Meteo</div>
-                  </div>
-                </div>
-              </section>
-
-              <section class="widget widget--media">
-                <div class="widget__head"><span class="widget__title">Now playing</span></div>
-                <div class="widget-content">
-                  <div class="media media--tile">
-                    <div class="media__tile-main">
-                      <span class="media__art media__art--sm"></span>
-                      <span class="media__tile-meta">
-                        <span class="media__tile-title">Dance In The Dark</span>
-                        <span class="media__tile-artist">ZAQ</span>
-                      </span>
-                    </div>
-                    <div class="media__transport">
-                      <span class="media__btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M16 7v10M8 12l8 5V7z"/></svg></span>
-                      <span class="media__btn media__btn--primary"><svg viewBox="0 0 24 24"><path d="M8 5.4v13.2L19 12z"/></svg></span>
-                      <span class="media__btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M8 7v10M16 12l-8 5V7z"/></svg></span>
-                    </div>
-                    <div class="media__viz--bars"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
-                  </div>
-                </div>
-              </section>
-
-              <section class="widget widget--calendar">
-                <div class="widget__head"><span class="widget__title">Calendar</span><span class="widget__eyebrow">October 2026</span></div>
-                <div class="widget-content">
-                  <div class="cal">
-                    <div class="cal__row">
-                      <span class="cal__time"><span class="cal__day">Today</span><span class="cal__clock">14:00</span></span>
-                      <span class="cal__title">Your local calendar is empty.</span>
-                    </div>
-                    <div class="cal__row">
-                      <span class="cal__time"><span class="cal__day">Thu</span><span class="cal__clock">09:30</span></span>
-                      <span class="cal__title">Design review</span>
-                    </div>
-                    <div class="cal__row">
-                      <span class="cal__time"><span class="cal__day">Fri</span><span class="cal__clock">16:00</span></span>
-                      <span class="cal__title">Imported ICS · read only</span>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </div>
-
-            <div class="widget-grid widget-grid--desk">
-              <section class="widget widget--notes">
-                <div class="widget__head"><span class="widget__title">To-do</span></div>
-                <div class="widget-content">
-                  <div class="notes">
-                    <div class="notes__head"><span class="notes__count">2 open</span></div>
-                    <div class="notes__add">
-                      <span class="notes__input">Add a task</span>
-                      <span class="notes__add-button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
-                    </div>
-                    <div class="notes__list">
-                      <span class="notes__task"><span class="notes__task-title">Finish the Q4 launch brief</span></span>
-                      <span class="notes__task"><span class="notes__task-title">Book the design review</span></span>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section class="widget widget--clock">
-                <div class="widget__head"><span class="widget__title">World clock</span></div>
-                <div class="widget-content">
-                  <div class="cal">
-                    <div class="cal__row">
-                      <span class="cal__time"><span class="cal__day">Lisbon</span><span class="cal__clock">15:40</span></span>
-                      <span class="cal__title">Home</span>
-                    </div>
-                    <div class="cal__row">
-                      <span class="cal__time"><span class="cal__day">San Francisco</span><span class="cal__clock">07:40</span></span>
-                      <span class="cal__title">Work</span>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section class="widget widget--nearby">
-                <div class="widget__head"><span class="widget__title">File bucket</span><span class="widget__eyebrow">local QR · 30 min</span></div>
-                <div class="widget-content">
-                  <div class="phone-bucket__drop">
-                    <span class="phone-bucket__drop-glyph"><svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.1l1.6 1.9h8.3A2.5 2.5 0 0 1 21 9.4v7.1A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/><path d="M12 16.4v-4.6m0 0-2 2m2-2 2 2"/></svg></span>
-                    <strong>Drop files to beam them</strong>
-                    <span>Scan on the same Wi-Fi, then approve the matching code here.</span>
-                  </div>
-                </div>
-              </section>
-            </div>
-
-            <div class="widget-grid widget-grid--activity">
-              <section class="widget widget--ai">
-                <div class="widget__head"><span class="widget__title">AI activity</span><span class="widget__eyebrow">sample reports</span></div>
-                <div class="widget-content">
-                  <div class="ai">
-                    <div class="ai__row">
-                      <span class="prov-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 12h6"/></svg></span>
-                      <span class="ai__meta">
-                        <span class="ai__label">Codex · 5-hour</span>
-                        <span class="ai__bar"><span class="ai__fill" style="width:62%"></span></span>
-                      </span>
-                      <span class="ai__val">62% left</span>
-                    </div>
-                    <div class="ai__row">
-                      <span class="prov-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 9v6"/></svg></span>
-                      <span class="ai__meta">
-                        <span class="ai__label">Claude Code</span>
-                        <span class="ai__bar"><span class="ai__fill" style="width:38%"></span></span>
-                      </span>
-                      <span class="ai__val">38% left</span>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section class="widget widget--reset-watch">
-                <div class="widget__head"><span class="widget__title">Reset radar</span><span class="widget__eyebrow">Codex Resets</span></div>
-                <div class="widget-content">
-                  <div class="reset-sample">
-                    <span class="reset-sample__status">Global reset announced</span>
-                    <strong>Sample announcement</strong>
-                    <span class="reset-sample__meta">Tibo · sample report</span>
-                  </div>
-                </div>
-              </section>
-            </div>
-
-          </div>
-
-          <footer class="panel__foot" aria-hidden="true"><span></span></footer>
-        </div>
-        </div>
+        <iframe class="hero-app" id="hero-app" src="app-preview/index.html?embed=1" title="Interactive Hover Island preview with sample data" loading="eager" tabindex="0"></iframe>
       </div>
-      <p class="demo-caption reveal"><span>Hover or press Enter to open · choose a panel · press Esc to close</span><span>Interactive preview · sample data</span></p>
+      <p class="demo-caption reveal"><span>Hover the notch to open it · switch pages · press Esc to close</span><span>Interactive preview · sample data</span></p>
     </div>
   </section>
 
@@ -632,6 +431,27 @@
     </div>
   </section>
 
+  <!-- OPEN SOURCE -->
+  <section class="section band-soft" id="open-source">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">Open source</p>
+        <h2>Built in the open. Read it, fork it, make it yours.</h2>
+        <p class="lead">Hover Island is MIT licensed and lives on GitHub. Every line that touches your media, notifications and files is there to read, so you never have to take our word for it.</p>
+      </div>
+      <div class="spec-grid">
+        <div class="spec reveal"><strong>MIT licensed</strong><span>use it, change it, ship your own build</span></div>
+        <div class="spec reveal"><strong>Auditable</strong><span>Rust backend, SolidJS front end, no closed binaries hiding in the middle</span></div>
+        <div class="spec reveal"><strong>Contributions welcome</strong><span>bug reports, widgets, themes and translations all help</span></div>
+      </div>
+      <div class="hero-actions reveal">
+        <a class="btn-pill" href="https://github.com/a-catsuki/hover-island" target="_blank" rel="noopener" data-magnetic>Star on GitHub</a>
+        <a class="btn-pill btn-pill-secondary" href="https://github.com/a-catsuki/hover-island/issues" target="_blank" rel="noopener">Report a bug or idea</a>
+        <a class="btn-pill btn-pill-secondary" href="https://github.com/a-catsuki/hover-island/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">How to contribute</a>
+      </div>
+    </div>
+  </section>
+
   <!-- DOWNLOAD -->
   <section class="download-band" id="download">
     <div class="container download-inner">
@@ -649,7 +469,7 @@
       </div>
       <p class="download-meta reveal">
         <span class="os-badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM3 12.5h7.5v7L3 18.5zM11.5 4.3 21 3v8.5h-9.5zM11.5 12.5H21V21l-9.5-1.3z"/></svg> Windows 10 &amp; 11</span>
-        <span class="dot-sep">·</span><span>Rust + Tauri build</span><span class="dot-sep">·</span><span>v0.1.6</span>
+        <span class="dot-sep">·</span><span>Rust + Tauri build</span><span class="dot-sep">·</span><a href="https://github.com/a-catsuki/hover-island" target="_blank" rel="noopener">Open source (MIT)</a><span class="dot-sep">·</span><span>v0.1.6</span>
       </p>
     </div>
   </section>
@@ -665,6 +485,10 @@
         <details class="faq-item glass reveal" open>
           <summary><span>Is Hover Island really free?</span><span class="faq-mark" aria-hidden="true"></span></summary>
           <div class="faq-answer"><p>Yes. No Hover Island account, premium tier, subscription or ads. It's a desktop companion, not a storefront.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>Is it open source?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Yes. The full source is MIT licensed on <a href="https://github.com/a-catsuki/hover-island" target="_blank" rel="noopener">GitHub</a>. You can build it yourself, open issues, or send a pull request.</p></div>
         </details>
         <details class="faq-item glass reveal">
           <summary><span>Does it use my microphone?</span><span class="faq-mark" aria-hidden="true"></span></summary>
@@ -771,7 +595,8 @@
 
   <div class="container foot-base">
     <span class="foot-mark">hover island</span>
-    <span>© <span id="year">2026</span> Hover Island · Free, no ads · Windows 10 &amp; 11</span>
+    <span>© <span id="year">2026</span> Hover Island · Free and open source (MIT) · Windows 10 &amp; 11</span>
+    <a class="foot-top-link" href="https://github.com/a-catsuki/hover-island" target="_blank" rel="noopener">GitHub</a>
     <a class="foot-top-link" href="#top">Back to top</a>
   </div>
 </footer>

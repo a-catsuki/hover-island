@@ -1,8 +1,8 @@
-import { createSignal } from 'solid-js'
+import { createMemo, createSignal } from 'solid-js'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { cmd, onUsageChanged, type DetectedProvider, type UsageSnapshot } from '../lib/ipc'
 import { subscribeAiActivity } from './aiActivity'
-import { settings } from './settings'
+import { patchSettings, settings } from './settings'
 
 const [usage, setUsage] = createSignal<UsageSnapshot[]>([])
 const [detected, setDetected] = createSignal<DetectedProvider[]>([])
@@ -48,21 +48,9 @@ export async function subscribeUsage(): Promise<() => void> {
 
 /* --------------------------------------------------------- provider detection */
 
-const PROVIDER_PREFS_KEY = 'hover-island.providers.v1'
-
-function loadProviderPrefs(): Record<string, boolean> {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(PROVIDER_PREFS_KEY) ?? '{}') as unknown
-    if (parsed && typeof parsed === 'object') return parsed as Record<string, boolean>
-  } catch {}
-  return {}
-}
-
-const [providerPrefs, setProviderPrefs] = createSignal<Record<string, boolean>>(loadProviderPrefs())
-
 /** Display preference for a detected provider without a native settings switch. Shown unless hidden. */
 export function providerEnabled(id: string): boolean {
-  return providerPrefs()[id] ?? true
+  return !(settings.usage.hidden ?? []).includes(id)
 }
 
 /** Whether a provider is shown in the AI widgets: native switches first, then the local preference. */
@@ -75,12 +63,12 @@ export function providerShown(id: string): boolean {
 }
 
 export function setProviderEnabled(id: string, enabled: boolean): void {
-  setProviderPrefs((current) => {
-    const next = { ...current, [id]: enabled }
-    try { localStorage.setItem(PROVIDER_PREFS_KEY, JSON.stringify(next)) } catch {}
-    return next
-  })
+  const hidden = (settings.usage.hidden ?? []).filter((item) => item !== id)
+  patchSettings({ usage: { ...settings.usage, hidden: enabled ? hidden : [...hidden, id] } })
 }
+
+/** Usage snapshots for tools that are switched on. Everything that shows usage reads this. */
+export const visibleUsage = createMemo(() => usage().filter((snapshot) => snapshot.provider === 'manual' || providerShown(snapshot.provider)))
 
 /** Scan known local locations for installed AI tools. Never throws; errors surface in `detectError`. */
 export function refreshDetected(): Promise<void> {

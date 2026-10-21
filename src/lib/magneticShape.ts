@@ -3,7 +3,7 @@ export function magneticNotchPath(viewWidth: number, viewHeight: number, width: 
   const side = edge === 'left' || edge === 'right'
   const span = side ? height : width
   const depth = side ? width : height
-  const clamp = (value: number) => Number.isFinite(value) ? Math.max(-6, Math.min(6, value)) : 0
+  const clamp = (value: number) => Number.isFinite(value) ? Math.max(-9, Math.min(9, value)) : 0
   const along = clamp(side ? y : x) * .6
   const normal = clamp(edge === 'top' ? y : edge === 'bottom' ? -y : edge === 'left' ? x : -x) * .4
   const r = Math.max(0, Math.min(span / 2, depth / 2, radius ?? Math.min(14, depth * .28)))
@@ -46,12 +46,12 @@ export function edgeInsetClip(viewWidth: number, viewHeight: number, width: numb
  * display edge (concave "ears", like a hardware notch), with softer bottom corners.
  * `width` includes the ears, so the visible body is `width - 2 * ear`.
  */
-export function earNotchPath(viewWidth: number, width: number, height: number, ear: number, radius: number): string {
+export function earNotchPath(viewWidth: number, width: number, height: number, ear: number, radius: number, shiftX = 0): string {
   const span = Math.max(0, Math.min(width, viewWidth))
   const e = Math.max(0, Math.min(ear, span / 4, height / 2))
   const r = Math.max(0, Math.min(radius, (span - e * 2) / 2, height - e))
   const k = .5522847498 * r
-  const x0 = (viewWidth - span) / 2
+  const x0 = (viewWidth - span) / 2 + (Number.isFinite(shiftX) ? shiftX : 0)
   const n = (value: number) => value.toFixed(2)
   const p = (u: number, v: number) => `${n(x0 + u)} ${n(v)}`
   return `path("M ${p(0, 0)} L ${p(span, 0)} Q ${p(span - e, 0)} ${p(span - e, e)} L ${p(span - e, height - r)} C ${p(span - e, height - r + k)} ${p(span - e - r + k, height)} ${p(span - e - r, height)} L ${p(e + r, height)} C ${p(e + r - k, height)} ${p(e, height - r + k)} ${p(e, height - r)} L ${p(e, e)} Q ${p(e, 0)} ${p(0, 0)} Z")`

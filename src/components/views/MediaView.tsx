@@ -5,7 +5,7 @@ import { settings } from '../../state/settings'
 import type { LyricsLine, WidgetConfig } from '../../lib/ipc'
 import Visualizer from './Visualizer'
 import { normalizeVisualizerStyle } from '../../lib/visualizerStyles'
-import { activeLineIndex, lyricsTrackKey, parseLrc, untimedLineIndex } from '../../lib/lyricsSync'
+import { activeLineIndex, lineProgress, lyricsTrackKey, parseLrc, untimedLineIndex } from '../../lib/lyricsSync'
 import { getAlbumPalette, type AlbumPalette } from '../../lib/albumPalette'
 import './MediaView.css'
 import { open } from '../../state/ui'
@@ -177,6 +177,12 @@ export default function MediaView(props: {
       ? activeLineIndex(lyrics(), position())
       : untimedLineIndex(lyrics().length, position(), duration())
   })
+  // How far through the current line the singer is, for the karaoke fill.
+  const activeFill = () => {
+    const index = activeLyric()
+    if (!lyricsTimed() || index < 0) return 0
+    return lineProgress(lyrics(), index, position(), duration())
+  }
 
   createEffect(() => {
     const current = active()
@@ -316,6 +322,7 @@ export default function MediaView(props: {
               return <p
                 class="media__lyrics-line"
                 classList={{ 'media__lyrics-line--active': lyricsTimed() && activeLyric() === index, 'media__lyrics-line--gap': !line.text, 'media__lyrics-line--past': lyricsTimed() && index < activeLyric() }}
+                style={lyricsTimed() && activeLyric() === index ? { '--fill': `${(activeFill() * 100).toFixed(1)}%` } : undefined}
                 data-d={distance()}
                 data-lyrics-index={index}
               >{line.text || '\u266A'}</p>
@@ -376,7 +383,7 @@ export default function MediaView(props: {
             </Show>
           </div>
           <div class="media__head">
-            <div class="media__art">
+            <div class="media__art" classList={{ [`media__art--${settings.coverStyle}`]: settings.coverStyle !== 'classic' }}>
               <Show when={current().thumbnail} fallback={<Music size={28} strokeWidth={1.4} />}>
                 {(src) => <img src={src()} alt="Album artwork" draggable={false} />}
               </Show>

@@ -116,7 +116,8 @@ export default function WidgetManager() {
         ? ordered().map((widget) => swappedById.get(widget.id) ?? widget).sort((a, b) => a.order - b.order)
         : clearWidgetSlot(moveWidgetBefore(ordered(), sourceId, dropping), sourceId)
     } else {
-      next = placeWidgetAtCell(ordered(), sourceId, panel, cell)
+      // Placing a hidden widget on a cell is also an instruction to show it.
+      next = placeWidgetAtCell(ordered(), sourceId, panel, cell).map((widget) => widget.id === sourceId ? { ...widget, enabled: true } : widget)
     }
     commit(next)
     setSelectedId(sourceId)

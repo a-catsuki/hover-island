@@ -15,7 +15,7 @@ import { reportError } from './state/feedback'
 import { ingestNotifications, ingestActionPeek, ingestTransferPeek, ingestAiPeek, ingestTwoFactorPeek, ingestPreferencePeek, configurePeekSound, dismissPeek } from './state/peek'
 import { subscribeForeground } from './state/window'
 import { tickFocus } from './state/focus'
-import { browserPreview } from './lib/ipc'
+import { browserPreview, embedPreview } from './lib/ipc'
 import { flushNotes } from './components/widgets/NotesView'
 import { subscribeResetWatch } from './state/resetWatch'
 import { startWebsiteAlertsPolling, subscribeWebsiteAlerts, refreshWebsiteConnections, refreshWebsiteAlerts } from './state/erp'
@@ -58,12 +58,13 @@ export default function App() {
     })
   })
   createEffect(() => {
-    if (!shouldShowFirstRun(settingsReady(), settings.onboardingVersion) || onboardingOpen()) return
+    if (embedPreview || !shouldShowFirstRun(settingsReady(), settings.onboardingVersion) || onboardingOpen()) return
     beginFirstRun()
     expandIsland()
   })
 
   onMount(() => {
+    if (embedPreview) document.documentElement.classList.add('embed')
     let disposed = false
     const cleanups: Array<() => void> = []
     cleanups.push(configurePeekSound(() => { void cmd.playAlertSound().catch(() => {}) }))
@@ -179,7 +180,7 @@ export default function App() {
         </div>
       )}
     >
-      <Show when={browserPreview}><div class="preview-label">Browser preview <span>Sample data · native actions require the desktop app</span></div></Show>
+      <Show when={browserPreview && !embedPreview}><div class="preview-label">Browser preview <span>Sample data · native actions require the desktop app</span></div></Show>
       <Island />
       <Show when={spotlightOpen()}>
         <SpotlightView />

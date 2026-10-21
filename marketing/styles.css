@@ -1447,3 +1447,17 @@ h1, h2, .hero-title, .download-band h2 { font-variation-settings: "wdth" 110; }
   .tilt, .chapter.rev .tilt { transform: none; }
   .tilt::after { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Hero demo: the real app, embedded. app-preview/ is a production build of the
+   island running on sample data, so the hero always matches what ships.
+   The frame is laid out at the app's own size and scaled to the screen. */
+.notch-hero .hero-app { position: absolute; top: 0; left: 0; z-index: 5;
+  width: 880px; height: 576px; border: 0; background: transparent;
+  color-scheme: dark; transform-origin: 0 0; transform: scale(var(--app-scale, 1)); }
+
+/* Open source section and links */
+#open-source .hero-actions { margin-top: var(--space-8, 40px); justify-content: center; flex-wrap: wrap; }
+#open-source .section-head { text-align: center; margin-inline: auto; }
+.download-meta a, .faq-answer a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.hero-actions { flex-wrap: wrap; }

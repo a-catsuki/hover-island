@@ -388,3 +388,52 @@
   .media__art, .media__fill, .media__wash, .media__track, .media__viz { transition: none; }
   .media__lyrics-line, .media__lyrics-track--glide { transition: none; }
 }
+
+/* ---- Album cover styles (Settings > Appearance > Album cover) ---- */
+@keyframes cover-spin { to { transform: rotate(360deg); } }
+@keyframes cover-float { 0%, 100% { transform: perspective(500px) rotateY(-9deg) rotateX(3deg) translateY(0); } 50% { transform: perspective(500px) rotateY(9deg) rotateX(-3deg) translateY(-3px); } }
+
+.media .media__art--vinyl, .media .media__art--cd { position: relative; border-radius: 50%; overflow: hidden; animation: cover-spin 5.5s linear infinite; animation-play-state: paused; }
+.media--playing .media__art--vinyl, .media--playing .media__art--cd { animation-play-state: running; }
+.media:not(.media--playing) .media__art--vinyl, .media:not(.media--playing) .media__art--cd { transform: none; }
+
+/* Vinyl: black grooves, the cover is the centre label, a soft light sweep shows it spinning. */
+.media .media__art--vinyl { background: repeating-radial-gradient(circle at 50% 50%, #0b0b0d 0 1.5px, #17171b 2px 3px); }
+.media .media__art--vinyl::before { content: ""; position: absolute; inset: 0; z-index: 2; border-radius: 50%; pointer-events: none; background: conic-gradient(from 20deg, transparent 0 10%, rgba(255, 255, 255, 0.16) 14%, transparent 20% 60%, rgba(255, 255, 255, 0.12) 64%, transparent 70%); }
+.media .media__art--vinyl img { width: 40%; height: 40%; border-radius: 50%; position: relative; z-index: 1; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55); }
+.media .media__art--vinyl::after { content: ""; position: absolute; z-index: 3; width: 6%; height: 6%; border-radius: 50%; background: #0b0b0d; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25); }
+
+/* CD: the cover is printed on the disc with a clear hub and a rainbow sheen. */
+.media .media__art--cd { background: conic-gradient(from 0deg, #d9dbe3, #aab4d6, #e8d9f0, #b7e3d6, #f2e2b8, #d9dbe3); }
+.media .media__art--cd img { width: 92%; height: 92%; border-radius: 50%; -webkit-mask: radial-gradient(circle, transparent 0 13%, #000 14%); mask: radial-gradient(circle, transparent 0 13%, #000 14%); }
+.media .media__art--cd::before { content: ""; position: absolute; inset: 0; z-index: 2; border-radius: 50%; pointer-events: none; background: conic-gradient(from 0deg, rgba(255, 90, 90, 0.22), rgba(255, 220, 90, 0.2), rgba(90, 255, 160, 0.2), rgba(90, 170, 255, 0.22), rgba(200, 110, 255, 0.22), rgba(255, 90, 90, 0.22)); mix-blend-mode: soft-light; }
+.media .media__art--cd::after { content: ""; position: absolute; z-index: 3; width: 28%; height: 28%; border-radius: 50%; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.2); }
+
+/* Polaroid: white border, a slight tilt that levels out while playing. */
+.media .media__art--polaroid { box-sizing: border-box; padding: 6% 6% 20%; border-radius: 3px; background: #f4f2ee; transform: rotate(-4deg); }
+.media--playing .media__art--polaroid { transform: rotate(-2deg); }
+.media:not(.media--playing) .media__art--polaroid { transform: rotate(-5deg) scale(0.94); }
+.media .media__art--polaroid img { border-radius: 1px; }
+
+/* Stack: cards peek out from behind the cover. */
+.media .media__art--stack { overflow: visible; box-shadow: 6px 6px 0 -1px rgba(255, 255, 255, 0.16), 12px 12px 0 -2px rgba(255, 255, 255, 0.08), 0 12px 28px rgba(0, 0, 0, 0.5); }
+.media .media__art--stack img { border-radius: 13px; }
+
+/* Float: a gentle 3D sway. */
+.media .media__art--float { animation: cover-float 6s ease-in-out infinite; animation-play-state: paused; }
+.media--playing .media__art--float { animation-play-state: running; }
+.media:not(.media--playing) .media__art--float { transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .media .media__art--vinyl, .media .media__art--cd, .media .media__art--float { animation: none; }
+}
+
+/* Karaoke: the current line fills from left to right as it is sung. */
+.media__lyrics-line--active:not(.media__lyrics-line--gap) {
+  color: transparent;
+  background: linear-gradient(90deg, #fff 0, #fff var(--fill, 0%), rgba(255, 255, 255, 0.42) calc(var(--fill, 0%) + 6%), rgba(255, 255, 255, 0.42) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow: none;
+}
+.media__lyrics-line--past { color: rgba(255, 255, 255, 0.62); }

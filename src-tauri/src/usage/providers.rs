@@ -923,7 +923,8 @@ pub(crate) fn snapshots_in(spec: &Spec, dirs: &Dirs, now: u64) -> Vec<UsageSnaps
     } = collect(spec, dirs, now);
     let week = now.saturating_sub(WEEK_MS);
     let recently_used = scan.sessions_7d > 0 || scan.last_active_at.is_some_and(|t| t >= week);
-    let has_tokens = scan.has_usage_data;
+    // For Claude Code the plan limits matter, not how many tokens went through.
+    let has_tokens = scan.has_usage_data && spec.id != "claude-code";
     let detail = if from_stats {
         format!("{} this week, from Claude Code stats", plural(scan.sessions_7d, "session", "sessions"))
     } else if has_tokens {
@@ -953,6 +954,21 @@ pub(crate) fn snapshots_in(spec: &Spec, dirs: &Dirs, now: u64) -> Vec<UsageSnaps
         activity: Some(activity),
         ..UsageSnapshot::default()
     }];
+    if spec.id == "claude-code" {
+        out.extend(super::claude_limits::cached().into_iter().map(|limit| UsageSnapshot {
+            provider: "claude-code".into(),
+            label: limit.label,
+            status: "ok".into(),
+            unit: Some("%".into()),
+            percent: Some(limit.percent),
+            window: limit.window,
+            detail: Some("Reported by Claude".into()),
+            source: Some("official-rate-limit".into()),
+            reset_at: limit.reset_at,
+            updated_at: limit.updated_at,
+            ..UsageSnapshot::default()
+        }));
+    }
     if spec.parser == Parser::Codex {
         out.extend(scan.rate_limits.into_iter().map(|limit| UsageSnapshot {
             provider: "codex".into(),

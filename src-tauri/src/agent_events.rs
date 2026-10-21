@@ -96,6 +96,55 @@ fn snippet(text: &str, max: usize) -> String {
     out
 }
 
+/// Codex names each thread itself and records it in `session_index.jsonl`
+/// (`{"id": "...", "thread_name": "..."}`). That is the title its own app
+/// shows, so it beats anything we can guess from the log.
+fn codex_thread_name(session: &str) -> Option<String> {
+    let id = session.get(session.len().checked_sub(36)?..)?;
+    if id.len() != 36 || !id.contains('-') {
+        return None;
+    }
+    let path = dirs::home_dir()?.join(".codex").join("session_index.jsonl");
+    let mut file = File::open(path).ok()?;
+    let len = file.metadata().ok()?.len();
+    let window = 1_048_576u64;
+    if len > window {
+        file.seek(SeekFrom::Start(len - window)).ok()?;
+    }
+    let mut text = String::new();
+    std::io::Read::read_to_string(&mut file, &mut text).ok()?;
+    let mut found = None;
+    for line in text.lines() {
+        if !line.contains(id) {
+            continue;
+        }
+        let Ok(root) = serde_json::from_str::<Value>(line) else { continue };
+        if root.get("id").and_then(Value::as_str) == Some(id) {
+            if let Some(name) = root.get("thread_name").and_then(Value::as_str).map(str::trim).filter(|n| !n.is_empty()) {
+                found = Some(snippet(name, 90));
+            }
+        }
+    }
+    found
+}
+
+/// Codex chat folders are named after the first message (`can-you-take-a-look-at`).
+/// Shown as a title that reads like a sentence instead of a slug.
+fn humanize_slug(name: &str) -> String {
+    let words: Vec<&str> = name.split('-').filter(|w| !w.is_empty()).collect();
+    let slug = words.len() >= 3
+        && !name.contains(char::is_whitespace)
+        && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    if !slug {
+        return name.to_string();
+    }
+    let mut text = words.join(" ");
+    if let Some(first) = text.get(..1) {
+        text = first.to_uppercase() + &text[1..];
+    }
+    text
+}
+
 fn label_of(provider: &str) -> String {
     providers::spec_for(provider)
         .map(|spec| spec.label.to_string())
@@ -140,11 +189,13 @@ fn hook_recent(provider: &str) -> bool {
 struct Cfg {
     enabled: bool,
     providers: Vec<String>,
+    usage: crate::settings::UsageCfg,
 }
 
 impl Cfg {
     fn allows(&self, provider: &str) -> bool {
-        self.providers.is_empty() || self.providers.iter().any(|p| p == provider)
+        // A tool switched off under Usage is off everywhere, alerts included.
+        self.usage.shows(provider) && (self.providers.is_empty() || self.providers.iter().any(|p| p == provider))
     }
 }
 
@@ -154,6 +205,7 @@ fn read_cfg(app: &AppHandle) -> Cfg {
     Cfg {
         enabled: settings.ai_toasts_enabled,
         providers: settings.ai_toast_providers.clone(),
+        usage: settings.usage.clone(),
     }
 }
 
@@ -481,10 +533,15 @@ impl SessionState {
     }
 
     fn title(&self) -> String {
+        if self.provider == "codex" {
+            if let Some(name) = codex_thread_name(&self.id) {
+                return name;
+            }
+        }
         if !self.task.is_empty() {
             return self.task.clone();
         }
-        self.project.clone().unwrap_or_else(|| label_of(&self.provider))
+        self.project.as_deref().map(humanize_slug).unwrap_or_else(|| label_of(&self.provider))
     }
 
     fn event(&self, kind: &str, detail: String, now: u64) -> AgentEvent {
@@ -1202,7 +1259,7 @@ fn event_from_hook(provider: &str, hook: &str, body: &Value, now: u64) -> Option
     });
     let key = format!("{provider}:{session}");
     let tasks = HOOK_TASKS.get_or_init(|| Mutex::new(HashMap::new()));
-    let project = cwd.clone().unwrap_or_else(|| label_of(&provider));
+    let project = cwd.as_deref().map(humanize_slug).unwrap_or_else(|| label_of(&provider));
     let make = |kind: &str, title: String, detail: String, duration: Option<u64>| AgentEvent {
         kind: kind.into(),
         provider: provider.clone(),
@@ -1234,9 +1291,8 @@ fn event_from_hook(provider: &str, hook: &str, body: &Value, now: u64) -> Option
         "stop" | "afteragent" | "agent-turn-complete" | "subagentstop_never" => {
             let status = str_at(body, "status");
             let started = lock(tasks).remove(&key);
-            let title = started
-                .as_ref()
-                .map(|t| t.1.clone())
+            let title = (provider == "codex").then(|| codex_thread_name(&session)).flatten()
+                .or_else(|| started.as_ref().map(|t| t.1.clone()))
                 .or_else(|| {
                     body.get("input-messages")
                         .and_then(Value::as_array)
@@ -1966,6 +2022,14 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&backup).unwrap(), old);
         assert!(backup.to_string_lossy().ends_with(".hover-island.bak"));
         let _ = std::fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn chat_folder_slugs_read_like_titles() {
+        assert_eq!(humanize_slug("can-you-take-a-look-at"), "Can you take a look at");
+        assert_eq!(humanize_slug("island"), "island");
+        assert_eq!(humanize_slug("hover-island"), "hover-island");
+        assert_eq!(humanize_slug("My-Project-Name"), "My-Project-Name");
     }
 
     #[test]

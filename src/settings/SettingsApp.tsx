@@ -32,9 +32,6 @@ type SectionId =
   | 'connections'
   | 'ai'
   | 'shortcuts'
-  | 'calendar'
-  | 'location'
-  | 'privacy'
   | 'about'
 
 interface SectionDef {
@@ -49,23 +46,20 @@ interface SectionDef {
 }
 
 const SECTIONS: SectionDef[] = [
-  { id: 'general', label: 'General', icon: Settings2, tile: '#8e8e93', group: 0, keywords: 'launch login startup hide maximized windows intro tour welcome replay reset position' },
+  { id: 'general', label: 'General', icon: Settings2, tile: '#8e8e93', group: 0, keywords: 'launch login startup hide maximized windows intro tour welcome replay reset position about version update updates privacy audio speaker output search index files rebuild data local defaults' },
   { id: 'appearance', label: 'Appearance', icon: Palette, tile: '#0a84ff', group: 0, keywords: 'theme palette scene accent colour color size small medium large compact view clock font time format seconds atmosphere visualizer intensity reactivity background opacity preview' },
-  { id: 'island', label: 'Island', icon: PanelTop, tile: '#5e5ce6', group: 0, keywords: 'layout hover expand open close delay dock style notch bar sidebar screen edge top bottom left right media playback buttons position' },
-  { id: 'widgets', label: 'Widgets', icon: LayoutGrid, tile: '#ff9f0a', group: 0, keywords: 'pages arrange order add remove size lyrics hidden' },
+  { id: 'island', label: 'Island', icon: PanelTop, tile: '#5e5ce6', group: 0, keywords: 'layout hover expand open close delay dock style notch bar sidebar screen edge top bottom left right media playback buttons position shortcuts keyboard hotkey search spotlight key combination record conflict global ctrl alt win' },
+  { id: 'widgets', label: 'Widgets', icon: LayoutGrid, tile: '#ff9f0a', group: 0, keywords: 'pages arrange order add remove size lyrics hidden location weather city temperature celsius fahrenheit units automatic windows location services place' },
   { id: 'notifications', label: 'Notifications', icon: Bell, tile: '#ff453a', group: 1, keywords: 'alerts sound chime do not disturb focus dnd peek capture windows access test apps sources shortcuts per-app' },
-  { id: 'connections', label: 'Connections', icon: Link2, tile: '#30d158', group: 1, keywords: 'native apps connect disconnect add app discord slack teams whatsapp telegram outlook phone link media spotify email codes gmail websites alert feeds erp pairing' },
+  { id: 'connections', label: 'Connections', icon: Link2, tile: '#30d158', group: 1, keywords: 'native apps connect disconnect add app discord slack teams whatsapp telegram outlook phone link media spotify email codes gmail websites alert feeds erp pairing calendar ical subscribe feed events google outlook sync' },
   { id: 'ai', label: 'AI tools', icon: Sparkles, tile: '#bf5af2', group: 1, keywords: 'providers codex claude cursor usage quota tracker custom ai activity agent hooks toasts closed island stat response time' },
   { id: 'shortcuts', label: 'Shortcuts', icon: Command, tile: '#636366', group: 2, keywords: 'keyboard hotkey island search spotlight key combination record reset conflict global ctrl alt win' },
-  { id: 'calendar', label: 'Calendar', icon: CalendarDays, tile: '#ff453a', group: 2, keywords: 'ical subscribe feed events google outlook sync' },
-  { id: 'location', label: 'Location', icon: MapPin, tile: '#30d158', group: 2, keywords: 'weather city temperature celsius fahrenheit units automatic windows location services search place' },
-  { id: 'privacy', label: 'Privacy', icon: Hand, tile: '#0a84ff', group: 2, keywords: 'audio speaker output search index files rebuild data local' },
-  { id: 'about', label: 'About', icon: Info, tile: '#8e8e93', group: 2, keywords: 'reset settings defaults version' },
+  { id: 'about', label: 'About', icon: Info, tile: '#8e8e93', group: 2, keywords: 'reset settings defaults version update updates build' },
 ]
 
 const EDGE_LABELS = { top: 'Top', bottom: 'Bottom', left: 'Left', right: 'Right' } as const
 
-const SECTION_ALIASES: Record<string, SectionId> = { providers: 'ai', weather: 'location', alerts: 'notifications', hotkeys: 'shortcuts', keyboard: 'shortcuts' }
+const SECTION_ALIASES: Record<string, SectionId> = { providers: 'ai', weather: 'widgets', location: 'widgets', calendar: 'connections', alerts: 'notifications', hotkeys: 'shortcuts', keyboard: 'shortcuts', updates: 'about', privacy: 'general' }
 
 /** Page id from a hash, a `settings://navigate` payload or a command. Unknown ids give null. */
 export function resolveSection(raw: unknown): SectionId | null {
@@ -302,6 +296,17 @@ export default function SettingsApp() {
                       <button type="button" class="button" onClick={replayTour}>Replay tour</button>
                     </Field>
                   </Group>
+<Group title="Privacy" description="Hover Island reads speaker output only while the island is open. Nothing is recorded or sent anywhere.">
+                    <Toggle label="Sound reactive effects" hint="Let the atmosphere follow what you hear" checked={settings.modules.visualizer} onChange={value => set({ modules: { ...settings.modules, visualizer: value } })} />
+                  </Group>
+                  <Group title="Search index" description="File names are indexed on this PC from your user folders. Nothing leaves it.">
+                    <Field label="Rebuild index" hint={indexStatus() || 'Runs in the background'}>
+                      <button type="button" class="button" disabled={indexing()} onClick={() => void reindex()}>
+                        <RefreshCw size={12} />
+                        {indexing() ? 'Indexing…' : 'Rebuild'}
+                      </button>
+                    </Field>
+                  </Group>
                 </div>
               </Match>
 
@@ -329,6 +334,20 @@ export default function SettingsApp() {
                   <Group title="Color">
                     <Field label="Accent color" hint="Buttons, meters and selected controls"><input class="set-color" type="color" aria-label="Accent color" value={settings.accent} onInput={event => set({ accent: event.currentTarget.value })} /></Field>
                     <Slider label="Opacity" hint={`${Math.round(settings.opacity * 100)}%`} min={0.9} max={1} step={0.01} value={settings.opacity} onInput={value => set({ opacity: value })} />
+                  </Group>
+                  <Group title="Album cover" description="How the cover looks in the media widget. Vinyl, CD and Float move while music plays." flush>
+                    <div class="scene-presets"><For each={[['classic', 'Classic'], ['vinyl', 'Vinyl'], ['cd', 'CD'], ['polaroid', 'Polaroid'], ['stack', 'Stack'], ['float', 'Float']] as const}>{([key, label]) => <button type="button" aria-pressed={settings.coverStyle === key} classList={{ selected: settings.coverStyle === key }} onClick={() => set({ coverStyle: key })}><span class={`cover-swatch cover-swatch--${key}`} aria-hidden="true" /><span>{label}</span></button>}</For></div>
+                  </Group>
+                  <Group title="Ambient mode" description="A calm full-screen clock, now playing and weather page that appears when you step away. Move the mouse or press any key to leave. It cannot show on the Windows lock screen, which Windows keeps closed to apps.">
+                    <Toggle label="Show when idle" hint="Starts after you stop using the PC" checked={settings.ambient.enabled} onChange={value => set({ ambient: { ...settings.ambient, enabled: value } })} />
+                    <Select label="Start after" value={String(settings.ambient.idleMinutes)} options={[['1', '1 minute'], ['2', '2 minutes'], ['5', '5 minutes'], ['10', '10 minutes'], ['15', '15 minutes'], ['30', '30 minutes'], ['60', '1 hour']]} onChange={value => set({ ambient: { ...settings.ambient, idleMinutes: Number(value) } })} />
+                    <Toggle label="Clock and date" checked={settings.ambient.clock} onChange={value => set({ ambient: { ...settings.ambient, clock: value } })} />
+                    <Toggle label="Now playing" hint="Uses your album cover style" checked={settings.ambient.media} onChange={value => set({ ambient: { ...settings.ambient, media: value } })} />
+                    <Toggle label="Weather" checked={settings.ambient.weather} onChange={value => set({ ambient: { ...settings.ambient, weather: value } })} />
+                    <Toggle label="Dim and drift" hint="Softer brightness and a slow wander to protect the screen" checked={settings.ambient.dim} onChange={value => set({ ambient: { ...settings.ambient, dim: value } })} />
+                    <Field label="Preview" hint="Opens it now. Move the mouse after a couple of seconds to close it.">
+                      <button type="button" class="button" onClick={() => void cmd.ambientOpen().catch(error => reportError('Could not open ambient mode', error))}>Preview</button>
+                    </Field>
                   </Group>
                   <Group title="Clock">
                     <Select label="Time font" value={settings.clockTypography} options={[['rounded', 'Rounded'], ['serif', 'Classic serif'], ['mono', 'Monospaced']]} onChange={value => set({ clockTypography: value })} />
@@ -381,6 +400,7 @@ export default function SettingsApp() {
                   <Group title="Arrange" description="Drag tiles to move them. Select a tile for size and page, or use Alt with the arrow keys to reorder." flush>
                     <WidgetManager />
                   </Group>
+<LocationPanel />
                 </div>
               </Match>
 
@@ -412,6 +432,7 @@ export default function SettingsApp() {
                   <NativeAppsPanel onNavigate={page => goTo(page)} />
                   <EmailCodesPanel />
                   <WebsiteConnectionsPanel />
+<CalendarConnectionsPanel />
                 </div>
               </Match>
 
@@ -423,34 +444,10 @@ export default function SettingsApp() {
                 <div class="settings__page"><ShortcutsPanel /></div>
               </Match>
 
-              <Match when={section() === 'calendar'}>
-                <div class="settings__page"><CalendarConnectionsPanel /></div>
-              </Match>
-
-              <Match when={section() === 'location'}>
-                <div class="settings__page"><LocationPanel /></div>
-              </Match>
-
-              <Match when={section() === 'privacy'}>
-                <div class="settings__page">
-                  <Group title="Audio" description="Hover Island reads speaker output only while the island is open. Nothing is recorded or sent anywhere.">
-                    <Toggle label="Sound reactive effects" hint="Let the atmosphere follow what you hear" checked={settings.modules.visualizer} onChange={value => set({ modules: { ...settings.modules, visualizer: value } })} />
-                  </Group>
-                  <Group title="Search index" description="File names are indexed on this PC from your user folders. Nothing leaves it.">
-                    <Field label="Rebuild index" hint={indexStatus() || 'Runs in the background'}>
-                      <button type="button" class="button" disabled={indexing()} onClick={() => void reindex()}>
-                        <RefreshCw size={12} />
-                        {indexing() ? 'Indexing…' : 'Rebuild'}
-                      </button>
-                    </Field>
-                  </Group>
-                </div>
-              </Match>
-
               <Match when={section() === 'about'}>
                 <div class="settings__page">
-                  <UpdatesPanel />
-                  <Group title="Hover Island" description="A Dynamic Island for Windows.">
+<UpdatesPanel />
+                  <Group title="About" description="Hover Island, a Dynamic Island for Windows.">
                     <Field label="Search shortcut" hint="Change it under Shortcuts">
                       <kbd class="set-kbd">{formatShortcut(settings.spotlightHotkey)}</kbd>
                     </Field>
@@ -460,6 +457,11 @@ export default function SettingsApp() {
                   </Group>
                 </div>
               </Match>
+
+
+
+
+
             </SwitchFlow>
             <Show when={noResults()}>
               <p class="settings__empty">Nothing here matches “{searchQuery().trim()}”.</p>

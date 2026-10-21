@@ -209,7 +209,22 @@ export default function Island() {
     if (transientPeek()) promotePeek()
     if (newlyEntered || (!open() && enterTimer===undefined)) scheduleHoverOpen()
   }
-  void onIslandHover(value => value ? enter() : leave()).then(fn => disposed ? fn() : unsubscribe = fn).catch(error => reportError('Hover tracking failed',error))
+  // What the native hover loop last said, and when the WebView last saw the pointer move.
+  // A DOM pointerover can arrive just after the native "left" event; without this the island
+  // believed the cursor was still inside and stayed open with nothing hovering it.
+  let nativeHover = false
+  let lastDomPointer = 0
+  void onIslandHover(value => { nativeHover = value; value ? enter() : leave() }).then(fn => disposed ? fn() : unsubscribe = fn).catch(error => reportError('Hover tracking failed',error))
+  const notePointer = () => { lastDomPointer = performance.now() }
+  window.addEventListener('pointermove', notePointer, { passive: true })
+  const hoverWatchdog = setInterval(() => {
+    if (browserPreview || !open()) return
+    const quietFor = performance.now() - lastDomPointer
+    if (pointerInside() && !nativeHover && quietFor > 1200) leave()
+    // Focus and similar non-reactive blockers can clear later; retry a pending close.
+    else if (leavePending && !pointerInside()) attemptClose()
+  }, 600)
+  onCleanup(() => { clearInterval(hoverWatchdog); window.removeEventListener('pointermove', notePointer) })
   // The resting shape for the current dock, with no peek or drop on top.
   const collapsedFrame = (): SpringFrame => barDock()
     ? { width: viewport().width, height: settings.collapsed.h, radius: 17 }
@@ -217,8 +232,8 @@ export default function Island() {
       ? { width: 72, height: viewport().height, radius: 24 }
       : sideNotch()
         // Native hover tracking assumes this 56 x 144 capsule, so keep it in step with placement.rs.
-        ? { width: SIDE_CAPSULE_W + proximity() * 6, height: SIDE_CAPSULE_H, radius: 22 }
-        : { width: settings.collapsed.w + (settings.placement.mode === 'notch' && settings.placement.edge === 'top' ? NOTCH_EAR * 2 : 0) + proximity() * 18, height: settings.collapsed.h, radius: settings.placement.mode === 'notch' && settings.placement.edge === 'top' ? NOTCH_RADIUS : Math.round(settings.collapsed.h / 2) }
+        ? { width: SIDE_CAPSULE_W + proximity() * 5, height: SIDE_CAPSULE_H, radius: 22 }
+        : { width: settings.collapsed.w + (settings.placement.mode === 'notch' && settings.placement.edge === 'top' ? NOTCH_EAR * 2 : 0) + proximity() * 10, height: settings.collapsed.h, radius: settings.placement.mode === 'notch' && settings.placement.edge === 'top' ? NOTCH_RADIUS : Math.round(settings.collapsed.h / 2) }
   // The dashboard itself. Left and right anchors expand into a narrow, edge-attached
   // panel; the transparent host just lets the spring clip reveal it.
   const expandedFrame = (): SpringFrame => {
@@ -270,7 +285,7 @@ export default function Island() {
       ? NOTCH_EAR * Math.max(0, Math.min(1, 1 - (frame.height - settings.collapsed.h) / 36))
       : 0
     if (ear > 0.5) {
-      node.style.setProperty('--island-clip', earNotchPath(viewSize.width, frame.width, frame.height, ear, Math.min(frame.radius, NOTCH_RADIUS)))
+      node.style.setProperty('--island-clip', earNotchPath(viewSize.width, frame.width, frame.height, ear, Math.min(frame.radius, NOTCH_RADIUS), magneticOffset.x))
       return
     }
     node.style.setProperty('--island-clip', tilted
@@ -289,7 +304,10 @@ export default function Island() {
   }
 
   const publishMagnet = (offset: { x: number; y: number }) => {
-    magneticOffset = offset
+    // A top notch is bolted to the display edge: it only leans sideways, never up or down.
+    const topNotch = settings.placement.mode === 'notch' && settings.placement.edge === 'top'
+    magneticOffset = topNotch ? { x: offset.x, y: 0 } : offset
+    offset = magneticOffset
     // Only the collapsed pill uses the offset, so scope the variable to it instead of
     // invalidating styles for the whole dashboard on every cursor move.
     collapsedElement?.style.setProperty('--magnet-x', `${offset.x.toFixed(2)}px`)
@@ -603,6 +621,7 @@ export default function Island() {
       }}
       onPointerLeave={() => { if (browserPreview) leave() }}
       onPointerOver={event => {
+        lastDomPointer = performance.now()
         if (open()) return
         if (event.target instanceof Element && event.target.closest('.pill__compact-controls, .pill__alert-badge')) {clearTimeout(enterTimer);enterTimer=undefined;return}
         enter()

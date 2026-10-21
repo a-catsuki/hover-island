@@ -148,7 +148,7 @@ export function collapseIsland(): void {
   setOpen(false)
   clearTimeout(collapseTimer)
   // Long enough for the close spring (see ISLAND_CLOSE_SETTLE_MS in motion.ts) to finish before the native window shrinks.
-  collapseTimer = setTimeout(finalizeCollapse, 300)
+  collapseTimer = setTimeout(finalizeCollapse, 420)
 }
 
 export function finalizeCollapse(): void {

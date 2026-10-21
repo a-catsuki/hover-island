@@ -7,6 +7,8 @@ import { emit as tauriEmit, listen as tauriListen, type EventCallback, type Unli
 import { previewInvoke, previewListen } from './preview'
 
 export const browserPreview = !isTauri()
+/** The marketing site embeds the real app in an iframe (?embed): no tour, no label, transparent page. */
+export const embedPreview = browserPreview && (() => { try { return new URLSearchParams(location.search).has('embed') } catch { return false } })()
 const invoke = <T,>(command: string, args?: Record<string, unknown>): Promise<T> =>
   browserPreview ? previewInvoke<T>(command, args, DEFAULT_SETTINGS) : tauriInvoke<T>(command, args)
 export const listen = <T,>(event: string, callback: EventCallback<T>): Promise<UnlistenFn> =>
@@ -303,6 +305,7 @@ export interface Settings {
   /** Provider ids that may raise toasts; empty means all. */
   aiToastProviders: string[]
   clockTypography: 'rounded' | 'serif' | 'mono'
+  coverStyle: 'classic' | 'vinyl' | 'cd' | 'polaroid' | 'stack' | 'float'
   clockHourCycle: '12' | '24'
   clockSeconds: boolean
   weatherLat?: number | null
@@ -327,9 +330,13 @@ export interface Settings {
     codex: boolean
     claudeCode: boolean
     cursor: boolean
+    hidden: string[]
+    claudeLiveLimits: boolean
     manual: boolean
     manualConfig: ManualUsage
   }
+  transfer: { trustedPhones: boolean }
+  ambient: AmbientSettings
   notifications: {
     enabled: boolean
     systemListener: boolean
@@ -391,6 +398,7 @@ export const DEFAULT_SETTINGS: Settings = {
   aiToastsEnabled: true,
   aiToastProviders: [],
   clockTypography: 'rounded',
+  coverStyle: 'classic',
   clockHourCycle: '12',
   clockSeconds: false,
   weatherAutoLocation: false,
@@ -402,9 +410,13 @@ export const DEFAULT_SETTINGS: Settings = {
     codex: true,
     claudeCode: true,
     cursor: true,
+    hidden: [],
+    claudeLiveLimits: true,
     manual: false,
     manualConfig: { label: 'Custom', used: null, limit: null, unit: 'tokens', resetAt: null },
   },
+  transfer: { trustedPhones: false },
+  ambient: { enabled: false, idleMinutes: 5, clock: true, media: true, weather: true, dim: true },
   notifications: { enabled: true, systemListener: true, sound: 'soft' },
   interaction: { hoverOpen: true, openDelayMs: 140, closeDelayMs: 450 },
 }
@@ -557,6 +569,8 @@ export const cmd = {
   airDropCapability: () => invoke<AirDropCapability>('airdrop_capability'),
 
   // temporary local-network phone bucket
+  ambientOpen: () => invoke<void>('ambient_open'),
+  ambientClose: () => invoke<void>('ambient_close'),
   transferStatus: () => invoke<TransferStatus>('transfer_status'),
   transferStart: () => invoke<TransferStatus>('transfer_start'),
   transferStageDroppedPaths: (paths: string[]) => invoke<TransferStatus>('transfer_stage_dropped_paths', { paths }),
@@ -846,6 +860,7 @@ export interface BluetoothManagedDevice {
   kind: string
   paired: boolean
   connected: boolean | null
+  available?: boolean | null
   batteryPct: number | null
   canConnect: boolean
   canDisconnect: boolean
@@ -1029,12 +1044,15 @@ export interface AirDropCapability {
   reason:string
 }
 
+export interface AmbientSettings { enabled: boolean; idleMinutes: number; clock: boolean; media: boolean; weather: boolean; dim: boolean }
 export interface TransferFile { id:string; name:string; size:number; createdAt:number }
 export interface TransferStatus {
   active:boolean
   phoneUrl:string | null
   desktopUrl:string | null
   bookmarkUrl:string | null
+  bookmarkHostUrl?:string | null
+  persistent?:boolean
   stableBookmark:boolean
   qrDataUrl:string | null
   expiresAt:number | null

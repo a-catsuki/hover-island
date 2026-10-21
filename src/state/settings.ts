@@ -26,6 +26,8 @@ function merge(current: Settings, patch: Partial<Settings>): Settings {
     modules: { ...current.modules, ...patch.modules },
     visualizer: { ...current.visualizer, ...patch.visualizer },
     notifications: { ...current.notifications, ...patch.notifications },
+    transfer: { ...current.transfer, ...patch.transfer },
+    ambient: { ...current.ambient, ...patch.ambient },
     interaction: { ...current.interaction, ...patch.interaction },
     panels: patch.panels ?? current.panels,
     panelOrder: Array.isArray(patch.panelOrder) ? patch.panelOrder : current.panelOrder,

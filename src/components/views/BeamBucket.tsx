@@ -6,6 +6,7 @@ import { createSpeedTracker, formatBytes, formatRemaining, formatSpeed, percentO
 import { nearby, sendNearby, approveNearby, startNearby, stopNearby, subscribeNearby } from '../../state/nearby'
 import { dismissFailedUploads, refreshTransfer, startTransfer, stopTransfer, transfer, transferUpload, uploads, type TransferUploadProgress } from '../../state/transfer'
 import { open } from '../../state/ui'
+import { applySettings, settings } from '../../state/settings'
 import './BeamBucket.css'
 
 type Tone = 'info' | 'error'
@@ -448,6 +449,18 @@ export default function BeamBucket() {
         <For each={pairing().devices}>{device => <li class="beam__row"><span class="beam__bubble-avatar beam__bubble-avatar--sm" data-kind="phone"><Smartphone size={16}/></span><div class="beam__row-text"><strong>{device.name}</strong><small classList={{ 'is-online': device.online }}>{device.online ? 'Connected' : 'Remembered'}</small></div><button class="beam__mini" disabled={busy()} aria-label={`Forget ${device.name}`} onClick={() => void action(() => cmd.transferPairingRemove(device.id))}>Forget</button></li>}</For>
       </ul>
       <Show when={!pairing().devices.length}><p class="beam__quiet">No remembered phones yet.</p></Show>
+      <div class="beam__row beam__trust">
+        <div class="beam__row-text"><strong>Connect without a QR code</strong><small>Phones you approved reach this PC on your Wi-Fi whenever Hover Island runs. New phones still need your approval.</small></div>
+        <button class="beam__mini" classList={{ 'beam__mini--primary': settings.transfer.trustedPhones }} aria-pressed={settings.transfer.trustedPhones} disabled={busy()} onClick={() => void action(async () => {
+          const next = !settings.transfer.trustedPhones
+          await applySettings({ transfer: { trustedPhones: next } })
+          if (next) await startTransfer(); else await stopTransfer()
+        })}>{settings.transfer.trustedPhones ? 'On' : 'Off'}</button>
+      </div>
+      <Show when={settings.transfer.trustedPhones && transfer().bookmarkUrl}>
+        <p class="beam__quiet">On a phone you already approved, bookmark this in Safari or Chrome and open it any time. No QR code needed: <code>{transfer().bookmarkUrl}</code></p>
+        <button class="beam__mini" onClick={() => void action(async () => { await navigator.clipboard.writeText(transfer().bookmarkUrl!); flash('Link copied') })}><Copy size={12}/> Copy</button>
+      </Show>
       <h3>Good to know</h3>
       <p>Transfers stay on your network and need your approval here. Files can be up to {formatBytes(transfer().maxFileBytes)}. Folders become ZIP files.</p>
       <Show when={transfer().active}><p>This session closes in {remaining()} min.</p></Show>

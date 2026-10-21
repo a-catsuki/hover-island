@@ -69,11 +69,14 @@
   height: var(--collapsed-h);
   contain: layout style;
   opacity: 1;
-  transition: opacity 140ms var(--ease-out);
+  /* On close the pill arrives a beat after the panel starts folding away, so the
+     two never show at once and the shape reads as one thing shrinking. */
+  transition: opacity 200ms var(--ease-out) 70ms;
 }
 .island--open .island__collapsed {
   opacity: 0;
-  transition-duration: 80ms;
+  transition-duration: 110ms;
+  transition-delay: 0ms;
   pointer-events: none;
 }
 .island__bar {
@@ -111,16 +114,16 @@
   pointer-events: none;
   contain: layout style;
   transition:
-    opacity 90ms linear,
-    transform 140ms var(--ease-out);
+    opacity 150ms var(--ease-out),
+    transform 260ms var(--ease-out);
 }
 .island--open .island__expanded {
   opacity: 1;
   transform: none;
   pointer-events: auto;
   transition:
-    opacity 170ms var(--ease-out) 40ms,
-    transform 340ms var(--spring-island);
+    opacity 240ms var(--ease-out) 50ms,
+    transform 460ms var(--spring-island);
 }
 /* Promote only while something moves, so a resting island holds no extra layers. */
 .island--moving .island__expanded { will-change: transform, opacity; }
@@ -228,16 +231,16 @@
 .island--open .widget-grid > .widget {
   /* `backwards`, not `both`: a forwards fill keeps every widget promoted to its own
      compositor layer (one GPU texture each) for as long as the island stays open. */
-  animation: platter-in 360ms var(--spring-island) backwards;
+  animation: platter-in 440ms var(--spring-island) backwards;
 }
-.island--open .widget-grid > .widget:nth-child(2) { animation-delay: 30ms; }
-.island--open .widget-grid > .widget:nth-child(3) { animation-delay: 60ms; }
-.island--open .widget-grid > .widget:nth-child(4) { animation-delay: 90ms; }
-.island--open .widget-grid > .widget:nth-child(n + 5) { animation-delay: 120ms; }
+.island--open .widget-grid > .widget:nth-child(2) { animation-delay: 40ms; }
+.island--open .widget-grid > .widget:nth-child(3) { animation-delay: 80ms; }
+.island--open .widget-grid > .widget:nth-child(4) { animation-delay: 120ms; }
+.island--open .widget-grid > .widget:nth-child(n + 5) { animation-delay: 160ms; }
 @keyframes platter-in {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.975);
+    transform: translateY(10px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -466,3 +469,7 @@ body:has(.preview-label) .island-stage {
 @media (prefers-contrast: more) {
   .widget { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4); }
 }
+
+/* The marketing site embeds the preview: the material stays solid over its page. */
+html.embed body, html.embed #root { background: transparent; }
+html.embed .island { --island-opacity: 1 !important; }

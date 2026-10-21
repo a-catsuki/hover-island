@@ -44,3 +44,23 @@
 .nat-chip--ok { background: rgba(48, 209, 88, 0.16); color: #30d158; }
 .nat-row { border-radius: 9px; transition: background 140ms ease; }
 .nat-row:hover { background: rgba(255, 255, 255, 0.04); }
+
+/* Bento layout: connected apps and suggestions as tiles. */
+.nat-bento { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 8px; padding: 12px; }
+.nat-bento__wide { grid-column: 1 / -1; }
+.nat-bento__label { margin: 2px 16px 0; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--st-t3, rgba(255, 255, 255, 0.38)); }
+.nat-tile { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 56px; padding: 10px 12px; box-sizing: border-box; border: 0; border-radius: 13px; background: rgba(255, 255, 255, 0.055); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08); color: inherit; font: inherit; text-align: left; transition: background 140ms ease, transform 140ms ease, opacity 140ms ease; }
+.nat-tile:hover { background: rgba(255, 255, 255, 0.09); }
+.nat-tile--off { opacity: 0.6; }
+.nat-tile__text { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 1px; }
+.nat-tile__text strong { overflow: hidden; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.nat-tile__text small { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; color: var(--st-t3, rgba(255, 255, 255, 0.45)); }
+.nat-tile__x { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; background: rgba(60, 60, 64, 0.95); box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.18); opacity: 0; transition: opacity 120ms ease; }
+.nat-tile:hover .nat-tile__x, .nat-tile:focus-within .nat-tile__x { opacity: 1; }
+.nat-tile--suggest { cursor: pointer; }
+.nat-tile--suggest:active { transform: scale(0.98); }
+.nat-tile__add { display: grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--st-blue, #0a84ff); color: #fff; }
+.nat-browse { display: flex; align-items: center; justify-content: space-between; width: calc(100% - 24px); margin: 4px 12px 12px; padding: 9px 12px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.05); color: var(--st-t2, rgba(255, 255, 255, 0.7)); font: inherit; font-size: 12px; cursor: pointer; }
+.nat-browse:hover { background: rgba(255, 255, 255, 0.09); }
+.nat-browse__chev { transition: transform 180ms ease; }
+.nat-browse__chev--open { transform: rotate(180deg); }

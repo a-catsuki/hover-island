@@ -30,15 +30,15 @@ export const NATIVE_APPS: readonly NativeAppEntry[] = [
   { id: 'native:teams', name: 'Microsoft Teams', sources: ['Microsoft Teams', 'Teams'], hint: 'Chats, calls and meeting reminders', group: 'chat' },
   { id: 'native:whatsapp', name: 'WhatsApp', sources: ['WhatsApp', 'WhatsApp Desktop'], hint: 'Messages from the desktop app', group: 'chat' },
   { id: 'native:telegram', name: 'Telegram', sources: ['Telegram', 'Telegram Desktop'], hint: 'Messages from the desktop app', group: 'chat' },
-  { id: 'native:zoom', name: 'Zoom', sources: ['Zoom'], hint: 'Meeting and chat alerts', group: 'chat' },
+  { id: 'native:zoom', name: 'Zoom', sources: ['Zoom', 'Zoom Workplace'], hint: 'Meeting and chat alerts', group: 'chat' },
   { id: 'native:outlook', name: 'Outlook', sources: ['Outlook', 'Microsoft Outlook'], hint: 'New mail and calendar reminders', group: 'mail' },
   { id: 'native:mail', name: 'Mail', sources: ['Mail', 'Mail and Calendar'], hint: 'The Windows Mail app', group: 'mail' },
   { id: 'native:calendar', name: 'Calendar', sources: ['Calendar'], hint: 'Windows Calendar reminders', group: 'mail' },
-  { id: 'native:thunderbird', name: 'Thunderbird', sources: ['Thunderbird'], hint: 'New mail', group: 'mail' },
+  { id: 'native:thunderbird', name: 'Thunderbird', sources: ['Thunderbird', 'Mozilla Thunderbird'], hint: 'New mail', group: 'mail' },
   { id: 'native:phonelink', name: 'Phone Link', sources: ['Phone Link', 'Your Phone'], hint: 'Calls, texts and app alerts from your phone', group: 'phone' },
   { id: 'native:claude', name: 'Claude', sources: ['Claude'], hint: 'The Claude desktop app', group: 'ai' },
   { id: 'native:chatgpt', name: 'ChatGPT', sources: ['ChatGPT'], hint: 'The ChatGPT desktop app', group: 'ai' },
-  { id: 'native:terminal', name: 'Windows Terminal', sources: ['Windows Terminal'], hint: 'Terminal alerts, including AI command line tools', group: 'ai' },
+  { id: 'native:terminal', name: 'Windows Terminal', sources: ['Windows Terminal', 'Terminal'], hint: 'Terminal alerts, including AI command line tools', group: 'ai' },
 ]
 
 export type NativeAppState = 'default' | 'connected' | 'muted'

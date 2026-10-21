@@ -1,0 +1,16 @@
+# Only marketing/ is the site. Keep everything else out of root deploys.
+src-tauri
+src
+node_modules
+dist
+target
+packaging
+backups
+video
+tests
+scripts
+*.msix
+*.cer
+*.log
+build-log.txt
+.git

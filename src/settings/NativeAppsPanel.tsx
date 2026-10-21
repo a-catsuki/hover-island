@@ -99,7 +99,7 @@ export default function NativeAppsPanel(props: { onNavigate: Navigate }) {
     >
       <Show when={rules().length} fallback={<p class="nat-empty">No apps connected yet. Switch one on in the list below.</p>}>
         <For each={rules()}>{rule => <div class="set-row nat-row">
-          <AppLogo app={rule.name} icon={rule.icon} size={30} />
+          <AppLogo app={rule.name} aliases={rule.notificationSources} icon={rule.icon} size={30} />
           <span class="set-row__text">
             <strong>{rule.name}</strong>
             <small>{rule.notifications ? 'Connected. Alerts show in the island.' : 'Switched off. Alerts are silenced.'}</small>
@@ -150,7 +150,7 @@ export default function NativeAppsPanel(props: { onNavigate: Navigate }) {
           return <Show when={items().length}>
             <Subhead title={group.label} />
             <For each={items()}>{entry => <div class="set-row nat-row">
-              <AppLogo app={entry.name} size={30} />
+              <AppLogo app={entry.name} aliases={entry.sources} size={30} />
               <span class="set-row__text"><strong>{entry.name}</strong><small>{entry.hint}</small></span>
               <span class="set-row__control"><button type="button" class="button" aria-label={`Connect ${entry.name}`} onClick={() => connectEntry(entry.id)}>Connect</button></span>
             </div>}</For>

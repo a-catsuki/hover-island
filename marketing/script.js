@@ -790,3 +790,17 @@
     onScroll();
   })();
 })();
+
+
+/* Hero demo: scale the embedded app (laid out at 880 x 576) to the screen it sits in. */
+(function () {
+  var frame = document.getElementById('hero-app');
+  if (!frame || !frame.parentElement) return;
+  var fit = function () {
+    var width = frame.parentElement.clientWidth;
+    if (width) frame.style.setProperty('--app-scale', String(width / 880));
+  };
+  fit();
+  window.addEventListener('resize', fit);
+  if ('ResizeObserver' in window) new ResizeObserver(fit).observe(frame.parentElement);
+})();

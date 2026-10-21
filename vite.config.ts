@@ -3,6 +3,8 @@ import solid from 'vite-plugin-solid'
 
 export default defineConfig({
   plugins: [solid()],
+  // Shown in Settings so you can tell at a glance which build is installed.
+  define: { __BUILD_TIME__: JSON.stringify(new Date().toISOString()) },
   clearScreen: false,
   server: {
     port: 1420,
@@ -14,7 +16,7 @@ export default defineConfig({
     minify: 'esbuild',
     sourcemap: false,
     rollupOptions: {
-      input: { main: 'index.html', settings: 'settings.html' },
+      input: { main: 'index.html', settings: 'settings.html', ambient: 'ambient.html' },
     },
   },
 })

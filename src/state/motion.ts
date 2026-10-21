@@ -14,8 +14,11 @@ export interface MagneticOffset {
   y: number
 }
 
+/** The pill only leans a few pixels toward the cursor; anything more reads as a wobble. */
+export const MAGNET_MAX = 9
+
 export function clampMagneticOffset(offset: MagneticOffset): MagneticOffset {
-  const clamp = (value: number) => Number.isFinite(value) ? Math.max(-6, Math.min(6, value)) : 0
+  const clamp = (value: number) => Number.isFinite(value) ? Math.max(-MAGNET_MAX, Math.min(MAGNET_MAX, value)) : 0
   return { x: clamp(offset.x), y: clamp(offset.y) }
 }
 
@@ -28,8 +31,8 @@ export function stepMagneticOffset(
   const bounded = clampMagneticOffset(target)
   if (reducedMotion) return { x: { value: 0, velocity: 0 }, y: { value: 0, velocity: 0 } }
   return {
-    x: stepSpring(state.x, bounded.x, deltaSeconds, 300, 0.78),
-    y: stepSpring(state.y, bounded.y, deltaSeconds, 300, 0.78),
+    x: stepSpring(state.x, bounded.x, deltaSeconds, 190, 0.5),
+    y: stepSpring(state.y, bounded.y, deltaSeconds, 190, 0.5),
   }
 }
 
@@ -72,8 +75,8 @@ export function createMagneticSpring(onFrame: (offset: MagneticOffset) => void, 
     impulse(offset: MagneticOffset) {
       if (disposed || reducedMotion()) return
       const bounded = clampMagneticOffset(offset)
-      current.x.velocity += bounded.x * 12
-      current.y.velocity += bounded.y * 12
+      current.x.velocity += bounded.x * 9
+      current.y.velocity += bounded.y * 9
       schedule()
     },
     retarget(next: MagneticOffset) {
@@ -135,12 +138,12 @@ export function springStiffness(responseSeconds: number): number {
 
 /** Opening is quick with a hint of life (under 1% overshoot); closing is firm and never rebounds. */
 export const ISLAND_SPRING = {
-  open: { stiffness: springStiffness(0.34), damping: 0.82 },
-  close: { stiffness: springStiffness(0.26), damping: 0.94 },
+  open: { stiffness: springStiffness(0.4), damping: 0.86 },
+  close: { stiffness: springStiffness(0.31), damping: 0.98 },
 } as const
 
-/** The close spring is visually done by about 280ms; the native window may shrink after this. */
-export const ISLAND_CLOSE_SETTLE_MS = 300
+/** The close spring is visually done by about 340ms; the native window may shrink after this. */
+export const ISLAND_CLOSE_SETTLE_MS = 360
 
 export function createIslandSpring(
   initial: SpringFrame,

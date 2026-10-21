@@ -4,6 +4,10 @@ import { patchSettings, settings } from '../state/settings'
 import { Field, Group, Toggle } from './controls'
 
 /** Check for a newer build and install it in place. Settings and data stay as they are. */
+const builtAt = () => {
+  try { return new Date(typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : '').toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) } catch { return 'unknown' }
+}
+
 export default function UpdatesPanel() {
   const [status, setStatus] = createSignal<UpdateStatus | null>(null)
   const [busy, setBusy] = createSignal<'idle' | 'checking' | 'installing'>('idle')
@@ -58,7 +62,7 @@ export default function UpdatesPanel() {
 
   return (
     <Group title="Updates" description="Get new builds without uninstalling the old one.">
-      <Field label={headline()} hint={`Installed version ${status()?.current ?? ''}`.trim()}>
+      <Field label={headline()} hint={`Installed version ${status()?.current ?? ''} · built ${builtAt()}`}>
         <Show when={status()?.available && busy() !== 'checking'} fallback={
           <button type="button" class="button" disabled={busy() !== 'idle'} onClick={() => void check()}>Check for updates</button>
         }>

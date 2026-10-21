@@ -14,7 +14,17 @@ use crate::types::NowPlaying;
 
 /// (title|artist, data-url or "" for a known miss). Avoids re-reading art every second.
 /// Misses are retried after a few seconds: players often publish the title before the artwork.
-static THUMB_CACHE: Mutex<Option<(String, String, Instant)>> = Mutex::new(None);
+struct ThumbEntry {
+    key: String,
+    data: String,
+    at: Instant,
+    first_seen: Instant,
+    /// False while a possibly stale cover is being re-read.
+    settled: bool,
+    /// The previous track's cover, kept to spot a stale repeat.
+    previous: Option<String>,
+}
+static THUMB_CACHE: Mutex<Option<ThumbEntry>> = Mutex::new(None);
 
 /// Position last reported to the frontend for the current track. While playback advances
 /// normally the same value is reported again, so the poller does not re-emit (and re-send
@@ -25,6 +35,49 @@ struct PositionAnchor {
     at: Instant,
 }
 static POSITION_ANCHOR: Mutex<Option<PositionAnchor>> = Mutex::new(None);
+
+/// What the player's timeline does between polls. Spotify publishes a position plus the time it
+/// was valid at, so we must add the elapsed time. Some players (Apple Music) publish a position
+/// that is already live while `LastUpdatedTime` stays old; adding elapsed time to that runs the
+/// clock far ahead and the lyrics drift. We learn which kind it is from two consecutive samples.
+struct TimelineSample {
+    key: String,
+    raw: f64,
+    last_updated: i64,
+    at: Instant,
+    /// Some(true): raw already tracks real time. Some(false): raw is a stale snapshot.
+    live: Option<bool>,
+}
+static TIMELINE_SAMPLE: Mutex<Option<TimelineSample>> = Mutex::new(None);
+
+fn raw_position_is_live(key: &str, raw: f64, last_updated: i64) -> bool {
+    let Ok(mut slot) = TIMELINE_SAMPLE.lock() else {
+        return false;
+    };
+    let mut live = None;
+    if let Some(prev) = slot.as_ref() {
+        if prev.key == key {
+            live = prev.live;
+            let wall = prev.at.elapsed().as_secs_f64();
+            if wall >= 0.9 {
+                let moved = raw - prev.raw;
+                if prev.last_updated == last_updated {
+                    // Same stamp, so a snapshot can only move if the player updates it live.
+                    if (moved - wall).abs() <= 1.0 && moved > 0.5 {
+                        live = Some(true);
+                    } else if moved.abs() < 0.2 {
+                        live = Some(false);
+                    }
+                }
+            }
+        }
+    }
+    let keep_sample = slot.as_ref().map(|prev| prev.key == key && prev.at.elapsed().as_secs_f64() < 0.9).unwrap_or(false);
+    if !keep_sample {
+        *slot = Some(TimelineSample { key: key.to_string(), raw, last_updated, at: Instant::now(), live });
+    }
+    live.unwrap_or(false)
+}
 
 // WinRT requires the calling thread to have a COM apartment. Tauri worker threads and our
 // own background thread do NOT have one by default, which made every media call fail silently.
@@ -107,13 +160,21 @@ pub fn get_checked() -> Result<Option<NowPlaying>, String> {
             return raw;
         }
         // Windows only publishes the position as of `LastUpdatedTime`, so bring it up to now.
-        let now_position = advance_position(
-            raw,
-            timeline.duration,
-            timeline.last_updated_ticks,
-            now_filetime_ticks(),
-        );
-        anchored_position(&format!("{title}\u{1}{artist}"), now_position)
+        let key = format!("{title}\u{1}{artist}");
+        let live = raw_position_is_live(&key, raw, timeline.last_updated_ticks);
+        let now_position = if live {
+            raw
+        } else {
+            advance_position(
+                raw,
+                timeline.duration,
+                timeline.last_updated_ticks,
+                now_filetime_ticks(),
+            )
+        };
+        // Report the live value. The WebView keeps its own smooth clock and only resyncs on a real jump;
+        // re-sending an old anchored value made the clock snap backwards whenever art or metadata changed.
+        now_position
     });
     let thumbnail = thumb_cached(&props, &title, &artist);
 
@@ -141,24 +202,50 @@ fn thumb_cached(
     title: &str,
     artist: &str,
 ) -> Option<String> {
+    // Players often publish the new title a moment before the new artwork, so right after an
+    // automatic transition Windows can still hand back the previous track's cover. A cover that
+    // is byte-identical to the previous track's is held back and re-read for a few seconds.
+    const SETTLE: Duration = Duration::from_millis(3500);
+    const RETRY: Duration = Duration::from_millis(1200);
     let key = format!("{title}\u{1}{artist}");
+    let mut previous: Option<String> = None;
+    let mut first_seen = Instant::now();
     if let Ok(cache) = THUMB_CACHE.lock() {
-        if let Some((k, v, at)) = cache.as_ref() {
-            if *k == key {
-                if !v.is_empty() {
-                    return Some(v.clone());
-                }
-                if at.elapsed() < Duration::from_secs(4) {
+        if let Some(entry) = cache.as_ref() {
+            if entry.key == key {
+                first_seen = entry.first_seen;
+                if !entry.settled {
+                    if entry.at.elapsed() < RETRY {
+                        return None;
+                    }
+                    previous = entry.previous.clone();
+                } else if !entry.data.is_empty() {
+                    return Some(entry.data.clone());
+                } else if entry.at.elapsed() < RETRY {
                     return None;
                 }
+            } else {
+                previous = Some(entry.data.clone()).filter(|data| !data.is_empty()).or_else(|| entry.previous.clone());
             }
         }
     }
     let data = read_thumbnail(props);
+    let stale = match (&data, &previous) {
+        (Some(new), Some(old)) => new == old,
+        _ => false,
+    };
+    let settled = !stale || first_seen.elapsed() >= SETTLE;
     if let Ok(mut cache) = THUMB_CACHE.lock() {
-        *cache = Some((key, data.clone().unwrap_or_default(), Instant::now()));
+        *cache = Some(ThumbEntry {
+            key,
+            data: if stale && !settled { String::new() } else { data.clone().unwrap_or_default() },
+            at: Instant::now(),
+            first_seen,
+            settled,
+            previous,
+        });
     }
-    data
+    if stale && !settled { None } else { data }
 }
 
 fn read_thumbnail(
@@ -324,6 +411,7 @@ fn stable_position(anchor: Option<(f64, f64)>, now_position: f64, tolerance: f64
     }
 }
 
+#[allow(dead_code)]
 fn anchored_position(key: &str, now_position: f64) -> f64 {
     let Ok(mut slot) = POSITION_ANCHOR.lock() else {
         return now_position;

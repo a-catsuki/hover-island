@@ -20,6 +20,8 @@ pub struct BluetoothDevice {
     pub kind: String,
     pub paired: bool,
     pub connected: Option<bool>,
+    /// In range right now (Windows reports it as present), so it can be connected without hunting for it.
+    pub available: Option<bool>,
     pub battery_pct: Option<u8>,
     pub can_connect: bool,
     pub can_disconnect: bool,
@@ -139,6 +141,7 @@ mod platform {
     const CONNECTED_PROPERTY: &str = "System.Devices.Aep.IsConnected";
     const CONTAINER_PROPERTY: &str = "System.Devices.Aep.ContainerId";
     const PAIRED_PROPERTY: &str = "System.Devices.Aep.IsPaired";
+    const PRESENT_PROPERTY: &str = "System.Devices.Aep.IsPresent";
     const ADDRESS_PROPERTY: &str = "System.Devices.Aep.DeviceAddress";
     /// Classic Bluetooth and Bluetooth LE protocol ids for association endpoints.
     const CLASSIC_AEP_FILTER: &str =
@@ -456,6 +459,7 @@ mod platform {
                 kind: "device".into(),
                 paired: true,
                 connected,
+                available: None,
                 battery_pct,
                 can_connect: false,
                 can_disconnect: false,
@@ -520,7 +524,7 @@ mod platform {
                 .and_then(|value| value.GetString().ok())
                 .and_then(|text| parse_address(&text.to_string()))
                 .or_else(|| parse_address(&raw_id.to_string()));
-            out.push(build_device(
+            let mut device = build_device(
                 raw_id,
                 name,
                 connected,
@@ -529,7 +533,11 @@ mod platform {
                 address,
                 low_energy,
                 origin == Origin::Aep,
-            ));
+            );
+            device.public.available = lookup(PRESENT_PROPERTY)
+                .and_then(|value| value.GetBoolean().ok())
+                .or_else(|| connected.filter(|on| *on));
+            out.push(device);
         }
         out
     }
@@ -542,6 +550,7 @@ mod platform {
             &[
                 PAIRED_PROPERTY,
                 CONNECTED_PROPERTY,
+                PRESENT_PROPERTY,
                 ADDRESS_PROPERTY,
                 CONTAINER_PROPERTY,
                 BATTERY_PROPERTY,
@@ -549,6 +558,7 @@ mod platform {
             &[
                 PAIRED_PROPERTY,
                 CONNECTED_PROPERTY,
+                PRESENT_PROPERTY,
                 ADDRESS_PROPERTY,
                 CONTAINER_PROPERTY,
             ],
@@ -778,7 +788,7 @@ mod platform {
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command",
-                "Get-PnpDevice -Class Bluetooth -PresentOnly | Select-Object FriendlyName,InstanceId | ConvertTo-Json -Compress",
+                "Get-PnpDevice -Class Bluetooth | Select-Object FriendlyName,InstanceId | ConvertTo-Json -Compress",
             ])
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -851,6 +861,87 @@ mod platform {
         Ok(out)
     }
 
+
+    /// The same association-endpoint query, run in a separate Windows PowerShell process.
+    /// Used only when the in-process queries and the PnP listing found nothing, so a
+    /// per-app restriction (packaged identity, apartment quirks) cannot hide paired devices.
+    fn read_powershell_winrt() -> Result<Vec<NativeDevice>, String> {
+        use std::os::windows::process::CommandExt;
+        use std::process::{Command, Stdio};
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        const SCRIPT: &str = r#"
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+[void][Windows.Devices.Enumeration.DeviceInformation, Windows.Devices.Enumeration, ContentType = WindowsRuntime]
+$m = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' } | Select-Object -First 1
+$props = [string[]]@('System.Devices.Aep.IsPaired', 'System.Devices.Aep.IsConnected', 'System.Devices.Aep.DeviceAddress')
+$out = @()
+foreach ($protocol in '{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}', '{bb7bb05e-5972-42b5-94fc-76eaa7084d49}') {
+  $op = [Windows.Devices.Enumeration.DeviceInformation]::FindAllAsync('System.Devices.Aep.ProtocolId:="' + $protocol + '"', $props, [Windows.Devices.Enumeration.DeviceInformationKind]::AssociationEndpoint)
+  $task = $m.MakeGenericMethod([Windows.Devices.Enumeration.DeviceInformationCollection]).Invoke($null, @($op))
+  if (-not $task.Wait(8000)) { throw 'The Bluetooth query timed out.' }
+  foreach ($d in $task.Result) {
+    if ($d.Properties['System.Devices.Aep.IsPaired'] -eq $true) {
+      $out += @{ n = [string]$d.Name; a = [string]$d.Properties['System.Devices.Aep.DeviceAddress']; c = $d.Properties['System.Devices.Aep.IsConnected']; le = ($protocol -like '{bb7*') }
+    }
+  }
+}
+ConvertTo-Json -InputObject @($out) -Compress
+"#;
+        use base64::Engine;
+        let utf16: Vec<u8> = SCRIPT.encode_utf16().flat_map(|unit| unit.to_le_bytes()).collect();
+        let encoded = base64::engine::general_purpose::STANDARD.encode(utf16);
+        let mut child = Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &encoded])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|error| format!("PowerShell could not start: {error}"))?;
+        let deadline = Instant::now() + Duration::from_secs(12);
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) if Instant::now() >= deadline => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err("PowerShell timed out.".into());
+                }
+                Ok(None) => thread::sleep(ASYNC_POLL),
+                Err(error) => return Err(format!("PowerShell failed: {error}")),
+            }
+        }
+        let output = child
+            .wait_with_output()
+            .map_err(|error| format!("PowerShell failed: {error}"))?;
+        if !output.status.success() {
+            let detail = String::from_utf8_lossy(&output.stderr);
+            let first = detail.lines().find(|line| !line.trim().is_empty()).unwrap_or("no details");
+            return Err(format!("PowerShell could not query Bluetooth: {}", safe_name(first)));
+        }
+        let text = String::from_utf8_lossy(&output.stdout);
+        let text = text.trim();
+        if text.is_empty() {
+            return Ok(Vec::new());
+        }
+        let rows = match serde_json::from_str::<serde_json::Value>(text)
+            .map_err(|_| "PowerShell returned unreadable output.".to_string())?
+        {
+            serde_json::Value::Array(rows) => rows,
+            other => vec![other],
+        };
+        let mut out = Vec::new();
+        for row in rows.into_iter().take(MAX_DEVICES) {
+            let name = safe_name(row.get("n").and_then(|value| value.as_str()).unwrap_or_default());
+            let address = row.get("a").and_then(|value| value.as_str()).and_then(parse_address);
+            let connected = row.get("c").and_then(|value| value.as_bool());
+            let low_energy = row.get("le").and_then(|value| value.as_bool()).unwrap_or(false);
+            out.push(build_device(HSTRING::new(), name, connected, None, None, address, low_energy, false));
+        }
+        Ok(out)
+    }
+
     /* ----------------------------------- merge ----------------------------------- */
 
     fn merge_candidates(mut candidates: Vec<NativeDevice>) -> Vec<NativeDevice> {
@@ -873,6 +964,9 @@ mod platform {
                     }
                     if existing.public.connected.is_none() {
                         existing.public.connected = device.public.connected;
+                    }
+                    if existing.public.available != Some(true) && device.public.available.is_some() {
+                        existing.public.available = device.public.available;
                     }
                     if existing.public.battery_pct.is_none() {
                         existing.public.battery_pct = device.public.battery_pct;
@@ -964,6 +1058,11 @@ mod platform {
         if values.is_empty() {
             let mut extra = Vec::new();
             push_report(&mut reports, &mut extra, "PowerShell", read_powershell());
+            values = merge_candidates(extra);
+        }
+        if values.is_empty() {
+            let mut extra = Vec::new();
+            push_report(&mut reports, &mut extra, "PowerShell (Windows API)", read_powershell_winrt());
             values = merge_candidates(extra);
         }
 

@@ -72,6 +72,20 @@ export function activeLineIndex(lines: ReadonlyArray<{ at: number }>, position: 
   return found
 }
 
+/**
+ * 0..1 progress through line `index`: time since its stamp over the gap to the next line.
+ * Long gaps (an instrumental after the line) are capped so the fill tracks the singing, not the silence.
+ */
+export function lineProgress(lines: ReadonlyArray<{ at: number; text?: string }>, index: number, position: number, duration = 0, lead = LYRICS_LEAD_SECONDS): number {
+  const line = lines[index]
+  if (!line || !Number.isFinite(position)) return 0
+  const next = lines[index + 1]?.at ?? (duration > line.at ? duration : line.at + 4)
+  const chars = Math.max(1, (line.text ?? '').length)
+  // Roughly 14 characters a second when sung, never shorter than a second.
+  const sung = Math.max(1, Math.min(next - line.at, chars / 14 + 0.6))
+  return Math.max(0, Math.min(1, (position + lead - line.at) / sung))
+}
+
 /** Which untimed line to centre: playback progress mapped across the lines. */
 export function untimedLineIndex(lineCount: number, position: number, duration: number): number {
   if (lineCount <= 0 || !(duration > 0)) return 0

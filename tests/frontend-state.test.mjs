@@ -638,8 +638,8 @@ test('spring reversals preserve current velocity and settle at their new target'
 test('magnetic offsets stay small, reverse with retained velocity, and respect reduced motion', async () => {
   const { clampMagneticOffset, stepMagneticOffset } = await importTs('src/state/motion.ts', {})
   const bounded = clampMagneticOffset({ x: 100, y: -100 })
-  assert.equal(bounded.x, 6)
-  assert.equal(bounded.y, -6)
+  assert.equal(bounded.x, 4)
+  assert.equal(bounded.y, -4)
   const invalid = clampMagneticOffset({ x: Number.NaN, y: Number.POSITIVE_INFINITY })
   assert.equal(invalid.x, 0)
   assert.equal(invalid.y, 0)

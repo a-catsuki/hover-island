@@ -103,7 +103,7 @@ export default function ProvidersPanel() {
 
   return (
     <div class="providers">
-      <Group title="AI tools on this PC" description="Based on installed tools, running apps and recent local session activity. Nothing is uploaded and no secrets are read.">
+      <Group title="AI tools on this PC" description="Based on installed tools, running apps and recent local session activity. Nothing is uploaded.">
         <div class="providers__toolbar">
           <span class="providers__summary" role="status">
             {detecting() ? 'Scanning…' : `${detected().length} ${detected().length === 1 ? 'tool' : 'tools'} found`}
@@ -120,6 +120,12 @@ export default function ProvidersPanel() {
           <p class="providers__empty">No AI tools found on this PC.</p>
         </Show>
         <For each={detected()}>{(provider) => <ProviderRow provider={provider} />}</For>
+        <Toggle
+          label="Claude session and weekly limits"
+          hint="Asks Claude for how much of your plan is left, using the sign-in Claude Code already has. The token goes only to Anthropic and is never stored"
+          checked={settings.usage.claudeLiveLimits}
+          onChange={(value) => patchSettings({ usage: { ...settings.usage, claudeLiveLimits: value } })}
+        />
         <p class="providers__note">
           Toggles control which supported usage reports appear in the widget. A running tool may appear here even when it does not expose local quota data.
         </p>

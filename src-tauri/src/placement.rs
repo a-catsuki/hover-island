@@ -561,10 +561,11 @@ pub fn magnetic_offset(
     }) as f64;
     let distance = dx.hypot(dy) / valid_scale(scale);
     const RADIUS: f64 = 96.0;
+    const MAX_PULL: f64 = 4.0;
     if distance <= f64::EPSILON || distance >= RADIUS {
         return None;
     }
-    let magnitude = 6.0 * (std::f64::consts::PI * distance / RADIUS).sin();
+    let magnitude = MAX_PULL * (std::f64::consts::PI * distance / RADIUS).sin();
     let logical_dx = dx / valid_scale(scale);
     let logical_dy = dy / valid_scale(scale);
     Some((
@@ -808,13 +809,13 @@ mod tests {
         let bounds = (100, 100, 40, 128);
         let offset = magnetic_offset(140, 52, bounds, 1.0).unwrap();
         assert!(offset.0.abs() < 0.01);
-        assert!(offset.1 < 0.0 && offset.1.abs() <= 6.0);
+        assert!(offset.1 < 0.0 && offset.1.abs() <= 4.0);
         assert!(magnetic_offset(120, 120, bounds, 1.0).is_none());
         assert!(magnetic_offset(100, 4, bounds, 1.0).is_none());
         for distance in [1, 10, 24, 48, 90] {
             let offset = magnetic_offset(100 - distance, 180, bounds, 1.0).unwrap();
             assert!(offset.0.hypot(offset.1) < f64::from(distance));
-            assert!(offset.0.hypot(offset.1) <= 6.0);
+            assert!(offset.0.hypot(offset.1) <= 4.0);
         }
     }
 }

@@ -95,8 +95,23 @@ pub struct UsageCfg {
     pub codex: bool,
     pub claude_code: bool,
     pub cursor: bool,
+    /// Ids of detected tools (gemini, opencode, copilot, aider...) that have no switch of their own and are switched off.
+    pub hidden: Vec<String>,
+    /// Ask Claude for the session and weekly plan limits using Claude Code's own sign-in.
+    pub claude_live_limits: bool,
     pub manual: bool,
     pub manual_config: ManualUsage,
+}
+impl UsageCfg {
+    /// Whether a provider's usage and alerts are turned on in Settings.
+    pub fn shows(&self, id: &str) -> bool {
+        match id {
+            "codex" => self.codex,
+            "claude-code" => self.claude_code,
+            "cursor" => self.cursor,
+            other => !self.hidden.iter().any(|item| item == other),
+        }
+    }
 }
 impl Default for UsageCfg {
     fn default() -> Self {
@@ -104,6 +119,8 @@ impl Default for UsageCfg {
             codex: true,
             claude_code: true,
             cursor: true,
+            hidden: Vec::new(),
+            claude_live_limits: true,
             manual: false,
             manual_config: ManualUsage {
                 label: "Custom".into(),
@@ -111,6 +128,37 @@ impl Default for UsageCfg {
                 ..Default::default()
             },
         }
+    }
+}
+
+/// Ambient mode: a full-screen clock, now playing and weather screen that appears after you stop using the PC.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AmbientCfg {
+    pub enabled: bool,
+    pub idle_minutes: u32,
+    pub clock: bool,
+    pub media: bool,
+    pub weather: bool,
+    /// Dim everything and drift slowly so a still image never burns into the screen.
+    pub dim: bool,
+}
+impl Default for AmbientCfg {
+    fn default() -> Self {
+        Self { enabled: false, idle_minutes: 5, clock: true, media: true, weather: true, dim: true }
+    }
+}
+
+/// File Beam options.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TransferCfg {
+    /// Keep the Beam server running so phones you already approved connect without a QR code.
+    pub trusted_phones: bool,
+}
+impl Default for TransferCfg {
+    fn default() -> Self {
+        Self { trusted_phones: false }
     }
 }
 
@@ -212,6 +260,8 @@ pub struct Settings {
     /// Provider ids that may raise toasts. Empty means every provider.
     pub ai_toast_providers: Vec<String>,
     pub clock_typography: String,
+    /// How the media widget draws the album cover: classic, vinyl, cd, polaroid, stack or float.
+    pub cover_style: String,
     pub clock_hour_cycle: String,
     pub clock_seconds: bool,
     /// Manual weather coordinates. Automatic lookup requires weather_auto_location.
@@ -225,6 +275,8 @@ pub struct Settings {
     pub visualizer: VisualizerCfg,
     pub dock: Vec<DockItem>,
     pub usage: UsageCfg,
+    pub transfer: TransferCfg,
+    pub ambient: AmbientCfg,
     pub notifications: NotificationsCfg,
     pub interaction: InteractionCfg,
 }
@@ -397,6 +449,7 @@ impl Default for Settings {
             ai_toasts_enabled: true,
             ai_toast_providers: Vec::new(),
             clock_typography: "rounded".into(),
+            cover_style: "classic".into(),
             clock_hour_cycle: "12".into(),
             clock_seconds: false,
             weather_lat: None,
@@ -408,6 +461,8 @@ impl Default for Settings {
             visualizer: VisualizerCfg::default(),
             dock: Vec::new(),
             usage: UsageCfg::default(),
+            transfer: TransferCfg::default(),
+            ambient: AmbientCfg::default(),
             notifications: NotificationsCfg::default(),
             interaction: InteractionCfg::default(),
         }
@@ -653,9 +708,19 @@ impl Settings {
                     .chars()
                     .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
         });
+        self.usage.hidden.retain(|id| {
+            !id.is_empty() && id.len() <= 32 && id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+        });
+        self.usage.hidden.sort();
+        self.usage.hidden.dedup();
+        self.usage.hidden.truncate(32);
         self.ai_toast_providers.sort();
         self.ai_toast_providers.dedup();
         self.ai_toast_providers.truncate(32);
+        self.ambient.idle_minutes = self.ambient.idle_minutes.clamp(1, 120);
+        if !matches!(self.cover_style.as_str(), "classic" | "vinyl" | "cd" | "polaroid" | "stack" | "float") {
+            self.cover_style = "classic".into();
+        }
         if !matches!(self.clock_typography.as_str(), "rounded" | "serif" | "mono") {
             self.clock_typography = "rounded".into();
         }

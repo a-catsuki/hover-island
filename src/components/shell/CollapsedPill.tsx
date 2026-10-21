@@ -3,7 +3,7 @@ import { Battery, BatteryCharging, Cloud, CloudDrizzle, CloudFog, CloudLightning
 import { nowPlaying, mediaBusy, mediaControl } from '../../state/media'
 import { settings } from '../../state/settings'
 import { notifications } from '../../state/notifications'
-import { usage } from '../../state/usage'
+import { visibleUsage as usage } from '../../state/usage'
 import { focusTimer, formatFocus } from '../../state/focus'
 import { cmd, type SystemStats, type WeatherSnapshot } from '../../lib/ipc'
 import { normalizeCompactItems } from '../../lib/compactConfig'

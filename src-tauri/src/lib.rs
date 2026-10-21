@@ -34,6 +34,7 @@ mod spotlight;
 mod state;
 mod system;
 mod system_events;
+mod ambient;
 mod transfer;
 mod tray;
 mod types;
@@ -685,6 +686,12 @@ pub fn run() {
             }
             app.manage(AppState::new(loaded.clone()));
             updater::spawn_auto_check(app.handle().clone());
+            usage::claude_limits::spawn_poller(app.handle().clone());
+            ambient::spawn(app.handle().clone());
+            {
+                let beam_app = app.handle().clone();
+                tauri::async_runtime::spawn(async move { transfer::auto_start(beam_app).await });
+            }
 
             let index_app = app.handle().clone();
             std::thread::spawn(move || {
@@ -817,6 +824,8 @@ pub fn run() {
             bluetooth::bluetooth_open_settings,
             devices::devices_get,
             reset_watch::reset_watch_get,
+            ambient::ambient_open,
+            ambient::ambient_close,
             transfer::transfer_status,
             transfer::transfer_start,
             transfer::transfer_stage_dropped_paths,

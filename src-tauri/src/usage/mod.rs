@@ -18,6 +18,7 @@ use serde_json::Value;
 use tauri::{AppHandle, Manager, State};
 
 mod detect;
+pub(crate) mod claude_limits;
 pub(crate) mod providers;
 use detect::DetectedProvider;
 
@@ -233,13 +234,13 @@ fn parse_rate_limits(root: &Value, event_time: u64) -> Vec<RateLimit> {
             }
             let mins = item.get("window_minutes").and_then(unsigned);
             let window = mins.map(format_window);
-            let label = match key {
-                "primary" => format!("Codex · {}", window.as_deref().unwrap_or("primary window")),
-                _ => format!(
-                    "Codex · {}",
-                    window.as_deref().unwrap_or("secondary window")
-                ),
+            let shown = match window.as_deref() {
+                Some("168h") => "Weekly",
+                Some(other) => other,
+                None if key == "primary" => "primary window",
+                None => "secondary window",
             };
+            let label = format!("Codex · {shown}");
             Some(RateLimit {
                 label,
                 percent: (raw / 100.0).clamp(0.0, 1.0),
@@ -924,13 +925,7 @@ pub fn refresh(settings: &Settings) -> Vec<UsageSnapshot> {
     let now = now_millis();
     let mut out = Vec::new();
     for spec in providers::SPECS {
-        let enabled = match spec.id {
-            "codex" => settings.usage.codex,
-            "claude-code" => settings.usage.claude_code,
-            "cursor" => settings.usage.cursor,
-            _ => true,
-        };
-        if enabled {
+        if settings.usage.shows(spec.id) {
             out.extend(providers::snapshots(spec, now));
         }
     }

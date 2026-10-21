@@ -48,3 +48,14 @@ test('lyrics track key changes with the track and rejects unusable metadata', as
   assert.ok(lyricsTrackKey({ title: 'T', artist: 'A', duration: 0 }), 'no length still matches by name')
   assert.equal(lyricsTrackKey(null), null)
 })
+
+test('karaoke fill runs through the sung part of a line and stops at the next one', async () => {
+  const { lineProgress } = await load()
+  const lines = [{ at: 10, text: 'Woke up on the West Side' }, { at: 14, text: 'next' }, { at: 60, text: 'after a long break' }]
+  assert.equal(lineProgress(lines, 0, 9, 200, 0), 0)
+  assert.ok(lineProgress(lines, 0, 11, 200, 0) > 0.3 && lineProgress(lines, 0, 11, 200, 0) < 0.6)
+  assert.equal(lineProgress(lines, 0, 13.9, 200, 0), 1)
+  // A long instrumental after a short line: the fill finishes with the words, not the gap.
+  assert.equal(lineProgress(lines, 1, 16, 200, 0), 1)
+  assert.equal(lineProgress(lines, 5, 16, 200, 0), 0)
+})

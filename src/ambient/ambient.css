@@ -1,0 +1,19 @@
+html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; cursor: none; }
+.ambient { position: fixed; inset: 0; display: grid; place-items: center; background: #000; color: #fff; font-family: 'Inter Variable', Inter, system-ui, sans-serif; user-select: none; }
+.ambient--dim { color: rgba(255, 255, 255, 0.72); }
+.ambient__stage { display: flex; align-items: center; justify-content: center; gap: clamp(48px, 8vw, 140px); padding: 5vh 6vw; transition: transform 6s ease-in-out; }
+.ambient__clock { display: flex; flex-direction: column; gap: 10px; }
+.ambient__clock--solo { align-items: center; text-align: center; }
+.ambient__time { display: flex; align-items: baseline; gap: 14px; font-size: clamp(96px, 17vw, 260px); font-weight: 200; letter-spacing: -0.04em; line-height: 0.95; font-variant-numeric: tabular-nums; font-family: var(--clock-font, inherit); }
+.ambient__time small { font-size: 0.18em; font-weight: 400; letter-spacing: 0; opacity: 0.6; }
+.ambient__date { margin: 0; font-size: clamp(20px, 2.4vw, 38px); font-weight: 400; opacity: 0.7; }
+.ambient__weather { margin: 4px 0 0; font-size: clamp(18px, 2vw, 30px); font-weight: 500; opacity: 0.8; }
+.ambient__weather span { font-weight: 400; opacity: 0.7; }
+.ambient__media { flex: none; display: flex; flex-direction: column; align-items: center; gap: 28px; width: 320px; height: auto; max-width: 36vw; }
+.ambient__media .media__art { width: 260px; height: 260px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7); }
+.ambient__media.media--paused .media__art { opacity: 0.7; }
+.ambient__meta { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; text-align: center; }
+.ambient__meta strong { max-width: 100%; overflow: hidden; font-size: 26px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.ambient__meta span { max-width: 100%; overflow: hidden; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; opacity: 0.65; }
+.ambient__empty { font-size: 20px; opacity: 0.5; }
+@media (max-width: 900px) { .ambient__stage { flex-direction: column; } .ambient__media { max-width: none; } }

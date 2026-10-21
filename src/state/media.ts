@@ -32,9 +32,29 @@ function localCover(data: string | null | undefined): string | null | undefined 
     return url
   } catch { return data }
 }
+/** After a seek, Windows can report the old position for a moment. Trust the seek target until then. */
+let seekHoldUntil = 0
+/** Reports within this many seconds of the local clock are noise, not a seek. */
+const DRIFT_TOLERANCE = 1.5
+
+/**
+ * Keep one smooth clock for the track. A fresh report only moves it when it disagrees by more than
+ * the tolerance (a seek, a stall, a skip). Small disagreements would make lyrics and the bar jitter.
+ */
+export function reconcilePosition(previous: NowPlaying | null, previousAt: number, next: NowPlaying | null, now: number, holdUntil = 0): NowPlaying | null {
+  if (!next || !previous || typeof next.position !== 'number' || !Number.isFinite(next.position)) return next
+  const sameTrack = previous.title === next.title && previous.artist === next.artist && (previous.sourceApp ?? '') === (next.sourceApp ?? '')
+  if (!sameTrack || previous.status !== next.status) return next
+  const expected = interpolatedPosition(previous, previousAt, now)
+  if (now < holdUntil || Math.abs(next.position - expected) < DRIFT_TOLERANCE) return { ...next, position: expected }
+  return next
+}
+
 const publish = (media: NowPlaying | null) => {
-  setMediaReceivedAt(nowMs())
-  setNowPlaying(media && media.thumbnail ? { ...media, thumbnail: localCover(media.thumbnail) } : media)
+  const now = nowMs()
+  const steady = reconcilePosition(nowPlaying(), mediaReceivedAt(), media, now, seekHoldUntil)
+  setMediaReceivedAt(now)
+  setNowPlaying(steady && steady.thumbnail ? { ...steady, thumbnail: localCover(steady.thumbnail) } : steady)
 }
 const [mediaBusy, setMediaBusy] = createSignal(false)
 const [mediaError, setMediaError] = createSignal('')
@@ -90,7 +110,19 @@ export async function mediaControl(action: MediaAction, value?: number): Promise
   if (mediaBusy()) return
   setMediaBusy(true)
   setMediaError('')
-  try { await cmd.mediaControl(action, value); publish(await cmd.mediaGet()) }
+  try {
+    await cmd.mediaControl(action, value)
+    if (action === 'seek' && typeof value === 'number' && nowPlaying()) {
+      // Show the new position straight away and ignore stale reports for a moment.
+      seekHoldUntil = 0
+      const current = nowPlaying()!
+      setMediaReceivedAt(nowMs())
+      setNowPlaying({ ...current, position: value })
+      seekHoldUntil = nowMs() + 1500
+      return
+    }
+    publish(await cmd.mediaGet())
+  }
   catch (error) { setMediaError(String(error)); reportError('Media control failed', error) }
   finally { setMediaBusy(false) }
 }
