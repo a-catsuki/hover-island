@@ -131,6 +131,9 @@ export async function previewInvoke<T>(command:string,args:Record<string,unknown
     case 'email_codes_authorize':throw new Error('Email account connections require the Hover Island desktop app.')
     case 'email_codes_remove':break
     case 'email_codes_set_paused':result={accounts:[],lastError:null};break
+    case 'email_codes_set_mail_alerts':result={accounts:[],lastError:null};break
+    case 'email_codes_providers':result={google:true,microsoft:true};break
+    case 'email_codes_cancel_authorize':break
     case 'usage_get':case 'usage_refresh':result=sampleUsage();break
     case 'agent_events_info':result={enabled:true,running:true,port:49152};break
     case 'agent_events_recent':result=[];break

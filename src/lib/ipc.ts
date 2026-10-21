@@ -66,8 +66,15 @@ export interface EmailCodeAccount {
   provider: 'google' | 'microsoft'
   address: string
   paused: boolean
+  mailAlerts: boolean
   connectedAt: number
   lastError?: string | null
+}
+
+/** Providers this build can sign in to with one click. */
+export interface EmailProviders {
+  google: boolean
+  microsoft: boolean
 }
 
 export interface EmailCodesSnapshot {
@@ -475,8 +482,11 @@ export const cmd = {
 
   // opt-in email verification code connectors
   emailCodesAccounts: () => invoke<EmailCodesSnapshot>('email_codes_accounts'),
-  emailCodesAuthorize: (provider: 'google' | 'microsoft', clientId: string, clientSecret?: string) =>
-    invoke<EmailCodeAccount>('email_codes_authorize', { provider, clientId, clientSecret: clientSecret || null }),
+  emailCodesProviders: () => invoke<EmailProviders>('email_codes_providers'),
+  emailCodesAuthorize: (provider: 'google' | 'microsoft', clientId?: string, clientSecret?: string) =>
+    invoke<EmailCodeAccount>('email_codes_authorize', { provider, clientId: clientId || null, clientSecret: clientSecret || null }),
+  emailCodesCancelAuthorize: () => invoke<void>('email_codes_cancel_authorize'),
+  emailCodesSetMailAlerts: (id: string, enabled: boolean) => invoke<EmailCodesSnapshot>('email_codes_set_mail_alerts', { id, enabled }),
   emailCodesRemove: (id: string) => invoke<void>('email_codes_remove', { id }),
   emailCodesSetPaused: (id: string, paused: boolean) => invoke<EmailCodesSnapshot>('email_codes_set_paused', { id, paused }),
 

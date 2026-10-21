@@ -34,12 +34,23 @@ const MAX_SEEN_IDS: usize = 200;
 const AUTH_TIMEOUT: Duration = Duration::from_secs(180);
 const GOOGLE_SCOPE: &str = "openid email https://www.googleapis.com/auth/gmail.readonly";
 const MICROSOFT_SCOPE: &str = "openid profile offline_access User.Read Mail.Read";
+const MAX_MAIL_ALERTS_PER_POLL: usize = 3;
+
+// Built-in OAuth clients, baked in at compile time (see build.rs and
+// src-tauri/.env.oauth). With them users just click "Sign in". Builds without
+// them still work through the "use your own OAuth app" form.
+const BUILTIN_GOOGLE_CLIENT_ID: Option<&str> = option_env!("HOVER_GOOGLE_CLIENT_ID");
+// Google issues a "secret" to Desktop clients and requires it at the token
+// endpoint, but treats it as public for installed apps. PKCE protects the flow.
+const BUILTIN_GOOGLE_CLIENT_SECRET: Option<&str> = option_env!("HOVER_GOOGLE_CLIENT_SECRET");
+const BUILTIN_MICROSOFT_CLIENT_ID: Option<&str> = option_env!("HOVER_MICROSOFT_CLIENT_ID");
 
 static HTTP: OnceLock<Result<Client, String>> = OnceLock::new();
 static AUTH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static STORE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static POLL_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static AUTH_GENERATION: AtomicU64 = AtomicU64::new(0);
+static AUTH_CANCEL: std::sync::Mutex<Option<oneshot::Sender<()>>> = std::sync::Mutex::new(None);
 static ACCESS_TOKENS: OnceLock<tokio::sync::Mutex<HashMap<String, CachedToken>>> = OnceLock::new();
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -57,6 +68,25 @@ impl Provider {
             _ => Err("Choose Google or Microsoft.".into()),
         }
     }
+    /// The bundled client for this provider, if this build has one.
+    fn builtin_client(self) -> Option<(String, Option<String>)> {
+        let present = |value: Option<&'static str>| {
+            value
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+        };
+        let id = present(match self {
+            Self::Google => BUILTIN_GOOGLE_CLIENT_ID,
+            Self::Microsoft => BUILTIN_MICROSOFT_CLIENT_ID,
+        })
+        .filter(|id| valid_client_id(id))?;
+        let secret = match self {
+            Self::Google => present(BUILTIN_GOOGLE_CLIENT_SECRET),
+            Self::Microsoft => None,
+        };
+        Some((id, secret))
+    }
     fn token_url(self) -> &'static str {
         match self {
             Self::Google => "https://oauth2.googleapis.com/token",
@@ -72,8 +102,17 @@ pub struct AccountSummary {
     pub provider: Provider,
     pub address: String,
     pub paused: bool,
+    pub mail_alerts: bool,
     pub connected_at: u64,
     pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmailProviders {
+    /// True when this build can sign in with one click (no developer setup).
+    pub google: bool,
+    pub microsoft: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -122,6 +161,12 @@ struct SavedAccount {
     seen_ids: Vec<String>,
     #[serde(default)]
     last_error: Option<String>,
+    #[serde(default = "default_true")]
+    mail_alerts: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl SavedAccount {
@@ -131,6 +176,7 @@ impl SavedAccount {
             provider: self.provider,
             address: self.address.clone(),
             paused: self.paused,
+            mail_alerts: self.mail_alerts,
             connected_at: self.connected_at,
             last_error: self.last_error.clone(),
         }
@@ -174,6 +220,8 @@ struct GmailMessage {
     internal_date: Option<String>,
     snippet: Option<String>,
     payload: Option<GmailPayload>,
+    #[serde(rename = "labelIds", default)]
+    label_ids: Vec<String>,
 }
 #[derive(Debug, Deserialize)]
 struct GmailPayload {
@@ -199,6 +247,8 @@ struct GraphMessage {
     subject: Option<String>,
     #[serde(rename = "bodyPreview")]
     body_preview: Option<String>,
+    #[serde(rename = "inferenceClassification")]
+    classification: Option<String>,
 }
 #[derive(Debug, Deserialize)]
 struct GraphFrom {
@@ -208,6 +258,8 @@ struct GraphFrom {
 #[derive(Debug, Deserialize)]
 struct GraphAddress {
     address: String,
+    #[serde(default)]
+    name: Option<String>,
 }
 
 #[derive(Clone)]
@@ -372,24 +424,43 @@ fn code_expires_at(now_millis: u64) -> u64 {
     now_millis.saturating_add(10 * 60 * 1000)
 }
 
+/// The page the browser lands on after sign-in. Static text only.
+fn callback_page(ok: bool, message: &str) -> Html<String> {
+    let (mark, color, title) = if ok {
+        ("&#10003;", "#30d158", "You're connected")
+    } else {
+        ("!", "#ff6961", "Sign-in didn't finish")
+    };
+    Html(format!(
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Hover Island</title>\
+<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
+<style>body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0b0d;color:#f5f5f7;\
+font:15px/1.5 'Segoe UI Variable','Segoe UI',system-ui,sans-serif}}main{{text-align:center;padding:32px}}\
+.mark{{width:56px;height:56px;margin:0 auto 18px;border-radius:50%;display:grid;place-items:center;\
+font-size:26px;font-weight:600;color:#0b0b0d;background:{color}}}h1{{margin:0 0 6px;font-size:22px;font-weight:600}}\
+p{{margin:0;color:rgba(245,245,247,.6)}}</style></head><body><main><div class=\"mark\">{mark}</div>\
+<h1>{title}</h1><p>{message}</p></main></body></html>"
+    ))
+}
+
 async fn callback(
     State(state): State<CallbackState>,
     headers: HeaderMap,
     Query(query): Query<HashMap<String, String>>,
-) -> (StatusCode, Html<&'static str>) {
+) -> (StatusCode, Html<String>) {
     let host = headers.get("host").and_then(|value| value.to_str().ok());
     let origin = headers.get("origin").and_then(|value| value.to_str().ok());
     if !callback_origin_valid(host, origin, &state.expected_host) {
         return (
             StatusCode::BAD_REQUEST,
-            Html("Sign-in could not be completed. Return to Hover Island."),
+            callback_page(false, "Return to Hover Island and try again."),
         );
     }
     let received_state = query.get("state").map(String::as_str).unwrap_or_default();
     if !callback_state_valid(&state.expected_state, received_state) {
         return (
             StatusCode::BAD_REQUEST,
-            Html("Sign-in could not be verified. Return to Hover Island and try again."),
+            callback_page(false, "Return to Hover Island and try again."),
         );
     }
     let result = if query.get("error").is_some() {
@@ -401,32 +472,58 @@ async fn callback(
             .cloned()
             .ok_or_else(|| "Email sign-in did not return an authorization code.".to_string())
     };
+    let ok = result.is_ok();
     if let Ok(mut sender) = state.sender.lock() {
         if let Some(sender) = sender.take() {
             let _ = sender.send(result);
         }
     }
-    (
-        StatusCode::OK,
-        Html("Email connected. You can close this window and return to Hover Island."),
-    )
+    if ok {
+        (
+            StatusCode::OK,
+            callback_page(
+                true,
+                "You can close this tab. Hover Island is watching for codes now.",
+            ),
+        )
+    } else {
+        (
+            StatusCode::OK,
+            callback_page(
+                false,
+                "Access wasn't granted. Return to Hover Island to try again.",
+            ),
+        )
+    }
 }
 
 #[tauri::command]
 pub async fn email_codes_authorize(
     app: AppHandle,
     provider: String,
-    client_id: String,
+    client_id: Option<String>,
     client_secret: Option<String>,
 ) -> Result<AccountSummary, String> {
+    let provider = Provider::parse(&provider)?;
+    // A new sign-in replaces one still waiting in the browser.
+    if let Some(cancel) = AUTH_CANCEL.lock().ok().and_then(|mut slot| slot.take()) {
+        let _ = cancel.send(());
+    }
     let _auth = AUTH_LOCK.lock().await;
     let generation = AUTH_GENERATION.load(Ordering::Acquire);
-    let provider = Provider::parse(&provider)?;
-    let client_id = client_id.trim().to_string();
+    let custom_id = client_id
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let (client_id, client_secret) = match custom_id {
+        Some(id) => (id, client_secret.filter(|value| !value.is_empty())),
+        None => provider.builtin_client().ok_or_else(|| {
+            "One-click sign-in isn't set up in this build. Use your own OAuth app under Advanced."
+                .to_string()
+        })?,
+    };
     if !valid_client_id(&client_id) {
         return Err("Enter a valid OAuth client ID from your provider's developer console.".into());
     }
-    let client_secret = client_secret.filter(|value| !value.is_empty());
     if provider == Provider::Microsoft && client_secret.is_some() {
         return Err(
             "Microsoft desktop connections use a public client ID without a client secret.".into(),
@@ -492,7 +589,7 @@ pub async fn email_codes_authorize(
                 ("code_challenge", &challenge),
                 ("code_challenge_method", "S256"),
                 ("access_type", "offline"),
-                ("prompt", "consent"),
+                ("prompt", "select_account consent"),
             ],
         )?,
         Provider::Microsoft => encode_query(
@@ -515,17 +612,27 @@ pub async fn email_codes_authorize(
         server.abort();
         return Err("Could not open the provider sign-in page.".into());
     }
-    let auth_code = match tokio::time::timeout(AUTH_TIMEOUT, receive_code).await {
-        Ok(Ok(Ok(code))) => code,
-        Ok(Ok(Err(error))) => {
+    let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
+    if let Ok(mut slot) = AUTH_CANCEL.lock() {
+        *slot = Some(cancel_tx);
+    }
+    let waited = tokio::select! {
+        result = tokio::time::timeout(AUTH_TIMEOUT, receive_code) => match result {
+            Ok(Ok(Ok(code))) => Ok(code),
+            Ok(Ok(Err(error))) => Err(error),
+            _ => Err("Email sign-in timed out. Start again when ready.".to_string()),
+        },
+        _ = cancel_rx => Err("Sign-in cancelled.".to_string()),
+    };
+    if let Ok(mut slot) = AUTH_CANCEL.lock() {
+        slot.take();
+    }
+    let auth_code = match waited {
+        Ok(code) => code,
+        Err(error) => {
             let _ = shutdown_tx.send(());
             server.abort();
             return Err(error);
-        }
-        _ => {
-            let _ = shutdown_tx.send(());
-            server.abort();
-            return Err("Email sign-in timed out. Start again when ready.".into());
         }
     };
     let _ = shutdown_tx.send(());
@@ -573,16 +680,27 @@ pub async fn email_codes_authorize(
             baseline_pending: true,
             seen_ids: vec![],
             last_error: None,
+            mail_alerts: true,
         };
         if let Some(existing) = store.accounts.iter_mut().find(|item| item.id == id) {
-            *existing = account.clone();
+            // Reconnecting keeps the user's alert preference.
+            let account = SavedAccount {
+                mail_alerts: existing.mail_alerts,
+                ..account.clone()
+            };
+            *existing = account;
         } else if store.accounts.len() < MAX_ACCOUNTS {
             store.accounts.push(account.clone());
         } else {
             return Err("You can connect up to five email accounts. Remove one first.".into());
         }
         write_store(&app, &store)?;
-        summary = account.summary();
+        summary = store
+            .accounts
+            .iter()
+            .find(|item| item.id == id)
+            .map(SavedAccount::summary)
+            .unwrap_or_else(|| account.summary());
     }
     token_cache().lock().await.insert(
         summary.id.clone(),
@@ -707,6 +825,42 @@ pub async fn email_codes_remove(app: AppHandle, id: String) -> Result<(), String
     Ok(())
 }
 
+/// Which providers this build can sign in to with one click.
+#[tauri::command]
+pub fn email_codes_providers() -> EmailProviders {
+    EmailProviders {
+        google: Provider::Google.builtin_client().is_some(),
+        microsoft: Provider::Microsoft.builtin_client().is_some(),
+    }
+}
+
+/// Stop waiting for a browser sign-in the user abandoned.
+#[tauri::command]
+pub fn email_codes_cancel_authorize() {
+    if let Some(cancel) = AUTH_CANCEL.lock().ok().and_then(|mut slot| slot.take()) {
+        let _ = cancel.send(());
+    }
+}
+
+#[tauri::command]
+pub async fn email_codes_set_mail_alerts(
+    app: AppHandle,
+    id: String,
+    enabled: bool,
+) -> Result<EmailCodesSnapshot, String> {
+    let _lock = STORE_LOCK.lock().await;
+    let mut store = read_store(&app)?;
+    let Some(account) = store.accounts.iter_mut().find(|account| account.id == id) else {
+        return Err("That email connection was not found.".into());
+    };
+    account.mail_alerts = enabled;
+    write_store(&app, &store)?;
+    Ok(EmailCodesSnapshot {
+        accounts: store.accounts.iter().map(SavedAccount::summary).collect(),
+        last_error: None,
+    })
+}
+
 #[tauri::command]
 pub async fn email_codes_set_paused(
     app: AppHandle,
@@ -812,6 +966,7 @@ pub async fn poll(app: &AppHandle, notifications_enabled: bool, dnd: bool) -> Re
             continue;
         }
         let mut delivery_failed = false;
+        let mut alerts = 0;
         for message in messages {
             if !should_process_message(
                 &message.id,
@@ -847,6 +1002,10 @@ pub async fn poll(app: &AppHandle, notifications_enabled: bool, dnd: bool) -> Re
                     break;
                 }
             } else {
+                if current.mail_alerts && message.important && alerts < MAX_MAIL_ALERTS_PER_POLL {
+                    emit_mail_alert(app, current, &message);
+                    alerts += 1;
+                }
                 update_checkpoint(
                     app,
                     &id,
@@ -1018,6 +1177,8 @@ struct MailPreview {
     sender: String,
     subject: String,
     preview: String,
+    /// Primary / Focused mail. Promotions, social and the like never alert.
+    important: bool,
 }
 
 async fn fetch_recent_messages(
@@ -1114,12 +1275,14 @@ async fn fetch_gmail(account: &SavedAccount, access: &str) -> Result<Vec<MailPre
         let subject = header("Subject");
         let id = data.id;
         let preview = data.snippet.unwrap_or_default();
+        let important = gmail_is_important(&data.label_ids);
         messages.push(MailPreview {
             id,
             received_at,
             sender,
             subject,
             preview,
+            important,
         });
     }
     Ok(messages)
@@ -1130,7 +1293,10 @@ async fn fetch_graph(account: &SavedAccount, access: &str) -> Result<Vec<MailPre
     let response = client
         .get("https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages")
         .query(&[
-            ("$select", "id,receivedDateTime,from,subject,bodyPreview"),
+            (
+                "$select",
+                "id,receivedDateTime,from,subject,bodyPreview,inferenceClassification",
+            ),
             ("$top", "25"),
             ("$orderby", "receivedDateTime desc"),
         ])
@@ -1156,11 +1322,86 @@ async fn fetch_graph(account: &SavedAccount, access: &str) -> Result<Vec<MailPre
                 .as_deref()
                 .and_then(parse_rfc3339_millis)
                 .unwrap_or(0),
-            sender: item.from.map(|from| from.email.address).unwrap_or_default(),
+            important: item
+                .classification
+                .as_deref()
+                .map_or(true, |value| value.eq_ignore_ascii_case("focused")),
+            sender: item
+                .from
+                .map(
+                    |from| match from.email.name.filter(|name| !name.trim().is_empty()) {
+                        Some(name) => format!("{name} <{}>", from.email.address),
+                        None => from.email.address,
+                    },
+                )
+                .unwrap_or_default(),
             subject: item.subject.unwrap_or_default(),
             preview: item.body_preview.unwrap_or_default(),
         })
         .collect())
+}
+
+fn gmail_is_important(labels: &[String]) -> bool {
+    !labels.iter().any(|label| {
+        matches!(
+            label.as_str(),
+            "CATEGORY_PROMOTIONS"
+                | "CATEGORY_SOCIAL"
+                | "CATEGORY_UPDATES"
+                | "CATEGORY_FORUMS"
+                | "SPAM"
+        )
+    })
+}
+
+/// "Jane Doe <jane@example.com>" -> "Jane Doe"; a bare address stays as is.
+fn sender_display_name(sender: &str) -> String {
+    let sender = sender.trim();
+    let name = match sender.find('<') {
+        Some(index) if index > 0 => sender[..index].trim().trim_matches('"').trim(),
+        _ => sender.trim_matches(|c| c == '<' || c == '>'),
+    };
+    safe_text(if name.is_empty() { sender } else { name }, 80)
+}
+
+/// Push a new-mail alert into the island, like a Windows notification would.
+fn emit_mail_alert(app: &AppHandle, account: &SavedAccount, message: &MailPreview) {
+    let subject = safe_text(&message.subject, 120);
+    let preview = safe_text(&message.preview, 160);
+    let item = crate::types::AppNotification {
+        id: format!("email:{}:{}", account.id, message.id),
+        app: match account.provider {
+            Provider::Google => "Gmail".into(),
+            Provider::Microsoft => "Outlook".into(),
+        },
+        title: sender_display_name(&message.sender),
+        body: match (subject.is_empty(), preview.is_empty()) {
+            (false, false) => format!("{subject} · {preview}"),
+            (false, true) => subject,
+            _ => preview,
+        },
+        timestamp: if message.received_at > 0 {
+            message.received_at
+        } else {
+            now_millis()
+        },
+        icon: None,
+    };
+    let state = app.state::<crate::state::AppState>();
+    let snapshot = {
+        let mut list = state.notifications.lock().unwrap();
+        if list.iter().any(|existing| existing.id == item.id) {
+            return;
+        }
+        list.push(item.clone());
+        if list.len() > 50 {
+            let extra = list.len() - 50;
+            list.drain(0..extra);
+        }
+        list.clone()
+    };
+    let _ = app.emit("notifications://changed", &snapshot);
+    let _ = app.emit("notifications://popup", &item);
 }
 
 fn parse_rfc3339_millis(value: &str) -> Option<u64> {
@@ -1578,6 +1819,24 @@ mod tests {
             ),
             Some("112233".into())
         );
+    }
+
+    #[test]
+    fn mail_alerts_skip_categories_and_show_sender_names() {
+        assert!(gmail_is_important(&["INBOX".into(), "UNREAD".into()]));
+        assert!(!gmail_is_important(&[
+            "INBOX".into(),
+            "CATEGORY_PROMOTIONS".into()
+        ]));
+        assert_eq!(
+            sender_display_name("\"Jane Doe\" <jane@example.com>"),
+            "Jane Doe"
+        );
+        assert_eq!(
+            sender_display_name("<jane@example.com>"),
+            "jane@example.com"
+        );
+        assert_eq!(sender_display_name("jane@example.com"), "jane@example.com");
     }
 
     #[test]

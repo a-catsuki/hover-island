@@ -32,11 +32,21 @@ export function subscribeEmailCodes(): () => void {
   return () => { disposed = true; unlistenError?.(); unlistenChanged?.() }
 }
 
-export async function connectEmailCodes(provider: 'google' | 'microsoft', clientId: string, clientSecret?: string): Promise<EmailCodeAccount> {
+/** Omit clientId to use the client built into this build (one-click sign-in). */
+export async function connectEmailCodes(provider: 'google' | 'microsoft', clientId?: string, clientSecret?: string): Promise<EmailCodeAccount> {
   setError(null)
   const account = await cmd.emailCodesAuthorize(provider, clientId, clientSecret)
   await refreshEmailCodes()
   return account
+}
+
+export function cancelEmailSignIn(): Promise<void> {
+  return cmd.emailCodesCancelAuthorize()
+}
+
+export async function setEmailMailAlerts(id: string, enabled: boolean): Promise<void> {
+  setError(null)
+  setSnapshot(await cmd.emailCodesSetMailAlerts(id, enabled))
 }
 
 export async function pauseEmailCodes(id: string, paused: boolean): Promise<void> {
