@@ -1,0 +1,110 @@
+/* ================================================================ nearby
+   Full-size Beam + LocalSend view. The compact widget only hosts BeamBucket. */
+
+.nearby {
+  --nb-platter: rgba(255, 255, 255, 0.06);
+  --nb-blue: #0a84ff;
+  display: flex; flex-direction: column; gap: 12px;
+  height: 100%; min-height: 0; min-width: 0;
+  color: var(--text-1);
+}
+.nearby.nearby--compact { overflow: hidden; }
+
+.nearby__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: none; }
+.nearby__head-left { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.nearby__head h2 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.nearby__pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nearby__pill-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.28); flex: none; }
+.nearby__pill--on .nearby__pill-dot { background: #30d158; box-shadow: 0 0 0 3px rgba(48, 209, 88, 0.2); }
+.nearby__head-actions { display: flex; align-items: center; gap: 6px; }
+
+.nearby__icon-btn, .nearby__btn, .nearby__approval-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 30px; padding: 0 12px; border: 0; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1); color: var(--text-1);
+  font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--spring);
+}
+.nearby__icon-btn { width: 30px; padding: 0; border-radius: 50%; }
+.nearby__icon-btn:hover, .nearby__btn:hover, .nearby__approval-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+.nearby__icon-btn:active, .nearby__btn:active, .nearby__approval-btn:active:not(:disabled) { transform: scale(0.96); }
+.nearby__btn--on, .nearby__btn--on:hover { background: rgba(255, 69, 58, 0.2); color: #ff6961; }
+.nearby__approval-btn:disabled { opacity: 0.45; cursor: default; }
+.nearby__approval-btn--accept, .nearby__approval-btn--accept:hover:not(:disabled) { background: var(--nb-blue); color: #fff; }
+.nearby :is(button):focus-visible { outline: 2px solid var(--nb-blue); outline-offset: 2px; }
+
+/* segmented control */
+.nearby__tabs { display: inline-flex; align-self: flex-start; gap: 2px; padding: 2px; border-radius: 999px; background: var(--nb-platter); flex: none; }
+.nearby__tabs button {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 14px;
+  border: 0; border-radius: 999px; background: transparent; color: var(--text-2);
+  font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.nearby__tabs button.is-active { background: rgba(255, 255, 255, 0.18); color: var(--text-1); }
+
+.nearby__notice { flex: none; padding: 8px 12px; border-radius: 14px; background: var(--nb-platter); color: var(--text-2); font-size: 12px; overflow-wrap: anywhere; }
+
+/* ------------------------------------------------------------------- body */
+
+.nearby__body { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 10px; flex: 1; min-height: 0; }
+.nearby__radar-card, .nearby__activity {
+  position: relative; min-width: 0; min-height: 0;
+  border-radius: 22px; background: var(--nb-platter);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+}
+.nearby__radar-card { overflow: hidden; min-height: 220px; }
+
+.nearby__radar { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
+.nearby__radar i { position: absolute; left: 0; top: 0; translate: -50% -50%; border-radius: 50%; background: radial-gradient(circle, rgba(10, 132, 255, 0) 55%, rgba(10, 132, 255, 0.1) 100%); box-shadow: inset 0 0 0 0.5px rgba(10, 132, 255, 0.18); }
+.nearby__radar i:nth-child(1) { width: 110px; height: 110px; }
+.nearby__radar i:nth-child(2) { width: 200px; height: 200px; opacity: 0.7; }
+.nearby__radar i:nth-child(3) { width: 290px; height: 290px; opacity: 0.4; }
+.nearby__radar.is-live i { animation: nearby-ping 3.2s var(--ease-out) infinite; }
+.nearby__radar.is-live i:nth-child(2) { animation-delay: 0.5s; }
+.nearby__radar.is-live i:nth-child(3) { animation-delay: 1s; }
+@keyframes nearby-ping { 0% { scale: 0.86; opacity: 0; } 25% { opacity: 1; } 100% { scale: 1.08; opacity: 0; } }
+
+.nearby__self { position: absolute; left: 50%; top: 50%; translate: -50% -50%; }
+.nearby__avatar { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(160deg, #5ac8fa, #0a84ff); color: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+.nearby__avatar--self { width: 54px; height: 54px; background: rgba(255, 255, 255, 0.16); box-shadow: none; }
+
+.nearby__peer { position: absolute; translate: -50% -50%; display: flex; flex-direction: column; align-items: center; gap: 5px; max-width: 110px; animation: nearby-in 360ms var(--spring) both; }
+.nearby__peer-name { max-width: 100%; font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes nearby-in { from { opacity: 0; scale: 0.7; } to { opacity: 1; scale: 1; } }
+
+.nearby__empty { position: absolute; left: 12px; right: 12px; bottom: 14px; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.nearby__empty strong { font-size: 13px; font-weight: 600; color: var(--text-2); }
+.nearby__empty span { font-size: 12px; color: var(--text-3); }
+
+/* --------------------------------------------------------------- transfers */
+
+.nearby__activity { display: flex; flex-direction: column; padding: 12px; gap: 8px; }
+.nearby__activity h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.nearby__activity-empty { flex: 1; display: grid; place-items: center; color: var(--text-3); font-size: 12px; }
+.nearby__transfer-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.nearby__transfer { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); }
+.nearby__transfer-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.nearby__transfer-name { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nearby__transfer-name svg { flex: none; color: var(--text-3); }
+.nearby__transfer-meta { font-size: 11px; color: var(--text-3); }
+.nearby__transfer-error { font-size: 11px; color: #ff6961; }
+.nearby__transfer-status { font-size: 12px; font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.nearby__transfer-status.is-done { color: #30d158; }
+.nearby__transfer-status.is-fail { color: #ff6961; }
+.nearby__approval { display: flex; gap: 6px; margin-top: 4px; }
+.nearby__approval-btn { min-height: 26px; padding: 0 12px; }
+
+.nearby__ring { --p: 0; flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: conic-gradient(var(--nb-blue) calc(var(--p) * 1%), rgba(255, 255, 255, 0.14) 0); }
+.nearby__ring i { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #1c1c1e; color: var(--text-1); }
+.nearby__ring.is-done { background: #30d158; }
+.nearby__ring.is-done i { background: #30d158; color: #fff; }
+.nearby__ring.is-fail { background: #ff453a; }
+.nearby__ring.is-fail i { background: #ff453a; color: #fff; }
+
+.nearby__protocol { margin: 0; font-size: 11px; line-height: 1.45; color: var(--text-3); }
+
+@media (max-width: 620px) { .nearby__body { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) {
+  .nearby *, .nearby *::before { animation: none !important; transition: none !important; }
+}

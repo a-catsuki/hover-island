@@ -1,18 +1,21 @@
 //! Read-only detection of locally installed AI developer tools.
 //!
-//! Detection enriches recent activity from known configuration/install roots,
-//! PATH matches and running process names. It never reads config contents,
-//! credentials or command lines, never uploads anything, and never recursively
-//! walks the whole disk. Config/PATH presence alone is not user activity.
+//! A tool is listed when it is running, has recent session files, or is installed
+//! (known config folder, app data folder or a binary on PATH). `active` is true only
+//! for running processes and recent session activity, so an idle install is listed
+//! but never reported as used. It never reads config contents, credentials or command
+//! lines, never uploads anything, and never walks the whole disk.
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
+use super::providers::{self, Dirs};
+
 const MAX_EVIDENCE: usize = 6;
 const MAX_SEARCH_DIRS: usize = 512;
 const MAX_GLOB_ENTRIES: usize = 512;
-const MAX_ACTIVITY_ENTRIES: usize = 512;
-const MAX_ACTIVITY_DEPTH: usize = 4;
+const MAX_ACTIVITY_ENTRIES: usize = 8000;
+const MAX_ACTIVITY_DEPTH: usize = 6;
 const RECENT_ACTIVITY_MS: u128 = 7 * 24 * 60 * 60 * 1000;
 
 /// One AI tool found on this PC.
@@ -29,6 +32,8 @@ pub struct DetectedProvider {
     pub supported: bool,
     /// "live-quota" and/or "local-activity"; empty when nothing local exists.
     pub capabilities: Vec<String>,
+    /// Running now or used within the last week. `false` means installed but idle.
+    pub active: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -60,7 +65,6 @@ struct Candidate {
     supported: bool,
     capabilities: &'static [&'static str],
     process_names: &'static [&'static str],
-    activity_roots: &'static [ConfigLoc],
 }
 
 const CANDIDATES: &[Candidate] = &[
@@ -78,11 +82,6 @@ const CANDIDATES: &[Candidate] = &[
         supported: true,
         capabilities: &["live-quota", "local-activity"],
         process_names: &["codex.exe", "codex"],
-        activity_roots: &[ConfigLoc {
-            base: Base::Home,
-            path: ".codex/sessions",
-            kind: "cli",
-        }],
     },
     Candidate {
         id: "claude-code",
@@ -105,11 +104,6 @@ const CANDIDATES: &[Candidate] = &[
         supported: true,
         capabilities: &["local-activity"],
         process_names: &["claude.exe", "claude"],
-        activity_roots: &[ConfigLoc {
-            base: Base::Home,
-            path: ".claude/projects",
-            kind: "cli",
-        }],
     },
     Candidate {
         id: "gemini",
@@ -129,10 +123,9 @@ const CANDIDATES: &[Candidate] = &[
         globs: &[],
         binaries: &["gemini"],
         path_kind: "cli",
-        supported: false,
-        capabilities: &[],
+        supported: true,
+        capabilities: &["local-activity"],
         process_names: &["gemini.exe", "gemini"],
-        activity_roots: &[],
     },
     Candidate {
         id: "grok",
@@ -155,7 +148,6 @@ const CANDIDATES: &[Candidate] = &[
         supported: false,
         capabilities: &[],
         process_names: &["grok.exe", "grok"],
-        activity_roots: &[],
     },
     Candidate {
         id: "cursor",
@@ -175,10 +167,9 @@ const CANDIDATES: &[Candidate] = &[
         globs: &[],
         binaries: &["cursor"],
         path_kind: "app",
-        supported: false,
-        capabilities: &[],
+        supported: true,
+        capabilities: &["local-activity"],
         process_names: &["cursor.exe"],
-        activity_roots: &[],
     },
     Candidate {
         id: "opencode",
@@ -198,10 +189,9 @@ const CANDIDATES: &[Candidate] = &[
         globs: &[],
         binaries: &["opencode"],
         path_kind: "cli",
-        supported: false,
-        capabilities: &[],
+        supported: true,
+        capabilities: &["local-activity"],
         process_names: &["opencode.exe", "opencode"],
-        activity_roots: &[],
     },
     Candidate {
         id: "deepseek",
@@ -224,7 +214,6 @@ const CANDIDATES: &[Candidate] = &[
         supported: false,
         capabilities: &[],
         process_names: &["deepseek.exe", "deepseek"],
-        activity_roots: &[],
     },
     Candidate {
         id: "github-copilot",
@@ -237,10 +226,9 @@ const CANDIDATES: &[Candidate] = &[
         globs: &[],
         binaries: &["copilot"],
         path_kind: "cli",
-        supported: false,
-        capabilities: &[],
+        supported: true,
+        capabilities: &["local-activity"],
         process_names: &["copilot.exe", "copilot"],
-        activity_roots: &[],
     },
     Candidate {
         id: "windsurf",
@@ -256,7 +244,6 @@ const CANDIDATES: &[Candidate] = &[
         supported: false,
         capabilities: &[],
         process_names: &["windsurf.exe"],
-        activity_roots: &[],
     },
     Candidate {
         id: "zed",
@@ -272,7 +259,6 @@ const CANDIDATES: &[Candidate] = &[
         supported: false,
         capabilities: &[],
         process_names: &["zed.exe", "zed"],
-        activity_roots: &[],
     },
     Candidate {
         id: "aider",
@@ -285,10 +271,9 @@ const CANDIDATES: &[Candidate] = &[
         }],
         binaries: &["aider"],
         path_kind: "cli",
-        supported: false,
-        capabilities: &[],
+        supported: true,
+        capabilities: &["local-activity"],
         process_names: &["aider.exe", "aider"],
-        activity_roots: &[],
     },
     Candidate {
         id: "ollama",
@@ -304,7 +289,6 @@ const CANDIDATES: &[Candidate] = &[
         supported: false,
         capabilities: &[],
         process_names: &["ollama.exe", "ollama"],
-        activity_roots: &[],
     },
     Candidate {
         id: "lm-studio",
@@ -320,7 +304,6 @@ const CANDIDATES: &[Candidate] = &[
         supported: false,
         capabilities: &[],
         process_names: &["lms.exe", "lmstudio.exe"],
-        activity_roots: &[],
     },
 ];
 
@@ -437,53 +420,60 @@ fn running_process_names() -> Vec<String> {
     Vec::new()
 }
 
+fn within_recent_window(meta: &std::fs::Metadata) -> Option<std::time::SystemTime> {
+    let modified = meta.modified().ok()?;
+    let age = std::time::SystemTime::now().duration_since(modified).ok()?;
+    (age.as_millis() <= RECENT_ACTIVITY_MS).then_some(modified)
+}
+
+/// Newest file changed within the last week below `root` (or `root` itself when it is a file).
 fn recent_activity(root: &Path) -> Option<String> {
+    let root_meta = std::fs::symlink_metadata(root).ok()?;
+    if root_meta.file_type().is_symlink() {
+        return None;
+    }
+    if root_meta.is_file() {
+        within_recent_window(&root_meta)?;
+        return Some(
+            root.file_name()
+                .map(|name| format!("recent activity: {}", name.to_string_lossy()))
+                .unwrap_or_else(|| "recent activity".into()),
+        );
+    }
     let mut pending = vec![(root.to_path_buf(), 0usize)];
     let mut visited = 0usize;
     let mut newest: Option<(std::time::SystemTime, PathBuf)> = None;
-    while let Some((dir, depth)) = pending.pop() {
-        if depth > MAX_ACTIVITY_DEPTH {
-            continue;
-        }
+    'walk: while let Some((dir, depth)) = pending.pop() {
         let Ok(entries) = std::fs::read_dir(&dir) else {
             continue;
         };
         for entry in entries.flatten() {
             visited += 1;
             if visited > MAX_ACTIVITY_ENTRIES {
-                break;
+                break 'walk;
             }
-            let Ok(meta) = std::fs::symlink_metadata(entry.path()) else {
+            let Ok(kind) = entry.file_type() else {
                 continue;
             };
-            if meta.file_type().is_symlink() {
+            if kind.is_symlink() {
                 continue;
             }
             let path = entry.path();
-            if meta.is_dir() {
+            if kind.is_dir() {
                 if depth < MAX_ACTIVITY_DEPTH {
                     pending.push((path, depth + 1));
                 }
                 continue;
             }
-            if !meta.is_file() || path.extension().map_or(true, |ext| ext != "jsonl") {
-                continue;
-            }
-            let Ok(modified) = meta.modified() else {
+            let Ok(meta) = entry.metadata() else {
                 continue;
             };
-            let Ok(age) = std::time::SystemTime::now().duration_since(modified) else {
+            let Some(modified) = within_recent_window(&meta) else {
                 continue;
             };
-            if age.as_millis() > RECENT_ACTIVITY_MS {
-                continue;
-            }
             if newest.as_ref().map_or(true, |(known, _)| modified > *known) {
                 newest = Some((modified, path));
             }
-        }
-        if visited > MAX_ACTIVITY_ENTRIES {
-            break;
         }
     }
     newest.map(|(_, path)| {
@@ -493,11 +483,41 @@ fn recent_activity(root: &Path) -> Option<String> {
     })
 }
 
+/// `~/rel/path` for paths under the home folder, the full path otherwise.
+fn display_path(path: &Path, bases: &Bases) -> String {
+    for (base, label) in [
+        (bases.home.as_deref(), "~"),
+        (bases.appdata.as_deref(), "%APPDATA%"),
+        (bases.local_appdata.as_deref(), "%LOCALAPPDATA%"),
+    ] {
+        if let Some(base) = base {
+            if let Ok(rest) = path.strip_prefix(base) {
+                let rel: Vec<String> = rest
+                    .components()
+                    .map(|part| part.as_os_str().to_string_lossy().into_owned())
+                    .collect();
+                return if rel.is_empty() {
+                    label.to_string()
+                } else {
+                    format!("{label}/{}", rel.join("/"))
+                };
+            }
+        }
+    }
+    path.to_string_lossy().into_owned()
+}
+
 fn detect_with(bases: &Bases) -> Vec<DetectedProvider> {
+    let dirs = Dirs {
+        home: bases.home.clone(),
+        appdata: bases.appdata.clone(),
+        local_appdata: bases.local_appdata.clone(),
+    };
     let mut found = Vec::new();
     for candidate in CANDIDATES {
         let mut evidence: Vec<String> = Vec::new();
         let mut kind: Option<&'static str> = None;
+        let mut active = false;
 
         let running = candidate.process_names.iter().any(|name| {
             bases
@@ -506,30 +526,17 @@ fn detect_with(bases: &Bases) -> Vec<DetectedProvider> {
                 .any(|running| running.eq_ignore_ascii_case(name))
         });
         if running {
+            active = true;
             kind = Some(candidate.path_kind);
             evidence.push(format!("{} running", candidate.process_names[0]));
         }
 
-        for activity in candidate.activity_roots {
-            let Some(base_dir) = bases.dir(activity.base) else {
-                continue;
-            };
-            let path = join_rel(base_dir, activity.path);
+        for path in providers::activity_paths(candidate.id, &dirs) {
             if let Some(detail) = recent_activity(&path) {
-                kind.get_or_insert(activity.kind);
-                evidence.push(format!(
-                    "{}/{} ({detail})",
-                    Bases::label(activity.base),
-                    activity.path
-                ));
+                active = true;
+                kind.get_or_insert("cli");
+                evidence.push(format!("{} ({detail})", display_path(&path, bases)));
             }
-        }
-
-        // Installation/config roots and PATH entries add context after actual
-        // activity is established; they never create a provider row alone.
-        let has_activity = !evidence.is_empty();
-        if !has_activity {
-            continue;
         }
 
         for config in candidate.configs {
@@ -568,12 +575,28 @@ fn detect_with(bases: &Bases) -> Vec<DetectedProvider> {
             }
         }
 
+        // Install folders the usage reader knows about (for example %APPDATA%\Cursor).
+        if let Some(spec) = providers::spec_for(candidate.id) {
+            for loc in spec.installed {
+                if let Some(path) = dirs.join(loc) {
+                    if is_present_without_following_symlinks(&path) {
+                        kind.get_or_insert("config");
+                        evidence.push(display_path(&path, bases));
+                    }
+                }
+            }
+        }
+
         for binary in candidate.binaries {
             if find_on_path(&bases.search_paths, binary).is_some() {
                 kind.get_or_insert(candidate.path_kind);
                 evidence.push(format!("{binary} on PATH"));
                 break;
             }
+        }
+
+        if evidence.is_empty() {
+            continue;
         }
 
         let mut seen = std::collections::HashSet::new();
@@ -591,6 +614,7 @@ fn detect_with(bases: &Bases) -> Vec<DetectedProvider> {
                 .iter()
                 .map(|capability| (*capability).into())
                 .collect(),
+            active,
         });
     }
     found
@@ -677,7 +701,7 @@ mod tests {
     }
 
     #[test]
-    fn path_binary_alone_does_not_create_a_provider_row() {
+    fn path_binary_alone_lists_the_tool_as_installed_but_idle() {
         let home = temp_dir("path");
         let bin = home.join("bin");
         fs::create_dir_all(&bin).unwrap();
@@ -685,18 +709,73 @@ mod tests {
         let mut bases = home_bases(home.clone());
         bases.search_paths = vec![bin];
         let found = detect_with(&bases);
+        let gemini = found
+            .iter()
+            .find(|provider| provider.id == "gemini")
+            .expect("gemini is listed");
+        assert!(!gemini.active, "a binary on PATH is not activity");
+        assert!(gemini.evidence.iter().any(|item| item == "gemini on PATH"));
+        assert!(gemini.supported);
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn configuration_presence_lists_only_that_tool_and_marks_it_idle() {
+        let home = temp_dir("aider");
+        fs::write(home.join(".aider.conf.yml"), b"model: gpt").unwrap();
+        let found = detect_with(&home_bases(home.clone()));
+        let aider = found
+            .iter()
+            .find(|provider| provider.id == "aider")
+            .expect("aider is listed");
+        assert!(!aider.active);
+        assert!(!found.iter().any(|provider| provider.id == "codex"));
         assert!(!found.iter().any(|provider| provider.id == "gemini"));
         let _ = fs::remove_dir_all(home);
     }
 
     #[test]
-    fn configuration_presence_alone_does_not_create_provider_rows() {
-        let home = temp_dir("aider");
-        fs::write(home.join(".aider.conf.yml"), b"model: gpt").unwrap();
+    fn every_scanned_provider_is_detected_from_its_own_folders() {
+        let home = temp_dir("all");
+        let write = |rel: &str, name: &str| {
+            let dir = rel.split('/').fold(home.clone(), |path, part| path.join(part));
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join(name), b"{}").unwrap();
+        };
+        write(".claude/projects/app", "a.jsonl");
+        write(".gemini/tmp/h/chats", "session-1.json");
+        write(".local/share/opencode/storage/session/global", "ses_1.json");
+        write(".copilot/session-state/uuid", "events.jsonl");
+        write(".cursor/chats/h/u", "store.db");
         let found = detect_with(&home_bases(home.clone()));
-        assert!(!found.iter().any(|provider| provider.id == "aider"));
-        assert!(!found.iter().any(|provider| provider.id == "codex"));
-        assert!(!found.iter().any(|provider| provider.id == "gemini"));
+        for id in ["claude-code", "gemini", "opencode", "github-copilot", "cursor"] {
+            let provider = found
+                .iter()
+                .find(|provider| provider.id == id)
+                .unwrap_or_else(|| panic!("{id} should be detected"));
+            assert!(provider.active, "{id} wrote files just now");
+            assert!(provider.supported, "{id} has a local activity reader");
+        }
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn many_project_folders_do_not_hide_a_recent_claude_session() {
+        let home = temp_dir("busy");
+        let projects = home.join(".claude").join("projects");
+        for index in 0..700 {
+            let dir = projects.join(format!("old-{index}"));
+            fs::create_dir_all(&dir).unwrap();
+        }
+        let active = projects.join("zzz-active");
+        fs::create_dir_all(&active).unwrap();
+        fs::write(active.join("s.jsonl"), b"{}").unwrap();
+        let found = detect_with(&home_bases(home.clone()));
+        let claude = found
+            .iter()
+            .find(|provider| provider.id == "claude-code")
+            .expect("claude-code is detected");
+        assert!(claude.active);
         let _ = fs::remove_dir_all(home);
     }
 
@@ -733,7 +812,7 @@ mod tests {
         let found = detect_with(&bases);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].id, "cursor");
-        assert!(!found[0].supported);
+        assert!(found[0].active);
         assert!(found[0]
             .evidence
             .iter()

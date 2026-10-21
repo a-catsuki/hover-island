@@ -1,0 +1,176 @@
+[
+  {
+    "key": "01-hook",
+    "text": "Your PC has a notch now.",
+    "duration": 1.896,
+    "mp3": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\01-hook.mp3",
+    "wav": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\01-hook.wav",
+    "boundaries": [
+      {
+        "type": "SentenceBoundary",
+        "text": "Your PC has a notch now.",
+        "offset": 500000,
+        "duration": 17739795
+      }
+    ]
+  },
+  {
+    "key": "02-not",
+    "text": "Not a widget. Not another window.",
+    "duration": 2.328,
+    "mp3": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\02-not.mp3",
+    "wav": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\02-not.wav",
+    "boundaries": [
+      {
+        "type": "SentenceBoundary",
+        "text": "Not a widget.",
+        "offset": 500000,
+        "duration": 9704081
+      },
+      {
+        "type": "SentenceBoundary",
+        "text": "Not another window.",
+        "offset": 10204081,
+        "duration": 12244897
+      }
+    ]
+  },
+  {
+    "key": "03-surface",
+    "text": "A small, quiet surface at the top of your screen.",
+    "duration": 3.216,
+    "mp3": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\03-surface.mp3",
+    "wav": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\03-surface.wav",
+    "boundaries": [
+      {
+        "type": "SentenceBoundary",
+        "text": "A small, quiet surface at the top of your screen.",
+        "offset": 500000,
+        "duration": 31005101
+      }
+    ]
+  },
+  {
+    "key": "04-hover",
+    "text": "Hover, and it's everything you check a hundred times a day.",
+    "duration": 3.456,
+    "mp3": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\04-hover.mp3",
+    "wav": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\04-hover.wav",
+    "boundaries": [
+      {
+        "type": "SentenceBoundary",
+        "text": "Hover, and it's everything you check a hundred times a day.",
+        "offset": 500000,
+        "duration": 33301019
+      }
+    ]
+  },
+  {
+    "key": "05-music",
+    "text": "Music, with a visualizer that actually listens to your speakers.",
+    "duration": 3.936,
+    "mp3": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\05-music.mp3",
+    "wav": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\05-music.wav",
+    "boundaries": [
+      {
+        "type": "SentenceBoundary",
+        "text": "Music, with a visualizer that actually listens to your speakers.",
+        "offset": 500000,
+        "duration": 38275509
+      }
+    ]
+  },
+  {
+    "key": "06-glance",
+    "text": "Weather, your calendar, and the controls you reach for.",
+    "duration": 3.6,
+    "mp3": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\06-glance.mp3",
+    "wav": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\06-glance.wav",
+    "boundaries": [
+      {
+        "type": "SentenceBoundary",
+        "text": "Weather, your calendar, and the controls you reach for.",
+        "offset": 500000,
+        "duration": 34831631
+      }
+    ]
+  },
+  {
+    "key": "07-beam",
+    "text": "Drag a file onto it, and it's on your phone. Same Wi-Fi, one scan, no cloud.",
+    "duration": 5.664,
+    "mp3": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\07-beam.mp3",
+    "wav": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\07-beam.wav",
+    "boundaries": [
+      {
+        "type": "SentenceBoundary",
+        "text": "Drag a file onto it, and it's on your phone.",
+        "offset": 500000,
+        "duration": 25647958
+      },
+      {
+        "type": "SentenceBoundary",
+        "text": "Same Wi-Fi, one scan, no cloud.",
+        "offset": 26147958,
+        "duration": 29719387
+      }
+    ]
+  },
+  {
+    "key": "08-name",
+    "text": "It's called Hover Island. Rust and Tauri. The installer is five megabytes.",
+    "duration": 5.208,
+    "mp3": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\08-name.mp3",
+    "wav": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\08-name.wav",
+    "boundaries": [
+      {
+        "type": "SentenceBoundary",
+        "text": "It's called Hover Island.",
+        "offset": 500000,
+        "duration": 14551020
+      },
+      {
+        "type": "SentenceBoundary",
+        "text": "Rust and Tauri.",
+        "offset": 15051020,
+        "duration": 13265305
+      },
+      {
+        "type": "SentenceBoundary",
+        "text": "The installer is five megabytes.",
+        "offset": 28316325,
+        "duration": 23086734
+      }
+    ]
+  },
+  {
+    "key": "09-free",
+    "text": "Free for Windows 10 and 11.",
+    "duration": 2.424,
+    "mp3": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\09-free.mp3",
+    "wav": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\09-free.wav",
+    "boundaries": [
+      {
+        "type": "SentenceBoundary",
+        "text": "Free for Windows 10 and 11.",
+        "offset": 500000,
+        "duration": 23224489
+      }
+    ]
+  },
+  {
+    "key": "10-close",
+    "text": "The notch was always the good part.",
+    "duration": 2.016,
+    "mp3": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\10-close.mp3",
+    "wav": "C:\\Users\\HP\\source\\hover-island\\video\\assets\\vo\\10-close.wav",
+    "boundaries": [
+      {
+        "type": "SentenceBoundary",
+        "text": "The notch was always the good part.",
+        "offset": 500000,
+        "duration": 19142856
+      }
+    ]
+  }
+]

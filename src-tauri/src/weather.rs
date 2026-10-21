@@ -1,23 +1,25 @@
 //! Open-Meteo forecast and air quality, cached per selected location.
-//! Automatic location is a coarse public-IP estimate; coordinates are never sent to that lookup.
+//! Device location is looked up only on an explicit action (Windows Location first, then an
+//! approximate IP lookup). Coarse coordinates are saved locally and sent to Open-Meteo for forecasts.
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
+use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
 
 use crate::state::AppState;
 use crate::types::{now_millis, WeatherDay, WeatherHour, WeatherLocation, WeatherSnapshot};
 
-const CACHE_TTL_MS: u64 = 15 * 60 * 1000;
-const AUTO_LOCATION_TTL_MS: u64 = 24 * 60 * 60 * 1000;
+/// Forecasts change slowly; ten minutes keeps the widget fresh without hammering Open-Meteo.
+const CACHE_TTL_MS: u64 = 10 * 60 * 1000;
 const MANUAL_SOURCE: &str = "manual";
-const APPROXIMATE_SOURCE: &str = "approximate";
+const DEVICE_SOURCE: &str = "device";
 const UNKNOWN_SOURCE: &str = "unknown";
 const MAX_RESPONSE_BYTES: usize = 512 * 1024;
 
 static CACHE: Mutex<Option<(u64, String, WeatherSnapshot)>> = Mutex::new(None);
-static AUTO_LOCATION: Mutex<Option<(u64, f64, f64, String)>> = Mutex::new(None);
+static FETCH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 fn client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
@@ -66,10 +68,11 @@ fn bounded_percent(value: Option<&Value>) -> Option<u8> {
 }
 
 fn wmo_code(value: Option<&Value>) -> i32 {
-    value
-        .and_then(Value::as_i64)
-        .and_then(|value| i32::try_from(value).ok())
-        .unwrap_or(-1)
+    // Open-Meteo sends integers, but accept 3.0 as well so a format tweak cannot blank the widget.
+    finite_number(value)
+        .map(f64::round)
+        .filter(|code| (0.0..=1000.0).contains(code))
+        .map_or(-1, |code| code as i32)
 }
 
 fn array_value<'a>(array: Option<&'a Vec<Value>>, index: usize) -> Option<&'a Value> {
@@ -219,11 +222,10 @@ fn parse_forecast(value: &Value, city: &str) -> Result<WeatherSnapshot, String> 
     let hi = first_day.as_ref().map_or(temp, |day| day.high_c);
     let lo = first_day.as_ref().map_or(temp, |day| day.low_c);
     let humidity = bounded_percent(current.get("relative_humidity_2m"));
-    let wind_direction = current
-        .get("wind_direction_10m")
-        .and_then(Value::as_i64)
-        .filter(|value| (0..=360).contains(value))
-        .map(|value| (value % 360) as u16);
+    let wind_direction = finite_number(current.get("wind_direction_10m"))
+        .map(f64::round)
+        .filter(|value| (0.0..=360.0).contains(value))
+        .map(|value| (value as u16) % 360);
 
     Ok(WeatherSnapshot {
         ok: true,
@@ -243,10 +245,7 @@ fn parse_forecast(value: &Value, city: &str) -> Result<WeatherSnapshot, String> 
         wind_speed_kmh: finite_number(current.get("wind_speed_10m")).filter(|value| *value >= 0.0),
         wind_direction_deg: wind_direction,
         precipitation_mm: finite_number(current.get("precipitation")).filter(|value| *value >= 0.0),
-        is_day: current
-            .get("is_day")
-            .and_then(Value::as_i64)
-            .map(|value| value != 0),
+        is_day: finite_number(current.get("is_day")).map(|value| value != 0.0),
         pressure_hpa: finite_number(current.get("surface_pressure")).filter(|value| *value > 0.0),
         cloud_cover_pct: bounded_percent(current.get("cloud_cover")),
         timezone: value
@@ -272,6 +271,10 @@ async fn fetch_forecast(lat: f64, lon: f64, city: &str) -> Result<WeatherSnapsho
             ("forecast_hours", "24".to_string()),
             ("daily", "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max,wind_speed_10m_max".to_string()),
             ("forecast_days", "7".to_string()),
+            ("temperature_unit", "celsius".to_string()),
+            ("wind_speed_unit", "kmh".to_string()),
+            ("precipitation_unit", "mm".to_string()),
+            ("timeformat", "iso8601".to_string()),
             ("timezone", "auto".to_string()),
         ])
         .send()
@@ -370,73 +373,6 @@ fn unavailable(city: String, reason: impl Into<String>, source: &str) -> Weather
     }
 }
 
-fn parse_approximate_location(value: &Value) -> Option<(f64, f64, String)> {
-    if !value.get("success")?.as_bool()? {
-        return None;
-    }
-    let geo = value;
-    let lat = geo.get("latitude")?.as_f64()?;
-    let lon = geo.get("longitude")?.as_f64()?;
-    if !lat.is_finite()
-        || !lon.is_finite()
-        || !(-90.0..=90.0).contains(&lat)
-        || !(-180.0..=180.0).contains(&lon)
-    {
-        return None;
-    }
-    // ipwho.is names this field `city`; accept `name` as a fallback for
-    // compatible IP-geolocation payloads that use the alternate convention.
-    // Do not let an empty `city` value hide a usable fallback.
-    let city = ["city", "name"]
-        .into_iter()
-        .filter_map(|key| geo.get(key).and_then(Value::as_str))
-        .map(str::trim)
-        .find(|name| !name.is_empty())
-        .unwrap_or_default();
-    let region = geo
-        .get("region")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .trim();
-    let country = geo
-        .get("country")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .trim();
-    let mut parts = Vec::new();
-    for part in [city, region, country] {
-        if !part.is_empty() && !parts.contains(&part) {
-            parts.push(part);
-        }
-    }
-    let name = parts.join(", ");
-    (!name.is_empty()).then_some((lat, lon, name))
-}
-
-async fn approximate_location() -> Option<(f64, f64, String)> {
-    let now = now_millis();
-    if let Ok(cache) = AUTO_LOCATION.lock() {
-        if let Some((at, lat, lon, city)) = cache.as_ref() {
-            if now.saturating_sub(*at) < AUTO_LOCATION_TTL_MS {
-                return Some((*lat, *lon, city.clone()));
-            }
-        }
-    }
-
-    // The provider sees the public IP used for this HTTPS request, but receives
-    // no device GPS or other precise coordinates. Failures simply offer city search.
-    let response = client().get("https://ipwho.is/").send().await.ok()?;
-    if !response.status().is_success() {
-        return None;
-    }
-    let value: Value = response.json().await.ok()?;
-    let (lat, lon, city) = parse_approximate_location(&value)?;
-    if let Ok(mut cache) = AUTO_LOCATION.lock() {
-        *cache = Some((now, lat, lon, city.clone()));
-    }
-    Some((lat, lon, city))
-}
-
 fn parse_locations(value: &Value) -> Vec<WeatherLocation> {
     value
         .get("results")
@@ -470,6 +406,527 @@ fn parse_locations(value: &Value) -> Vec<WeatherLocation> {
             })
         })
         .collect()
+}
+
+/// How a device location was found, so the UI can say how precise it is.
+const METHOD_WINDOWS: &str = "windows";
+const METHOD_NETWORK: &str = "network";
+
+/// A successful device lookup. `notice` explains a fallback in one short line.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceLocation {
+    pub location: WeatherLocation,
+    /// "windows" (Windows Location) or "network" (approximate, from the IP address).
+    pub method: String,
+    pub notice: Option<String>,
+    /// True when turning on Windows location would make the result more precise.
+    pub can_open_settings: bool,
+}
+
+/// A failed device lookup. The UI shows `message` and, when `can_open_settings`
+/// is set, a button wired to `weather_open_location_settings`.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LocationFailure {
+    /// "windows_disabled" | "offline" | "timeout" | "unavailable"
+    pub code: String,
+    pub message: String,
+    pub can_open_settings: bool,
+}
+
+/// What the Windows location stack said, before any network fallback.
+#[derive(Debug, PartialEq)]
+enum NativeOutcome {
+    Found {
+        latitude: f64,
+        longitude: f64,
+        city: String,
+    },
+    /// Location is off for the system or for desktop apps.
+    Disabled,
+    TimedOut,
+    Failed(String),
+    /// Not running on Windows (development builds).
+    Unsupported,
+}
+
+fn coarse_device_location(
+    latitude: f64,
+    longitude: f64,
+    city: String,
+) -> Result<WeatherLocation, String> {
+    if !latitude.is_finite()
+        || !longitude.is_finite()
+        || !(-90.0..=90.0).contains(&latitude)
+        || !(-180.0..=180.0).contains(&longitude)
+    {
+        return Err("Windows returned an invalid location. Choose a city instead.".into());
+    }
+    Ok(WeatherLocation {
+        name: if city.trim().is_empty() {
+            "Current location".into()
+        } else {
+            city.trim().to_string()
+        },
+        admin1: None,
+        country: None,
+        latitude: (latitude * 100.0).round() / 100.0,
+        longitude: (longitude * 100.0).round() / 100.0,
+    })
+}
+
+fn clean_text(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(str::to_string)
+}
+
+fn json_text<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
+    value.get(key).and_then(Value::as_str)
+}
+
+/// Some IP services send coordinates as strings, others as numbers.
+fn json_coordinate(value: Option<&Value>) -> Option<f64> {
+    let number = match value? {
+        Value::Number(number) => number.as_f64()?,
+        Value::String(text) => text.trim().parse::<f64>().ok()?,
+        _ => return None,
+    };
+    number.is_finite().then_some(number)
+}
+
+/// Build a coarse location from an IP lookup. The (0, 0) pair is what several
+/// services return when they know nothing, so it is never trusted.
+fn network_candidate(
+    latitude: Option<f64>,
+    longitude: Option<f64>,
+    city: Option<&str>,
+    region: Option<&str>,
+    country: Option<&str>,
+) -> Option<WeatherLocation> {
+    let (latitude, longitude) = (latitude?, longitude?);
+    if latitude == 0.0 && longitude == 0.0 {
+        return None;
+    }
+    let city = clean_text(city);
+    let region = clean_text(region);
+    let name = city.clone().or_else(|| region.clone()).unwrap_or_default();
+    let mut location = coarse_device_location(latitude, longitude, name).ok()?;
+    location.admin1 = if city.is_some() { region } else { None };
+    location.country = clean_text(country);
+    Some(location)
+}
+
+fn parse_ipwho(value: &Value) -> Option<WeatherLocation> {
+    if value.get("success").and_then(Value::as_bool) == Some(false) {
+        return None;
+    }
+    network_candidate(
+        json_coordinate(value.get("latitude")),
+        json_coordinate(value.get("longitude")),
+        json_text(value, "city"),
+        json_text(value, "region"),
+        json_text(value, "country"),
+    )
+}
+
+fn parse_geojs(value: &Value) -> Option<WeatherLocation> {
+    network_candidate(
+        json_coordinate(value.get("latitude")),
+        json_coordinate(value.get("longitude")),
+        json_text(value, "city"),
+        json_text(value, "region"),
+        json_text(value, "country"),
+    )
+}
+
+fn parse_ipapi(value: &Value) -> Option<WeatherLocation> {
+    if value.get("error").and_then(Value::as_bool) == Some(true) {
+        return None;
+    }
+    network_candidate(
+        json_coordinate(value.get("latitude")),
+        json_coordinate(value.get("longitude")),
+        json_text(value, "city"),
+        json_text(value, "region"),
+        json_text(value, "country_name"),
+    )
+}
+
+type NetworkParser = fn(&Value) -> Option<WeatherLocation>;
+
+/// Keyless HTTPS geolocation services, tried in order.
+const NETWORK_PROVIDERS: [(&str, NetworkParser); 3] = [
+    (
+        "https://ipwho.is/?fields=success,latitude,longitude,city,region,country",
+        parse_ipwho,
+    ),
+    ("https://get.geojs.io/v1/ip/geo.json", parse_geojs),
+    ("https://ipapi.co/json/", parse_ipapi),
+];
+
+/// Approximate location from the public IP address. `Err(true)` means no
+/// service answered at all, which almost always means the PC is offline.
+async fn network_location() -> Result<WeatherLocation, bool> {
+    let mut reached = false;
+    for (url, parse) in NETWORK_PROVIDERS {
+        let Ok(response) = client()
+            .get(url)
+            .timeout(Duration::from_secs(6))
+            .send()
+            .await
+        else {
+            continue;
+        };
+        reached = true;
+        if !response.status().is_success() {
+            continue;
+        }
+        let Ok(value) = response_json(response, "Location service").await else {
+            continue;
+        };
+        if let Some(location) = parse(&value) {
+            return Ok(location);
+        }
+    }
+    Err(!reached)
+}
+
+/// Name a coordinate pair (Windows often returns coordinates without a city).
+fn parse_reverse_geocode(value: &Value) -> Option<(String, Option<String>, Option<String>)> {
+    let name = clean_text(json_text(value, "city"))
+        .or_else(|| clean_text(json_text(value, "locality")))?;
+    Some((
+        name,
+        clean_text(json_text(value, "principalSubdivision")),
+        clean_text(json_text(value, "countryName")),
+    ))
+}
+
+async fn reverse_geocode(
+    latitude: f64,
+    longitude: f64,
+) -> Option<(String, Option<String>, Option<String>)> {
+    let response = client()
+        .get("https://api.bigdatacloud.net/data/reverse-geocode-client")
+        .query(&[
+            ("latitude", latitude.to_string()),
+            ("longitude", longitude.to_string()),
+            ("localityLanguage", "en".to_string()),
+        ])
+        .timeout(Duration::from_secs(5))
+        .send()
+        .await
+        .ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    let value = response_json(response, "Place lookup").await.ok()?;
+    parse_reverse_geocode(&value)
+}
+
+fn network_notice(native: &NativeOutcome) -> Option<String> {
+    match native {
+        NativeOutcome::Disabled => Some(
+            "Windows location is off, so this is based on your network. Turn it on for a precise spot."
+                .to_string(),
+        ),
+        NativeOutcome::TimedOut | NativeOutcome::Failed(_) => Some(
+            "Windows did not return a location, so this is based on your network.".to_string(),
+        ),
+        NativeOutcome::Found { .. } => Some(
+            "Windows returned an unusable location, so this is based on your network.".to_string(),
+        ),
+        NativeOutcome::Unsupported => None,
+    }
+}
+
+fn location_failure(native: &NativeOutcome, offline: bool) -> LocationFailure {
+    let (code, message, can_open_settings) = match native {
+        NativeOutcome::Disabled => (
+            "windows_disabled",
+            "Location is turned off in Windows. Turn it on, or pick a city.",
+            true,
+        ),
+        _ if offline => (
+            "offline",
+            "No internet connection. Check your network, or pick a city.",
+            false,
+        ),
+        NativeOutcome::TimedOut => (
+            "timeout",
+            "Windows could not find your location in time. Try again, or pick a city.",
+            false,
+        ),
+        _ => (
+            "unavailable",
+            "Could not work out where you are. Pick a city instead.",
+            false,
+        ),
+    };
+    LocationFailure {
+        code: code.to_string(),
+        message: message.to_string(),
+        can_open_settings,
+    }
+}
+
+#[cfg(windows)]
+mod win_location {
+    //! Windows Location through `Windows.Devices.Geolocation`.
+    //!
+    //! `RequestAccessAsync` is started on the UI thread (the documented
+    //! requirement for the consent flow), then every wait happens on a worker
+    //! thread with an explicit deadline and cancellation, so a stuck location
+    //! service can never freeze the UI or hang the command.
+    use super::NativeOutcome;
+    use std::thread;
+    use std::time::{Duration, Instant};
+    use tauri::AppHandle;
+    use windows::core::{w, ComInterface, Error, HRESULT, PCWSTR};
+    use windows::Devices::Geolocation::{
+        GeolocationAccessStatus, Geolocator, Geoposition, PositionAccuracy, PositionStatus,
+    };
+    use windows::Foundation::{AsyncStatus, IAsyncInfo, IAsyncOperation, TimeSpan};
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+    /// E_ACCESSDENIED: location is off for the system or for desktop apps.
+    const ACCESS_DENIED: HRESULT = HRESULT(0x8007_0005_u32 as i32);
+    const POLL: Duration = Duration::from_millis(40);
+    const ACCESS_WAIT: Duration = Duration::from_secs(20);
+    const POSITION_WAIT: Duration = Duration::from_secs(20);
+    /// 100 ns ticks.
+    const TICKS_PER_SECOND: i64 = 10_000_000;
+
+    enum Wait {
+        Denied,
+        TimedOut,
+        Failed(String),
+    }
+
+    fn describe(error: &Error) -> String {
+        format!("HRESULT 0x{:08X}", error.code().0 as u32)
+    }
+
+    fn classify(error: &Error) -> Wait {
+        if error.code() == ACCESS_DENIED {
+            Wait::Denied
+        } else {
+            Wait::Failed(describe(error))
+        }
+    }
+
+    /// Wait for a WinRT operation without blocking forever. Must not run on an STA thread.
+    fn wait<T: windows::core::RuntimeType + 'static>(
+        operation: &IAsyncOperation<T>,
+        limit: Duration,
+    ) -> Result<T, Wait> {
+        let info: IAsyncInfo = operation.cast().map_err(|error| classify(&error))?;
+        let deadline = Instant::now() + limit;
+        loop {
+            match info.Status().map_err(|error| classify(&error))? {
+                AsyncStatus::Completed => return operation.get().map_err(|error| classify(&error)),
+                AsyncStatus::Error => {
+                    let code = info.ErrorCode().unwrap_or_default();
+                    return Err(classify(&Error::from(code)));
+                }
+                AsyncStatus::Canceled => return Err(Wait::Failed("canceled".into())),
+                _ if Instant::now() >= deadline => {
+                    let _ = info.Cancel();
+                    let _ = info.Close();
+                    return Err(Wait::TimedOut);
+                }
+                _ => thread::sleep(POLL),
+            }
+        }
+    }
+
+    pub(super) async fn read(app: &AppHandle) -> NativeOutcome {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let scheduled = app.run_on_main_thread(move || {
+            let _ = tx.send(Geolocator::RequestAccessAsync().ok());
+        });
+        // If the UI thread is busy or the call fails, the position read below
+        // still reports a disabled state accurately, so this step is optional.
+        let access = if scheduled.is_ok() {
+            match tokio::time::timeout(Duration::from_secs(5), rx).await {
+                Ok(Ok(access)) => access,
+                _ => None,
+            }
+        } else {
+            None
+        };
+        match tokio::task::spawn_blocking(move || read_blocking(access)).await {
+            Ok(outcome) => outcome,
+            Err(_) => NativeOutcome::Failed("location worker stopped".into()),
+        }
+    }
+
+    fn read_blocking(access: Option<IAsyncOperation<GeolocationAccessStatus>>) -> NativeOutcome {
+        if let Some(access) = access {
+            // Desktop apps can report Unspecified while location works, so only
+            // an explicit denial stops here.
+            match wait(&access, ACCESS_WAIT) {
+                Err(Wait::Denied) => return NativeOutcome::Disabled,
+                Ok(status) if status == GeolocationAccessStatus::Denied => {
+                    return NativeOutcome::Disabled;
+                }
+                _ => {}
+            }
+        }
+        let locator = match Geolocator::new() {
+            Ok(locator) => locator,
+            Err(error) => return NativeOutcome::Failed(describe(&error)),
+        };
+        let _ = locator.SetDesiredAccuracy(PositionAccuracy::Default);
+        let disabled = |locator: &Geolocator| {
+            locator
+                .LocationStatus()
+                .map_or(false, |status| status == PositionStatus::Disabled)
+        };
+        let operation = match locator.GetGeopositionAsyncWithAgeAndTimeout(
+            TimeSpan {
+                Duration: 10 * 60 * TICKS_PER_SECOND,
+            },
+            TimeSpan {
+                Duration: 12 * TICKS_PER_SECOND,
+            },
+        ) {
+            Ok(operation) => operation,
+            Err(error) => {
+                return match classify(&error) {
+                    Wait::Denied => NativeOutcome::Disabled,
+                    _ if disabled(&locator) => NativeOutcome::Disabled,
+                    _ => NativeOutcome::Failed(describe(&error)),
+                };
+            }
+        };
+        match wait(&operation, POSITION_WAIT) {
+            Ok(position) => match coordinates(&position) {
+                Ok((latitude, longitude, city)) => NativeOutcome::Found {
+                    latitude,
+                    longitude,
+                    city,
+                },
+                Err(error) => NativeOutcome::Failed(describe(&error)),
+            },
+            Err(Wait::Denied) => NativeOutcome::Disabled,
+            Err(_) if disabled(&locator) => NativeOutcome::Disabled,
+            Err(Wait::TimedOut) => NativeOutcome::TimedOut,
+            Err(Wait::Failed(detail)) => {
+                // The service reports a timeout as a failed operation as well.
+                if detail.ends_with("800705B4") {
+                    NativeOutcome::TimedOut
+                } else {
+                    NativeOutcome::Failed(detail)
+                }
+            }
+        }
+    }
+
+    fn coordinates(position: &Geoposition) -> Result<(f64, f64, String), Error> {
+        let point = position.Coordinate()?.Point()?.Position()?;
+        let city = position
+            .CivicAddress()
+            .and_then(|address| address.City())
+            .map(|city| city.to_string())
+            .unwrap_or_default();
+        Ok((point.Latitude, point.Longitude, city))
+    }
+
+    pub(super) fn open_privacy_settings() -> Result<(), String> {
+        let result = unsafe {
+            ShellExecuteW(
+                HWND::default(),
+                w!("open"),
+                w!("ms-settings:privacy-location"),
+                PCWSTR::null(),
+                PCWSTR::null(),
+                SW_SHOWNORMAL,
+            )
+        };
+        if result.0 <= 32 {
+            Err("Windows could not open the location settings.".into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+async fn native_location(app: &AppHandle) -> NativeOutcome {
+    #[cfg(windows)]
+    {
+        win_location::read(app).await
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        NativeOutcome::Unsupported
+    }
+}
+
+/// Opens Windows Settings at Privacy > Location.
+#[tauri::command]
+pub fn weather_open_location_settings() -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        win_location::open_privacy_settings()
+    }
+    #[cfg(not(windows))]
+    {
+        Err("Location settings are available in the Windows app.".into())
+    }
+}
+
+/// One explicit device-location read, started by the user.
+///
+/// Chain: Windows Location (with an access check and hard timeouts), then an
+/// approximate IP lookup through keyless HTTPS services. Only coarse coordinates
+/// (about 1 km) are returned and stored. The caller keeps the last saved city
+/// when this fails, so the forecast never disappears because a lookup did.
+#[tauri::command]
+pub async fn weather_detect_location(app: AppHandle) -> Result<DeviceLocation, LocationFailure> {
+    let native = native_location(&app).await;
+    if let NativeOutcome::Found {
+        latitude,
+        longitude,
+        city,
+    } = &native
+    {
+        if let Ok(mut location) = coarse_device_location(*latitude, *longitude, city.clone()) {
+            if city.trim().is_empty() {
+                if let Some((name, admin1, country)) =
+                    reverse_geocode(location.latitude, location.longitude).await
+                {
+                    location.name = name;
+                    location.admin1 = admin1;
+                    location.country = country;
+                }
+            }
+            return Ok(DeviceLocation {
+                location,
+                method: METHOD_WINDOWS.into(),
+                notice: None,
+                can_open_settings: false,
+            });
+        }
+    }
+    if let NativeOutcome::Failed(detail) = &native {
+        eprintln!("[weather] Windows location failed: {detail}");
+    }
+    match network_location().await {
+        Ok(location) => Ok(DeviceLocation {
+            location,
+            method: METHOD_NETWORK.into(),
+            notice: network_notice(&native),
+            can_open_settings: native == NativeOutcome::Disabled,
+        }),
+        Err(offline) => Err(location_failure(&native, offline)),
+    }
 }
 
 #[tauri::command]
@@ -535,26 +992,64 @@ pub fn aqi_label(aqi: u16) -> String {
     format!("US AQI · {band}")
 }
 
-#[tauri::command]
-pub async fn weather_get(app: AppHandle) -> WeatherSnapshot {
-    let manual_location = {
-        let state = app.state::<AppState>();
-        let settings = state.settings.lock().unwrap();
-        match (settings.weather_lat, settings.weather_lon) {
-            (Some(lat), Some(lon)) if lat.is_finite() && lon.is_finite() => settings
+#[derive(Debug, PartialEq)]
+enum LocationChoice {
+    Manual(f64, f64, String),
+
+    Unconfigured,
+}
+
+fn location_choice(settings: &crate::settings::Settings) -> LocationChoice {
+    let manual = match (settings.weather_lat, settings.weather_lon) {
+        (Some(lat), Some(lon))
+            if lat.is_finite()
+                && lon.is_finite()
+                && (-90.0..=90.0).contains(&lat)
+                && (-180.0..=180.0).contains(&lon) =>
+        {
+            settings
                 .weather_city
                 .clone()
                 .filter(|city| !city.trim().is_empty())
-                .map(|city| (lat, lon, city)),
-            _ => None,
+                .map(|city| (lat, lon, city))
         }
+        _ => None,
     };
-    let location = if let Some((lat, lon, city)) = manual_location {
-        Some((lat, lon, city, MANUAL_SOURCE))
+    if let Some((lat, lon, city)) = manual {
+        LocationChoice::Manual(lat, lon, city)
     } else {
-        approximate_location()
-            .await
-            .map(|(lat, lon, city)| (lat, lon, city, APPROXIMATE_SOURCE))
+        LocationChoice::Unconfigured
+    }
+}
+
+#[tauri::command]
+pub async fn weather_get(app: AppHandle) -> WeatherSnapshot {
+    let (choice, device_location) = {
+        let state = app.state::<AppState>();
+        let settings = state.settings.lock().unwrap();
+        (location_choice(&settings), settings.weather_auto_location)
+    };
+    let location = match choice {
+        LocationChoice::Manual(lat, lon, city) => Some((
+            lat,
+            lon,
+            city,
+            if device_location {
+                DEVICE_SOURCE
+            } else {
+                MANUAL_SOURCE
+            },
+        )),
+
+        LocationChoice::Unconfigured => {
+            // Enforce consent here as well as in the UI: compact weather consumers
+            // and background callers must never perform an implicit IP lookup.
+            return unavailable(
+                String::new(),
+                "Choose a city or use device location.",
+                UNKNOWN_SOURCE,
+            );
+        }
     };
     let Some((lat, lon, city, source)) = location else {
         return unavailable(
@@ -564,32 +1059,33 @@ pub async fn weather_get(app: AppHandle) -> WeatherSnapshot {
         );
     };
 
-    let now = now_millis();
     let key = location_key(lat, lon, &city, source);
-    let (cached, fresh) = CACHE.lock().ok().map_or((None, false), |cache| {
-        let cached = cache
-            .as_ref()
-            .filter(|(_, cached_key, _)| cached_key == &key)
-            .map(|entry| entry.2.clone());
-        let fresh = cache.as_ref().is_some_and(|(at, cached_key, _)| {
-            cached_key == &key && now.saturating_sub(*at) < CACHE_TTL_MS
-        });
-        (cached, fresh)
-    });
+    let (cached, fresh) = cached_snapshot(&key);
     if fresh {
-        if let Some(snapshot) = cached.as_ref() {
-            return snapshot.clone();
+        if let Some(snapshot) = cached {
+            return snapshot;
+        }
+    }
+
+    // One fetch at a time: the island widget, the compact pill and the settings
+    // preview can all ask at once, and they should share a single request.
+    let _fetching = FETCH_LOCK.lock().await;
+    let (cached, fresh) = cached_snapshot(&key);
+    if fresh {
+        if let Some(snapshot) = cached {
+            return snapshot;
         }
     }
 
     match fetch(lat, lon, &city, source).await {
         Ok(snapshot) => {
             if let Ok(mut cache) = CACHE.lock() {
-                *cache = Some((now, key, snapshot.clone()));
+                *cache = Some((now_millis(), key, snapshot.clone()));
             }
             snapshot
         }
         Err(reason) => {
+            // Keep showing the last good forecast, marked as cached, instead of an error.
             if let Some(mut snapshot) = cached {
                 snapshot.stale = Some(true);
                 snapshot
@@ -600,9 +1096,147 @@ pub async fn weather_get(app: AppHandle) -> WeatherSnapshot {
     }
 }
 
+fn cached_snapshot(key: &str) -> (Option<WeatherSnapshot>, bool) {
+    let now = now_millis();
+    CACHE.lock().ok().map_or((None, false), |cache| {
+        let entry = cache
+            .as_ref()
+            .filter(|(_, cached_key, _)| cached_key == key);
+        let fresh = entry.is_some_and(|(at, _, _)| now.saturating_sub(*at) < CACHE_TTL_MS);
+        (entry.map(|(_, _, snapshot)| snapshot.clone()), fresh)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn device_coordinates_are_coarsened_before_leaving_the_location_reader() {
+        let location = coarse_device_location(28.6139, 77.2090, String::new()).unwrap();
+        assert_eq!(location.latitude, 28.61);
+        assert_eq!(location.longitude, 77.21);
+        assert_eq!(location.name, "Current location");
+        assert!(coarse_device_location(f64::NAN, 77.2, String::new()).is_err());
+        assert!(coarse_device_location(91.0, 77.2, String::new()).is_err());
+    }
+
+    #[test]
+    fn ip_services_with_different_shapes_all_parse_to_coarse_locations() {
+        let ipwho = serde_json::json!({"success": true, "latitude": -37.8136, "longitude": 144.9631, "city": "Melbourne", "region": "Victoria", "country": "Australia"});
+        let location = parse_ipwho(&ipwho).unwrap();
+        assert_eq!(location.name, "Melbourne");
+        assert_eq!(location.admin1.as_deref(), Some("Victoria"));
+        assert_eq!(location.country.as_deref(), Some("Australia"));
+        assert_eq!(location.latitude, -37.81);
+        assert_eq!(location.longitude, 144.96);
+
+        let geojs = serde_json::json!({"latitude": "28.6139", "longitude": "77.2090", "city": "New Delhi", "country": "India"});
+        assert_eq!(parse_geojs(&geojs).unwrap().latitude, 28.61);
+
+        let ipapi = serde_json::json!({"latitude": 51.5, "longitude": -0.12, "city": "", "region": "England", "country_name": "United Kingdom"});
+        let location = parse_ipapi(&ipapi).unwrap();
+        assert_eq!(location.name, "England");
+        assert_eq!(location.admin1, None);
+    }
+
+    #[test]
+    fn ip_services_that_know_nothing_are_rejected() {
+        assert!(parse_ipwho(&serde_json::json!({"success": false, "message": "limit"})).is_none());
+        assert!(
+            parse_ipapi(&serde_json::json!({"error": true, "reason": "RateLimited"})).is_none()
+        );
+        assert!(parse_geojs(&serde_json::json!({"latitude": "0", "longitude": "0"})).is_none());
+        assert!(parse_geojs(&serde_json::json!({"latitude": "abc", "longitude": "1"})).is_none());
+        assert!(parse_geojs(&serde_json::json!({"latitude": 95.0, "longitude": 1.0})).is_none());
+        assert!(parse_geojs(&serde_json::json!({})).is_none());
+    }
+
+    #[test]
+    fn reverse_geocode_prefers_city_then_locality() {
+        let value = serde_json::json!({"city": "", "locality": "Fitzroy", "principalSubdivision": "Victoria", "countryName": "Australia"});
+        let (name, admin1, country) = parse_reverse_geocode(&value).unwrap();
+        assert_eq!(name, "Fitzroy");
+        assert_eq!(admin1.as_deref(), Some("Victoria"));
+        assert_eq!(country.as_deref(), Some("Australia"));
+        assert!(parse_reverse_geocode(&serde_json::json!({"city": " "})).is_none());
+    }
+
+    #[test]
+    fn failures_tell_the_user_what_to_do() {
+        let disabled = location_failure(&NativeOutcome::Disabled, true);
+        assert_eq!(disabled.code, "windows_disabled");
+        assert!(disabled.can_open_settings);
+        assert!(disabled.message.contains("Turn it on"));
+        assert_eq!(
+            location_failure(&NativeOutcome::TimedOut, true).code,
+            "offline"
+        );
+        assert_eq!(
+            location_failure(&NativeOutcome::TimedOut, false).code,
+            "timeout"
+        );
+        assert_eq!(
+            location_failure(&NativeOutcome::Unsupported, false).code,
+            "unavailable"
+        );
+        assert!(!location_failure(&NativeOutcome::Unsupported, false).can_open_settings);
+    }
+
+    #[test]
+    fn fallback_notice_explains_why_the_network_was_used() {
+        assert!(network_notice(&NativeOutcome::Disabled)
+            .unwrap()
+            .contains("off"));
+        assert!(network_notice(&NativeOutcome::TimedOut).is_some());
+        assert!(network_notice(&NativeOutcome::Unsupported).is_none());
+    }
+
+    #[test]
+    fn numeric_fields_tolerate_float_encodings() {
+        let value = serde_json::json!({
+            "current": { "temperature_2m": 20.0, "weather_code": 61.0, "wind_direction_10m": 235.0, "is_day": 0.0 }
+        });
+        let snapshot = parse_forecast(&value, "Test").unwrap();
+        assert_eq!(snapshot.code, 61);
+        assert_eq!(snapshot.wind_direction_deg, Some(235));
+        assert_eq!(snapshot.is_day, Some(false));
+    }
+
+    #[test]
+    fn cache_reports_fresh_stale_and_missing_entries() {
+        let key = "test-cache-key".to_string();
+        assert_eq!(cached_snapshot(&key), (None, false));
+        let snapshot = unavailable("Test".into(), "x", MANUAL_SOURCE);
+        *CACHE.lock().unwrap() = Some((now_millis(), key.clone(), snapshot.clone()));
+        assert_eq!(cached_snapshot(&key), (Some(snapshot.clone()), true));
+        *CACHE.lock().unwrap() = Some((
+            now_millis().saturating_sub(CACHE_TTL_MS + 1),
+            key.clone(),
+            snapshot.clone(),
+        ));
+        assert_eq!(cached_snapshot(&key), (Some(snapshot), false));
+        assert_eq!(cached_snapshot("another-key"), (None, false));
+        *CACHE.lock().unwrap() = None;
+    }
+
+    #[test]
+    fn automatic_location_is_opt_in_and_never_a_silent_fallback_for_invalid_city() {
+        let mut settings = crate::settings::Settings::default();
+        assert_eq!(location_choice(&settings), LocationChoice::Unconfigured);
+        settings.weather_auto_location = true;
+        assert_eq!(location_choice(&settings), LocationChoice::Unconfigured);
+        settings.weather_auto_location = false;
+        settings.weather_lat = Some(0.0);
+        settings.weather_lon = Some(0.0);
+        settings.weather_city = Some("Null Island".into());
+        assert_eq!(
+            location_choice(&settings),
+            LocationChoice::Manual(0.0, 0.0, "Null Island".into())
+        );
+        settings.weather_lat = Some(91.0);
+        assert_eq!(location_choice(&settings), LocationChoice::Unconfigured);
+    }
 
     #[test]
     fn maps_common_wmo_codes() {
@@ -626,56 +1260,6 @@ mod tests {
         assert_eq!(locations[0].name, "Springfield");
         assert_eq!(locations[0].admin1.as_deref(), Some("Illinois"));
         assert_eq!(locations[0].country.as_deref(), Some("United States"));
-    }
-
-    #[test]
-    fn parses_coarse_ip_location_and_rejects_failed_or_invalid_responses() {
-        let sample = serde_json::json!({
-            "success": true,
-            "city": "Bengaluru",
-            "region": "Karnataka",
-            "country": "India",
-            "latitude": 12.97,
-            "longitude": 77.59
-        });
-        assert_eq!(
-            parse_approximate_location(&sample),
-            Some((12.97, 77.59, "Bengaluru, Karnataka, India".into()))
-        );
-        assert!(parse_approximate_location(&serde_json::json!({"success":false})).is_none());
-        assert!(parse_approximate_location(&serde_json::json!({
-            "success": true, "city":"Somewhere", "latitude": 180, "longitude": 0
-        }))
-        .is_none());
-    }
-
-    #[test]
-    fn accepts_city_or_name_from_ip_geolocation_and_prefers_nonempty_city() {
-        let payload = |city: Value, name: Value| {
-            serde_json::json!({
-                "success": true, "city": city, "name": name,
-                "region": "Karnataka", "country": "India",
-                "latitude": 12.97, "longitude": 77.59
-            })
-        };
-        assert_eq!(
-            parse_approximate_location(&payload(Value::Null, Value::String("Bengaluru".into()))),
-            Some((12.97, 77.59, "Bengaluru, Karnataka, India".into()))
-        );
-        assert_eq!(
-            parse_approximate_location(&payload(
-                Value::String("".into()),
-                Value::String("Bengaluru".into())
-            )),
-            Some((12.97, 77.59, "Bengaluru, Karnataka, India".into()))
-        );
-        assert_eq!(
-            parse_approximate_location(&payload(
-                Value::String("Bengaluru".into()),
-                Value::String("Fallback".into())
-            )),
-            Some((12.97, 77.59, "Bengaluru, Karnataka, India".into()))
-        );
     }
 
     #[test]
@@ -790,10 +1374,10 @@ mod tests {
     }
 
     #[test]
-    fn weather_cache_keys_separate_manual_and_approximate_locations() {
+    fn weather_cache_keys_separate_manual_and_device_locations() {
         assert_ne!(
             location_key(40.7, -74.0, "New York", MANUAL_SOURCE),
-            location_key(40.7, -74.0, "New York", APPROXIMATE_SOURCE)
+            location_key(40.7, -74.0, "New York", DEVICE_SOURCE)
         );
     }
 }

@@ -1,17 +1,42 @@
-import { createEffect, createSignal, Show } from 'solid-js'
-import { ArrowDown, ArrowUp, Check, CircleAlert, Copy, ExternalLink, FolderOpen, KeyRound, Moon, Sun, Volume2 } from 'lucide-solid'
+import { createEffect, createSignal, For, Show } from 'solid-js'
+import { ArrowDown, ArrowUp, Bluetooth, Check, CircleAlert, Copy, Cpu, ExternalLink, FolderOpen, KeyRound, Moon, Plane, Sun, Volume2, VolumeX, Wifi, Zap } from 'lucide-solid'
 import { peek, dismissPeek, acknowledgePendingAlert } from '../../state/peek'
 import { cmd } from '../../lib/ipc'
-import { showFileBucket } from '../../state/panel'
+import { showFileBucket, requestWidgetDetail } from '../../state/panel'
+import { reminderPeekAction } from '../../state/reminders'
+import { awakePeekAction } from '../../state/awake'
 import { reportError } from '../../state/feedback'
 import { expandIsland } from '../../state/ui'
 import BrandIcon from '../BrandIcon'
+import NotificationAppIcon from './NotificationAppIcon'
+import AiActivityToast from './AiActivityToast'
+import { openNotificationSource } from '../../state/notifications'
+import { relativeTime } from '../../lib/connectionSources'
 import './EventPeek.css'
 
+function ToastGlyph(props: { icon?: string }) {
+  const size = 17
+  switch (props.icon) {
+    case 'wifi': return <Wifi size={size}/>
+    case 'bluetooth': return <Bluetooth size={size}/>
+    case 'volume': return <Volume2 size={size}/>
+    case 'muted': return <VolumeX size={size}/>
+    case 'brightness': return <Sun size={size}/>
+    case 'moon': return <Moon size={size}/>
+    case 'plane': return <Plane size={size}/>
+    case 'power': return <Zap size={size}/>
+    case 'memory': return <Cpu size={size}/>
+    case 'error': return <CircleAlert size={size}/>
+    default: return <Check size={size}/>
+  }
+}
+
 export default function EventPeek() {
+  const toast = () => peek()?.category === 'feedback'
   const transfer = () => peek()?.category === 'transfer' || peek()?.app === 'Phone bucket'
   const mute = () => peek()?.app === 'Do Not Disturb'
   const ai = () => peek()?.category === 'ai'
+  const aiAct = () => peek()?.category === 'ai-activity' ? peek()?.aiActivity : undefined
   const auth = () => peek()?.category === 'auth'
   const systemControl = () => peek()?.app === 'Volume' || peek()?.app === 'Brightness'
   const controlLevel = () => {
@@ -19,6 +44,8 @@ export default function EventPeek() {
     return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0
   }
   const controlMuted = () => peek()?.app === 'Volume' && /muted/i.test(peek()?.body ?? '')
+  const device = () => ['Bluetooth', 'Battery', 'Do Not Disturb'].includes(peek()?.app ?? '')
+  const nativeAlert = () => !!peek()?.id.startsWith('notification:')
   const aiInput = () => ai() && peek()?.aiKind === 'needs-input'
   const aiComplete = () => ai() && peek()?.aiKind !== 'needs-input'
   const running = () => ['sending','receiving','staging'].includes(peek()?.phase ?? '')
@@ -43,6 +70,12 @@ export default function EventPeek() {
     return { name: body.slice(0, split), size: body.slice(split + 3) }
   }
   const actionLabel = () => failed() ? 'Try again from Files' : complete() ? 'Show files' : 'Open Files'
+  const runPeekAction = (actionId: string) => {
+    const item = peek(); if (!item) return
+    if (item.actionOwner === 'reminders' && item.reminderId) reminderPeekAction(item.reminderId, actionId)
+    else if (item.actionOwner === 'awake') awakePeekAction(actionId)
+    dismiss(item.id)
+  }
   const dismiss = (id: string) => { acknowledgePendingAlert(id); dismissPeek() }
   const dismissCurrent = () => { const item = peek(); if (item) dismiss(item.id) }
   const copyCode = async () => {
@@ -116,7 +149,13 @@ export default function EventPeek() {
       if (dy < -44 || velocity < -0.5) dismissCurrent()
       return
     }
-    if (!interactive(event.target)) dismissCurrent()
+    if (!interactive(event.target)) {
+      const item = peek()
+      if (item && nativeAlert()) void openNotificationSource(item.app)
+      // Tapping a reminder or awake peek opens the page that holds its widget.
+      if (item?.actionOwner) { expandIsland(false); requestWidgetDetail(item.actionOwner === 'awake' ? 'awake' : 'reminders') }
+      dismissCurrent()
+    }
   }
   const onPointerCancel = () => {
     if (!armed) return
@@ -124,26 +163,31 @@ export default function EventPeek() {
     setDragging(false); setDragY(0)
   }
 
-  return <Show when={peek()}>{item=><div class="peek" classList={{'peek--transfer':transfer(),'peek--failed':failed(),'peek--mute':mute(),'peek--ai':ai(),'peek--ai-complete':aiComplete(),'peek--ai-input':aiInput(),'peek--system':systemControl(),'peek--auth':auth(),'peek--system-muted':controlMuted(),'peek--dragging':dragging()}} role="status" aria-live="polite" tabIndex={0} aria-label={`${item().app}: ${auth() ? 'verification code ' : ''}${item().code ?? item().title}. Press Escape to dismiss.`}
+  return <Show when={peek()}>{item=><div class="peek" classList={{'peek--transfer':transfer(),'peek--failed':failed(),'peek--mute':mute(),'peek--ai':ai(),'peek--ai-activity':!!aiAct(),'peek--ai-complete':aiComplete(),'peek--ai-input':aiInput(),'peek--system':systemControl(),'peek--auth':auth(),'peek--toast':toast(),'peek--toast-error':!!peek()?.feedbackError,'peek--system-muted':controlMuted(),'peek--dragging':dragging()}} role="status" aria-live="polite" tabIndex={0} aria-label={`${item().app}: ${auth() ? 'verification code ' : ''}${item().code ?? item().title}. Press Escape to dismiss.`}
     style={{'animation':suppressEnter()?'none':'','transform':suppressEnter()?`translateY(${dragging()?dragY():0}px)`:'','transition':suppressEnter()&&!dragging()?'transform 300ms var(--spring)':''}}
     onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}
     onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); dismissCurrent() } }}>
+    <Show when={toast()}><div class="peek-toast"><span class="peek-toast__icon" aria-hidden="true"><ToastGlyph icon={item().feedbackIcon}/></span><span class="peek-toast__text">{item().title}</span></div></Show>
+    <Show when={aiAct()}>{event => <AiActivityToast event={event()} />}</Show>
     <Show when={auth()}><div class="peek__auth">
       <span class="peek__auth-icon"><KeyRound size={19}/></span>
       <div class="peek__auth-copy"><div class="peek__auth-label">{item().account ? `Code for ${item().account}` : 'Email verification code'}</div><strong class="peek__auth-code">{item().code}</strong><div class="peek__auth-meta">{item().sender || item().subject || 'New sign-in message'}</div></div>
       <button class="peek__auth-button" type="button" aria-label="Copy verification code" title="Copy code" onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void copyCode() }}><Copy size={15}/><span>Copy</span></button>
     </div></Show>
-    <Show when={transfer()} fallback={<Show when={ai()} fallback={<Show when={systemControl()} fallback={<>
-      <span class="peek__dot"><Show when={!mute()} fallback={<Moon size={16}/>}><Show when={item().icon} fallback={<BrandIcon name={item().app} size={24}/>}>{src=><img src={src()!} alt="" draggable={false}/>}</Show></Show></span>
-      <div class="peek__body"><div class="peek__app">{item().app}<Show when={item().priority==='urgent'}><span class="peek__priority">Urgent</span></Show></div><div class="peek__title">{item().title}</div><Show when={item().body}><div class="peek__text">{item().body}</div></Show>
+    <Show when={transfer()} fallback={<Show when={ai()} fallback={<Show when={systemControl()} fallback={<div class="peek-note" classList={{'peek-note--device':device()}}>
+      <Show when={!mute()} fallback={<span class="peek-note__glyph"><Moon size={18}/></span>}><NotificationAppIcon app={item().app} icon={item().icon} size={device()?34:40}/></Show>
+      <div class="peek__body peek-note__body">
+        <div class="peek-note__meta"><span class="peek-note__app">{item().app}</span><Show when={!device()}><span class="peek-note__time">{relativeTime(item().timestamp, Date.now())}</span></Show><Show when={item().priority==='urgent'}><span class="peek__priority">Urgent</span></Show></div>
+        <div class="peek-note__title peek__title">{item().title}</div>
+        <Show when={item().body}><div class="peek-note__text">{item().body}</div></Show>
         <Show when={item().url}><button class="peek__open" onClick={act}>Open alert<ExternalLink size={11}/></button></Show>
+        <Show when={item().actions?.length}><div class="peek-actions"><For each={item().actions}>{action => <button type="button" class="peek-actions__btn" classList={{ 'peek-actions__btn--primary': !!action.primary }} onClick={event => { event.stopPropagation(); runPeekAction(action.id) }}>{action.label}</button>}</For></div></Show>
       </div>
-    </>}>
-      <div class="peek-system__icon" aria-hidden="true">{item().app==='Volume'?<Volume2 size={22}/>:<Sun size={22}/>}</div>
-      <div class="peek__body peek__body--system">
-        <div class="peek__app">{item().app}</div>
-        <div class="peek__title">{controlMuted()?'Muted':`${controlLevel()}%`}</div>
-        <div class="peek-system__track" aria-hidden="true"><span style={{width:`${controlLevel()}%`}}/></div>
+    </div>}>
+      <div class="peek-hud" role="img" aria-label={`${item().app} ${controlMuted()?'muted':`${controlLevel()} percent`}`}>
+        <span class="peek-hud__icon" aria-hidden="true">{item().app==='Volume'?<Show when={!controlMuted()} fallback={<VolumeX size={20}/>}><Volume2 size={20}/></Show>:<Sun size={20}/>}</span>
+        <span class="peek-hud__track" aria-hidden="true"><span style={{width:`${controlMuted()?0:controlLevel()}%`}}/></span>
+        <span class="peek-hud__value">{controlMuted()?'Muted':`${controlLevel()}%`}</span>
       </div>
     </Show>}>
       <div class="peek-ai-icon" classList={{'peek-ai-icon--input':aiInput()}} aria-hidden="true"><BrandIcon name={item().app} size={28}/><span/></div>

@@ -1,39 +1,56 @@
 # Hover Island
 
-A Windows notch workspace built with Rust, Tauri 2 and SolidJS.
+A notch for Windows. It sits at the top of your screen as a small pill, opens into a workspace when you hover, and gets out of the way when you don't. Free, local, built with Rust, Tauri 2 and SolidJS.
 
-## Current pass: 14 October 2026
+Site and download: https://hover-island.vercel.app
 
-The latest source and browser UI implement named panels, ambient/reactive scenes, higher opacity, Small/Medium/Large sizing, drag-and-drop widget arrangement, weather with approximate auto-location and US AQI, an interactive local month calendar, remaining AI allowance/reset details, and sourced global/banked Codex reset monitoring.
+## What it does
 
-Media seeking checks the active Windows session's capabilities and timeline bounds. The visualizer uses shared 24-band WASAPI speaker-output capture with an explicitly named ambient fallback. Bluetooth connection/disconnection and power transitions have quiet startup baselines, cached status, and compact temporary notch expansions. No microphone input is used.
+- **Media.** Album art, controls, a speaker-output visualizer (never the mic) and lyrics that scroll in time with the song. Works with Spotify, Apple Music and anything that reports to Windows.
+- **Today, Desk, Activity.** Widgets you can drag around: weather with AQI, calendar (local plus read-only Google, Outlook and ICS), world clock, to-dos, AI usage, notifications, PC controls and more. Rename the pages however you like.
+- **Spotlight.** Ctrl + Space searches apps and files, ranked by what you actually open. Every installed app is searchable and pinnable, with its real logo.
+- **Quick settings.** Volume and brightness sliders, Wi-Fi, Bluetooth, Do Not Disturb, power mode.
+- **Beam.** Drop files on the notch, scan the QR on your phone, same Wi-Fi, no cloud. Links expire after 30 minutes.
+- **Keep me awake.** Pick a finish time. The PC stays on and a gentle alarm nudges you until it is done.
+- **Timed reminders.** "Call Ana at 4pm" and the notch taps you at 4pm.
+- **Windows alerts in the notch.** Hide the Windows banners and still see every alert on the island.
+- **Docks anywhere.** Notch on the top, left or right edge, a full-width bar, or a side rail. It hides behind maximized windows, fades in when your cursor gets near, and opens when you are on it.
+- **Updates itself.** Settings, then About, then Check for updates. It installs over the old version and keeps your settings.
 
-**Windows installation:** use the signed MSIX installation kit recorded in `docs/verification/current-build.json`. Extract its ZIP and run `Install.cmd`. This checks the hash, package signature and publisher, requests approval for the personal signing certificate when needed, and installs Hover Island with a Windows package identity. Then choose Settings → Alerts → Request access and allow Windows notifications. The raw executable alone does not have notification-listener package identity.
+## Install
 
-The Apple design pass adds interruptible jelly-like springs, deeper blacks, red calendar accents, an ochre analog/digital clock and colored functional cards. Event bursts coalesce, deliberate hover/focus/pin adopts a peek, and expiry preserves user-open panels. Native host bounds stay fixed. The Files shortcut reveals the bucket in its custom panel.
+Grab the latest signed package from the site, unzip it and run `Install.cmd`. It checks the hash and signature, asks once to trust the publisher, and installs with a Windows package identity (needed for notification access). Then open Settings, Notifications and allow Windows alerts.
 
-**Phone sharing:** scan a locally generated QR on the same Wi-Fi. The temporary phone page stages files/photos before Send, and downloads files added from the PC. PC picker/drop uploads start a session automatically; received files save to Downloads / Hover Island and produce DND-aware notch peeks. Stop cancels queued uploads; links expire after 30 minutes. This is local HTTP with a random session link, not AirDrop. See `docs/phone-sharing.md`.
+Windows 11, or Windows 10 with the WebView2 runtime.
 
-The current source includes contour, dot, grid and wave themes; ten visualizer styles including real reactive ambient light; separate clock typography/hour-cycle/seconds controls; city selection; draggable page previews; optional website feeds; Google/Outlook calendar subscriptions; and the Reset radar widget. Current verification is recorded in `docs/verification/current-build.json`. Physical iPhone/Wi-Fi/firewall and notification consent remain separate runtime checks.
+## Build from source
 
 ```powershell
+npm install
 npm run typecheck
 npm test
 npm run build
-cargo test --manifest-path src-tauri/Cargo.toml --lib --offline --locked
-cargo test --manifest-path src-tauri/Cargo.toml --lib --offline --locked audio::tests::default_render_loopback_opens_reads_and_stops -- --ignored --nocapture
-npm run tauri:build -- --debug --no-bundle
+cargo test --manifest-path src-tauri/Cargo.toml --lib
+powershell -ExecutionPolicy Bypass -File .\Rebuild.ps1   # build, package, install
 ```
 
-`npm run dev` provides a clearly labeled sample-data preview. `npm run test:ui` requires that server or `UI_URL` pointing at the production preview, and an installed Playwright/browser runtime.
+`npm run dev` opens a browser preview with sample data. Native features need the desktop build.
 
-## Integration limits
+`Rebuild.ps1` writes `build-log.txt`. Each local build gets the next package version (0.1.6.1, 0.1.6.2, ...), so Windows updates the installed app in place and you never have to uninstall.
 
-- AirDrop remains unavailable. Current Owl lists AX211 as unverified, and an upstream report describes firmware limitations on a different AX211 hardware ID. This PC also lacks the required Windows raw-radio path. Existing codecs are not a working AirDrop service. See `docs/airdrop-implementation.md`.
-- The signed personal MSIX declares notification listener, Bluetooth/radio and network capabilities. Notification listening requires installation and the user's Windows consent. Certificate trust is requested only by the installer; building does not trust a certificate or install an app.
-- Optional native website feeds, including the ERP adapter, keep polling without a website window. Desktop alerts use real Windows notifications. Website shortcuts do not create inbox/API connections. See `docs/website-alerts.md`.
-- Google/Outlook calendar subscriptions refresh every five minutes and support recurring events and time zones. They are read-only; local events remain editable. See `docs/calendar-sync.md`.
-- Automatic weather location is approximate and derived from the public IP, with persistent manual override. AQI is a modeled US AQI value from CAMS ENSEMBLE/Open-Meteo, not a local sensor measurement.
-- Usage comes from recorded provider reports and local logs. A passed reset time does not automatically refill the displayed quota. Reset Watch polls a credited public feed every 15 minutes while the app runs, links original X posts, and distinguishes banked grants from global resets. It does not redeem credits or change account limits.
+## Shipping an update
 
-See `handover.md`, `docs/design-references.md`, and `docs/verification/current-build.json`. The original source snapshot remains in `backups/before-revamp-20261013.zip`.
+1. Bump `version` in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`.
+2. Run `Rebuild.ps1`.
+3. Run `packaging\windows\Publish-Update.ps1 -Notes "What changed"`. It copies the package and a `latest.json` (version, URL, SHA-256) into `marketing/updates`.
+4. Deploy the site from `marketing/`. Installed apps see it under Settings, About.
+
+## Honest limits
+
+- AirDrop is not supported. Beam is plain local HTTP with a random link.
+- The webview adds memory. Collapsed is light, expanded is heavier because it is a full WebView2 page.
+- Notification listening needs the installed package and your Windows consent. The bare exe cannot do it.
+- Weather location is approximate unless you set it. AQI is modeled, not a sensor reading.
+- Usage numbers come from provider reports and local logs, and never refill on their own after a reset time passes.
+
+More detail lives in `docs/`, `DESIGN.md` and `PRODUCT.md`.

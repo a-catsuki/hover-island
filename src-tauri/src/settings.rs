@@ -175,10 +175,12 @@ impl Default for InteractionCfg {
 pub struct Settings {
     pub version: u32,
     pub compact_items: Vec<String>,
-    #[serde(default = "legacy_onboarding_version")]
+    #[serde(default)]
     pub onboarding_version: u8,
     pub hotkey: String,
+    pub spotlight_hotkey: String,
     pub launch_at_login: bool,
+    pub auto_update: bool,
     pub collapsed: Size,
     pub expanded: Size,
     pub placement: Placement,
@@ -190,6 +192,9 @@ pub struct Settings {
     pub panels: PanelNames,
     #[serde(default = "default_panel_order")]
     pub panel_order: Vec<String>,
+    /// Custom display names for pages, keyed by panel id. Empty means the defaults.
+    #[serde(default)]
+    pub panel_names: BTreeMap<String, String>,
     pub widgets: Vec<WidgetConfig>,
     pub connections: Vec<AppConnection>,
     pub dnd: bool,
@@ -198,25 +203,30 @@ pub struct Settings {
     pub compact_media_controls: bool,
     /// Clock face for the collapsed notch clock item: "digital" | "analog".
     pub compact_clock_style: String,
+    /// Windows' own toast banners while Hover Island runs: "normal" | "quiet" | "clear".
+    pub windows_banners: String,
+    /// Small AI stat in the collapsed notch: "off" | "usage-left" | "response-time" | "active-count".
+    pub compact_ai_stat: String,
+    /// Show live AI agent toasts (started, progress, question, completed, failed).
+    pub ai_toasts_enabled: bool,
+    /// Provider ids that may raise toasts. Empty means every provider.
+    pub ai_toast_providers: Vec<String>,
     pub clock_typography: String,
     pub clock_hour_cycle: String,
     pub clock_seconds: bool,
-    /// Manual weather coordinates; unset coordinates use approximate auto-location.
+    /// Manual weather coordinates. Automatic lookup requires weather_auto_location.
     pub weather_lat: Option<f64>,
     pub weather_lon: Option<f64>,
     pub weather_city: Option<String>,
+    pub weather_auto_location: bool,
+    /// Weather display units: "metric" (C, km/h) or "imperial" (F, mph).
+    pub weather_units: String,
     pub modules: Modules,
     pub visualizer: VisualizerCfg,
     pub dock: Vec<DockItem>,
     pub usage: UsageCfg,
     pub notifications: NotificationsCfg,
     pub interaction: InteractionCfg,
-}
-
-// Older persisted preferences should be treated as already introduced. A fresh
-// Settings::default() still starts at zero and gets the short first-run tour.
-fn legacy_onboarding_version() -> u8 {
-    1
 }
 
 pub type PanelNames = BTreeMap<String, String>;
@@ -283,30 +293,54 @@ fn flat_panel_groups(widgets: &[WidgetConfig]) -> Vec<Vec<String>> {
                 "compact"
             }
         });
-        let span_x = if !minimum_full && size == "compact" { 1 } else { 2 };
-        let span_y = if minimum_full || size == "full" { 2 } else { 1 };
-        let mut target = None;
+        let span_x = if !minimum_full && matches!(size, "compact" | "tall") {
+            1
+        } else {
+            2
+        };
+        let span_y = if minimum_full || matches!(size, "full" | "tall") { 2 } else { 1 };
+        // Honor the same pinned cell as the frontend so saving cannot move a drop.
+        let mut target = widget.slot.as_ref().and_then(|slot| {
+            let row = slot.row.saturating_sub(1) as usize;
+            let column = slot.column.saturating_sub(1) as usize;
+            if row + span_y <= 2 && column + span_x <= 2
+                && (row..row + span_y).all(|y| (column..column + span_x).all(|x| !occupied[y][x])) {
+                Some((row, column))
+            } else {
+                None
+            }
+        });
         for row in 0..=2 - span_y {
+            if target.is_some() { break; }
             for column in 0..=2 - span_x {
-                let free = (row..row + span_y).all(|y| {
-                    (column..column + span_x).all(|x| !occupied[y][x])
-                });
+                let free =
+                    (row..row + span_y).all(|y| (column..column + span_x).all(|x| !occupied[y][x]));
                 if free {
                     target = Some((row, column));
                     break;
                 }
             }
-            if target.is_some() { break; }
+            if target.is_some() {
+                break;
+            }
         }
         if target.is_none() && !group.is_empty() {
             groups.push(std::mem::take(&mut group));
             occupied = [[false; 2]; 2];
-            target = Some((0, 0));
+            target = widget.slot.as_ref().and_then(|slot| {
+                let row = slot.row.saturating_sub(1) as usize;
+                let column = slot.column.saturating_sub(1) as usize;
+                (row + span_y <= 2 && column + span_x <= 2).then_some((row, column))
+            }).or(Some((0, 0)));
         }
-        let Some((row, column)) = target else { continue; };
+        let Some((row, column)) = target else {
+            continue;
+        };
         group.push(widget.id.clone());
         for y in row..row + span_y {
-            for x in column..column + span_x { occupied[y][x] = true; }
+            for x in column..column + span_x {
+                occupied[y][x] = true;
+            }
         }
         if occupied.iter().all(|line| line.iter().all(|cell| *cell)) {
             groups.push(std::mem::take(&mut group));
@@ -338,29 +372,38 @@ impl Default for Settings {
             compact_items: vec!["media".into(), "clock".into()],
             onboarding_version: 0,
             hotkey: "Alt+Space".into(),
+            spotlight_hotkey: "Control+Space".into(),
             launch_at_login: false,
-            collapsed: Size { w: 320.0, h: 38.0 },
-            expanded: Size { w: 800.0, h: 560.0 },
+            auto_update: true,
+            collapsed: Size { w: 288.0, h: 32.0 },
+            expanded: Size { w: 800.0, h: 510.0 },
             placement: Placement::default(),
             opacity: 0.96,
-            accent: "#818cf8".into(),
+            accent: "#0a84ff".into(),
             theme: "midnight".into(),
             size_preset: "medium".into(),
             background: "plain".into(),
             panels: default_panel_names(),
             panel_order: default_panel_order(),
+            panel_names: BTreeMap::new(),
             widgets: default_widgets(),
             connections: Vec::new(),
             dnd: false,
             hide_behind_windows: true,
-            compact_media_controls: true,
+            compact_media_controls: false,
             compact_clock_style: "digital".into(),
+            windows_banners: "normal".into(),
+            compact_ai_stat: "off".into(),
+            ai_toasts_enabled: true,
+            ai_toast_providers: Vec::new(),
             clock_typography: "rounded".into(),
             clock_hour_cycle: "12".into(),
             clock_seconds: false,
             weather_lat: None,
             weather_lon: None,
             weather_city: None,
+            weather_auto_location: false,
+            weather_units: "metric".into(),
             modules: Modules::default(),
             visualizer: VisualizerCfg::default(),
             dock: Vec::new(),
@@ -419,6 +462,9 @@ fn supported_widget_kind(kind: &str) -> bool {
             | "bluetooth"
             | "controls"
             | "web-alerts"
+            | "network"
+            | "awake"
+            | "reminders"
     )
 }
 
@@ -427,17 +473,12 @@ impl Settings {
     pub fn validated(mut self) -> Self {
         let defaults = Self::default();
         self.version = defaults.version;
-        let (collapsed, expanded) = match self.size_preset.as_str() {
-            "small" => (Size { w: 256.0, h: 36.0 }, Size { w: 640.0, h: 440.0 }),
-            "large" => (Size { w: 384.0, h: 42.0 }, Size { w: 960.0, h: 640.0 }),
-            "medium" => (defaults.collapsed, defaults.expanded),
-            _ => {
-                self.size_preset = "medium".into();
-                (defaults.collapsed, defaults.expanded)
-            }
-        };
-        self.collapsed = collapsed;
-        self.expanded = expanded;
+        // The preset picker supplies its dimensions explicitly. Validation must
+        // preserve persisted/custom sizes and partial geometry patches; resetting
+        // them here also discarded the frontend's horizontal-only preset sizes.
+        if !matches!(self.size_preset.as_str(), "small" | "medium" | "large") {
+            self.size_preset = "medium".into();
+        }
         if !matches!(
             self.background.as_str(),
             "aurora"
@@ -488,12 +529,67 @@ impl Settings {
             }
         }
         self.panel_order = order;
+        // Custom page names: known ids only, trimmed, control characters removed, 16 chars max.
+        let known: std::collections::HashSet<String> = self.panels.keys().cloned().collect();
+        self.panel_names = std::mem::take(&mut self.panel_names)
+            .into_iter()
+            .filter_map(|(id, name)| {
+                if !known.contains(&id) {
+                    return None;
+                }
+                let clean: String = name
+                    .chars()
+                    .filter(|c| !c.is_control())
+                    .collect::<String>()
+                    .trim()
+                    .chars()
+                    .take(16)
+                    .collect();
+                let clean = clean.trim().to_string();
+                if clean.is_empty() {
+                    None
+                } else {
+                    Some((id, clean))
+                }
+            })
+            .collect();
         self.collapsed = self
             .collapsed
             .validated(defaults.collapsed, 200.0, 420.0, 32.0, 96.0);
         self.expanded = self
             .expanded
             .validated(defaults.expanded, 480.0, 1400.0, 320.0, 1000.0);
+        // Migrate only the exact old presets; preserve custom dimensions.
+        if self.size_preset == "small" {
+            if self.collapsed == (Size { w: 256.0, h: 36.0 }) {
+                self.collapsed.h = 38.0;
+            }
+            if self.expanded == (Size { w: 640.0, h: 440.0 }) {
+                self.expanded.h = 560.0;
+            }
+        } else if self.size_preset == "large" {
+            if self.collapsed == (Size { w: 384.0, h: 42.0 }) {
+                self.collapsed.h = 38.0;
+            }
+            if self.expanded == (Size { w: 960.0, h: 640.0 }) {
+                self.expanded.h = 560.0;
+            }
+        }
+        // Round 3/4: stock presets are wide as before but a little shorter. Move only the
+        // exact previous stock sizes; any custom dimensions stay as the user set them.
+        self.expanded = match (self.expanded.w as i64, self.expanded.h as i64) {
+            (640, 560) | (500, 420) => Size { w: 640.0, h: 490.0 },
+            (800, 560) | (620, 440) => Size { w: 800.0, h: 510.0 },
+            (960, 560) | (740, 450) => Size { w: 960.0, h: 520.0 },
+            _ => self.expanded,
+        };
+        // The collapsed pill got slimmer: move only the exact old stock sizes.
+        self.collapsed = match (self.collapsed.w as i64, self.collapsed.h as i64) {
+            (256, 38) => Size { w: 232.0, h: 32.0 },
+            (320, 38) => Size { w: 288.0, h: 32.0 },
+            (384, 38) => Size { w: 344.0, h: 32.0 },
+            _ => self.collapsed,
+        };
         self.opacity = finite_clamp(self.opacity, defaults.opacity, 0.90, 1.0);
         self.visualizer.intensity = finite_clamp(
             self.visualizer.intensity,
@@ -522,6 +618,9 @@ impl Settings {
         {
             self.placement.edge = "top".into();
         }
+        if self.placement.mode == "notch" && self.placement.edge == "bottom" {
+            self.placement.edge = "top".into();
+        }
         if self.placement.mode == "sidebar"
             && matches!(self.placement.edge.as_str(), "top" | "bottom")
         {
@@ -535,9 +634,28 @@ impl Settings {
         if !matches!(self.notifications.sound.as_str(), "soft" | "glass" | "off") {
             self.notifications.sound = "off".into();
         }
+        if !matches!(self.windows_banners.as_str(), "normal" | "quiet" | "clear") {
+            self.windows_banners = "normal".into();
+        }
         if !matches!(self.compact_clock_style.as_str(), "digital" | "analog") {
             self.compact_clock_style = defaults.compact_clock_style.clone();
         }
+        if !matches!(
+            self.compact_ai_stat.as_str(),
+            "off" | "usage-left" | "response-time" | "active-count"
+        ) {
+            self.compact_ai_stat = defaults.compact_ai_stat.clone();
+        }
+        self.ai_toast_providers.retain(|id| {
+            !id.is_empty()
+                && id.len() <= 32
+                && id
+                    .chars()
+                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+        });
+        self.ai_toast_providers.sort();
+        self.ai_toast_providers.dedup();
+        self.ai_toast_providers.truncate(32);
         if !matches!(self.clock_typography.as_str(), "rounded" | "serif" | "mono") {
             self.clock_typography = "rounded".into();
         }
@@ -564,6 +682,9 @@ impl Settings {
         self.compact_items = compact_items;
         if self.hotkey.trim().is_empty() || self.hotkey.len() > 128 {
             self.hotkey = defaults.hotkey;
+        }
+        if self.spotlight_hotkey.trim().is_empty() || self.spotlight_hotkey.len() > 128 {
+            self.spotlight_hotkey = defaults.spotlight_hotkey;
         }
         if self.accent.len() != 7
             || !self.accent.starts_with('#')
@@ -642,7 +763,7 @@ impl Settings {
                 None
             };
             widget.size = match widget.size.as_deref() {
-                Some("compact" | "wide" | "full") => widget.size.clone(),
+                Some("compact" | "wide" | "tall" | "full") => widget.size.clone(),
                 _ => None,
             };
             widget.show_lyrics = if widget.kind == "media" {
@@ -657,22 +778,33 @@ impl Settings {
         // Fold untouched generated overflow labels back into their base page so
         // saved state can be repacked with current two-column geometry.
         // Disabled widgets stay assigned to their visible panel and are never discarded.
-        let auto_pages: Vec<_> = self.panel_order.iter().filter_map(|id| {
-            self.panels.iter().filter(|(base, _)| !base.starts_with("overflow-"))
-                .filter_map(|(base, title)| {
-                    let prefix = format!("overflow-{base}-");
-                    let suffix = id.strip_prefix(&prefix)?;
-                    let parts: Vec<_> = suffix.split('-').collect();
-                    if parts.is_empty() || parts.iter().any(|part| part.parse::<usize>().is_err()) {
-                        return None;
-                    }
-                    let expected = format!("{} {}", title, parts[0]);
-                    (self.panels.get(id) == Some(&expected)).then(|| (id.clone(), base.clone()))
-                }).max_by_key(|(_, base)| base.len())
-        }).collect();
+        let auto_pages: Vec<_> = self
+            .panel_order
+            .iter()
+            .filter_map(|id| {
+                self.panels
+                    .iter()
+                    .filter(|(base, _)| !base.starts_with("overflow-"))
+                    .filter_map(|(base, title)| {
+                        let prefix = format!("overflow-{base}-");
+                        let suffix = id.strip_prefix(&prefix)?;
+                        let parts: Vec<_> = suffix.split('-').collect();
+                        if parts.is_empty()
+                            || parts.iter().any(|part| part.parse::<usize>().is_err())
+                        {
+                            return None;
+                        }
+                        let expected = format!("{} {}", title, parts[0]);
+                        (self.panels.get(id) == Some(&expected)).then(|| (id.clone(), base.clone()))
+                    })
+                    .max_by_key(|(_, base)| base.len())
+            })
+            .collect();
         for (id, base) in auto_pages {
             for widget in &mut self.widgets {
-                if widget.panel.as_deref() == Some(id.as_str()) { widget.panel = Some(base.clone()); }
+                if widget.panel.as_deref() == Some(id.as_str()) {
+                    widget.panel = Some(base.clone());
+                }
             }
             self.panels.remove(&id);
             self.panel_order.retain(|panel| panel != &id);
@@ -763,6 +895,9 @@ impl Settings {
         if self.weather_city.as_ref().is_some_and(|c| c.len() > 128) {
             self.weather_city = None;
         }
+        if !matches!(self.weather_units.as_str(), "metric" | "imperial") {
+            self.weather_units = "metric".into();
+        }
         self
     }
 }
@@ -775,11 +910,29 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
 
 pub fn load(app: &AppHandle) -> Settings {
     match config_path(app).and_then(|p| std::fs::read_to_string(&p).map_err(|e| e.to_string())) {
-        Ok(text) => serde_json::from_str::<Settings>(&text)
-            .unwrap_or_default()
-            .validated(),
+        Ok(text) => serde_json::from_str::<Value>(&text)
+            .map(parse_saved_settings)
+            .unwrap_or_default(),
         Err(_) => Settings::default(),
     }
+}
+
+fn parse_saved_settings(mut value: Value) -> Settings {
+    // Persisted partial Size objects use zero for absent axes. Restore the
+    // selected/default preset's missing axes before serde, keeping custom axes.
+    // This default applies only to a full saved file, never unrelated patches.
+    if let Some(object) = value.as_object_mut() {
+        if !matches!(
+            object.get("sizePreset").and_then(Value::as_str),
+            Some("small" | "medium" | "large")
+        ) {
+            object.insert("sizePreset".into(), serde_json::json!("medium"));
+        }
+    }
+    fill_missing_preset_geometry(&mut value);
+    serde_json::from_value::<Settings>(value)
+        .unwrap_or_default()
+        .validated()
 }
 
 pub fn save(app: &AppHandle, s: &Settings) -> Result<(), String> {
@@ -811,16 +964,45 @@ fn deep_merge(base: &mut Value, patch: Value) {
     }
 }
 
+/// Older preferences and callers can name a preset without sending dimensions.
+/// Supply only absent axes; explicit custom geometry always takes precedence.
+fn fill_missing_preset_geometry(value: &mut Value) {
+    let Some(object) = value.as_object_mut() else {
+        return;
+    };
+    let (width, height, pill_width) = match object.get("sizePreset").and_then(Value::as_str) {
+        Some("small") => (640.0, 490.0, 232.0),
+        Some("medium") => (800.0, 510.0, 288.0),
+        Some("large") => (960.0, 520.0, 344.0),
+        _ => return,
+    };
+    for (key, w, h) in [("collapsed", pill_width, 32.0), ("expanded", width, height)] {
+        let geometry = object.entry(key).or_insert_with(|| serde_json::json!({}));
+        if let Some(axes) = geometry.as_object_mut() {
+            axes.entry("w").or_insert_with(|| serde_json::json!(w));
+            axes.entry("h").or_insert_with(|| serde_json::json!(h));
+        }
+    }
+}
+
 /// Merge a partial JSON patch into the current Settings, returning the new value.
 pub fn merge_patch(current: &Settings, patch: Value) -> Settings {
     let mut base = serde_json::to_value(current).unwrap_or(Value::Object(Default::default()));
     let mut patch = patch;
+    fill_missing_preset_geometry(&mut patch);
     let replacement_panels = patch
         .as_object_mut()
         .and_then(|object| object.remove("panels"));
+    // Names are replaced wholesale so that "Reset" can remove a key.
+    let replacement_panel_names = patch
+        .as_object_mut()
+        .and_then(|object| object.remove("panelNames"));
     deep_merge(&mut base, patch);
     if let (Some(base), Some(panels)) = (base.as_object_mut(), replacement_panels) {
         base.insert("panels".into(), panels);
+    }
+    if let (Some(base), Some(names)) = (base.as_object_mut(), replacement_panel_names) {
+        base.insert("panelNames".into(), names);
     }
     serde_json::from_value(base)
         .unwrap_or_else(|_| current.clone())
@@ -830,6 +1012,68 @@ pub fn merge_patch(current: &Settings, patch: Value) -> Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn first_run_defaults_and_location_consent_are_safe() {
+        let migrated: Settings = serde_json::from_value(serde_json::json!({"version": 1})).unwrap();
+        assert_eq!(migrated.onboarding_version, 0);
+        assert!(!migrated.weather_auto_location);
+        assert_eq!(migrated.spotlight_hotkey, "Control+Space");
+        let completed: Settings =
+            serde_json::from_value(serde_json::json!({"onboardingVersion": 1})).unwrap();
+        assert_eq!(completed.onboarding_version, 1);
+    }
+
+    #[test]
+    fn bottom_notch_migrates_but_bottom_bar_remains_available() {
+        let notch = merge_patch(
+            &Settings::default(),
+            serde_json::json!({"placement":{"mode":"notch","edge":"bottom"}}),
+        );
+        assert_eq!(notch.placement.edge, "top");
+        let bar = merge_patch(
+            &Settings::default(),
+            serde_json::json!({"placement":{"mode":"bar","edge":"bottom"}}),
+        );
+        assert_eq!(bar.placement.edge, "bottom");
+    }
+
+    #[test]
+    fn exact_old_presets_migrate_without_overwriting_custom_sizes() {
+        let old = merge_patch(
+            &Settings::default(),
+            serde_json::json!({"sizePreset":"small","collapsed":{"w":256,"h":36},"expanded":{"w":640,"h":440}}),
+        );
+        assert_eq!(old.collapsed.h, 32.0);
+        assert_eq!(old.expanded, Size { w: 640.0, h: 490.0 });
+        let custom = merge_patch(&old, serde_json::json!({"expanded":{"h":480}}));
+        assert_eq!(custom.expanded, Size { w: 640.0, h: 480.0 });
+        let preset_only = merge_patch(&custom, serde_json::json!({"sizePreset":"large"}));
+        assert_eq!(preset_only.collapsed, Size { w: 344.0, h: 32.0 });
+        assert_eq!(preset_only.expanded, Size { w: 960.0, h: 520.0 });
+        let custom_axes = merge_patch(
+            &preset_only,
+            serde_json::json!({"sizePreset":"small", "expanded":{"h":480}}),
+        );
+        assert_eq!(custom_axes.expanded, Size { w: 640.0, h: 480.0 });
+        let mut persisted = serde_json::json!({"sizePreset":"small"});
+        fill_missing_preset_geometry(&mut persisted);
+        let loaded = serde_json::from_value::<Settings>(persisted)
+            .unwrap()
+            .validated();
+        assert_eq!(loaded.expanded, Size { w: 640.0, h: 490.0 });
+        for preset in [Value::Null, serde_json::json!("unknown")] {
+            let mut saved =
+                serde_json::json!({"collapsed":{"w":310},"expanded":{"w":770},"accent":"#123456"});
+            if !preset.is_null() {
+                saved["sizePreset"] = preset;
+            }
+            let loaded = parse_saved_settings(saved);
+            assert_eq!(loaded.size_preset, "medium");
+            assert_eq!(loaded.collapsed, Size { w: 310.0, h: 32.0 });
+            assert_eq!(loaded.expanded, Size { w: 770.0, h: 510.0 });
+        }
+    }
 
     #[test]
     fn validation_repairs_non_finite_and_out_of_range_dimensions() {
@@ -847,8 +1091,8 @@ mod tests {
         }
         .validated();
         assert_eq!(settings.collapsed.w, Settings::default().collapsed.w);
-        assert_eq!(settings.collapsed.h, Settings::default().collapsed.h);
-        assert_eq!(settings.expanded.w, Settings::default().expanded.w);
+        assert_eq!(settings.collapsed.h, 32.0);
+        assert_eq!(settings.expanded.w, 1400.0);
         assert_eq!(settings.expanded.h, Settings::default().expanded.h);
         assert_eq!(settings.opacity, Settings::default().opacity);
     }
@@ -971,10 +1215,18 @@ mod tests {
 
     #[test]
     fn validation_repacks_generated_today_pages_into_the_editor_two_by_two_grid() {
-        let make = |id: &str, kind: &str, order: i32, panel: &str, size: Option<&str>| WidgetConfig {
-            id: id.into(), kind: kind.into(), enabled: true, order, panel: Some(panel.into()),
-            clock_style: None, size: size.map(str::to_string), show_lyrics: None, slot: None,
-        };
+        let make =
+            |id: &str, kind: &str, order: i32, panel: &str, size: Option<&str>| WidgetConfig {
+                id: id.into(),
+                kind: kind.into(),
+                enabled: true,
+                order,
+                panel: Some(panel.into()),
+                clock_style: None,
+                size: size.map(str::to_string),
+                show_lyrics: None,
+                slot: None,
+            };
         let settings = Settings {
             panels: BTreeMap::from([
                 ("today".into(), "Today".into()),
@@ -982,7 +1234,12 @@ mod tests {
                 ("overflow-today-2-2".into(), "Today 2".into()),
                 ("overflow-today-2-2-2".into(), "Today 2".into()),
             ]),
-            panel_order: vec!["today".into(), "overflow-today-2".into(), "overflow-today-2-2".into(), "overflow-today-2-2-2".into()],
+            panel_order: vec![
+                "today".into(),
+                "overflow-today-2".into(),
+                "overflow-today-2-2".into(),
+                "overflow-today-2-2-2".into(),
+            ],
             widgets: vec![
                 make("media", "media", 0, "today", Some("compact")),
                 make("weather", "weather", 1, "overflow-today-2", Some("wide")),
@@ -990,18 +1247,60 @@ mod tests {
                 make("calendar", "calendar", 3, "overflow-today-2-2-2", None),
             ],
             ..Settings::default()
-        }.validated();
+        }
+        .validated();
 
         assert_eq!(settings.panel_order, vec!["today", "overflow-today-2"]);
         for id in ["media", "weather", "focus"] {
-            assert_eq!(settings.widgets.iter().find(|widget| widget.id == id).unwrap().panel.as_deref(), Some("today"));
+            assert_eq!(
+                settings
+                    .widgets
+                    .iter()
+                    .find(|widget| widget.id == id)
+                    .unwrap()
+                    .panel
+                    .as_deref(),
+                Some("today")
+            );
         }
-        assert_eq!(settings.widgets.iter().find(|widget| widget.id == "calendar").unwrap().panel.as_deref(), Some("overflow-today-2"));
-        let members: Vec<_> = settings.widgets.iter().filter(|widget| widget.panel.as_deref() == Some("today")).cloned().collect();
-        assert_eq!(flat_panel_groups(&members), vec![vec!["media".to_string(), "weather".to_string(), "focus".to_string()]]);
+        assert_eq!(
+            settings
+                .widgets
+                .iter()
+                .find(|widget| widget.id == "calendar")
+                .unwrap()
+                .panel
+                .as_deref(),
+            Some("overflow-today-2")
+        );
+        let members: Vec<_> = settings
+            .widgets
+            .iter()
+            .filter(|widget| widget.panel.as_deref() == Some("today"))
+            .cloned()
+            .collect();
+        assert_eq!(
+            flat_panel_groups(&members),
+            vec![vec![
+                "media".to_string(),
+                "weather".to_string(),
+                "focus".to_string()
+            ]]
+        );
         let stable = settings.clone().validated();
         assert_eq!(stable.panel_order, settings.panel_order);
-        assert_eq!(stable.widgets.iter().map(|widget| widget.panel.clone()).collect::<Vec<_>>(), settings.widgets.iter().map(|widget| widget.panel.clone()).collect::<Vec<_>>());
+        assert_eq!(
+            stable
+                .widgets
+                .iter()
+                .map(|widget| widget.panel.clone())
+                .collect::<Vec<_>>(),
+            settings
+                .widgets
+                .iter()
+                .map(|widget| widget.panel.clone())
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -1126,8 +1425,14 @@ mod tests {
         assert_eq!(repaired.notifications.sound, "off");
         assert_eq!(repaired.visualizer.style, "ambient");
         for style in ["ambient", "mirror", "radial", "particles"] {
-            let saved = merge_patch(&defaults, serde_json::json!({ "visualizer": { "style": style } }));
-            assert_eq!(saved.visualizer.style, style, "selected styles must survive native settings validation");
+            let saved = merge_patch(
+                &defaults,
+                serde_json::json!({ "visualizer": { "style": style } }),
+            );
+            assert_eq!(
+                saved.visualizer.style, style,
+                "selected styles must survive native settings validation"
+            );
         }
     }
 

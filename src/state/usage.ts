@@ -1,6 +1,8 @@
 import { createSignal } from 'solid-js'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { cmd, onUsageChanged, type DetectedProvider, type UsageSnapshot } from '../lib/ipc'
+import { subscribeAiActivity } from './aiActivity'
+import { settings } from './settings'
 
 const [usage, setUsage] = createSignal<UsageSnapshot[]>([])
 const [detected, setDetected] = createSignal<DetectedProvider[]>([])
@@ -27,6 +29,7 @@ export async function subscribeUsage(): Promise<() => void> {
   started = true
 
   let receivedEvent = false
+  const stopActivity = await subscribeAiActivity().catch(() => () => {})
   try {
     unlisten = await onUsageChanged((snapshots) => { receivedEvent = true; setUsage(snapshots) })
     const initial = await cmd.usageGet()
@@ -38,6 +41,7 @@ export async function subscribeUsage(): Promise<() => void> {
   return () => {
     unlisten?.()
     unlisten = null
+    stopActivity()
     started = false
   }
 }
@@ -56,9 +60,18 @@ function loadProviderPrefs(): Record<string, boolean> {
 
 const [providerPrefs, setProviderPrefs] = createSignal<Record<string, boolean>>(loadProviderPrefs())
 
-/** Display preference for a detected provider without a native settings switch. */
+/** Display preference for a detected provider without a native settings switch. Shown unless hidden. */
 export function providerEnabled(id: string): boolean {
-  return providerPrefs()[id] ?? false
+  return providerPrefs()[id] ?? true
+}
+
+/** Whether a provider is shown in the AI widgets: native switches first, then the local preference. */
+export function providerShown(id: string): boolean {
+  const flags = settings.usage
+  if (id === 'codex') return flags.codex
+  if (id === 'claude-code') return flags.claudeCode
+  if (id === 'cursor') return flags.cursor
+  return providerEnabled(id)
 }
 
 export function setProviderEnabled(id: string, enabled: boolean): void {

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Hover Island",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "identifier": "com.hoverisland.app",
   "build": {
     "frontendDist": "../dist",
@@ -14,12 +14,14 @@
     "windows": [
       {
         "label": "main",
-        "title": "Hover Island",
+        "title": "",
         "width": 720,
         "height": 460,
         "minWidth": 240,
         "minHeight": 36,
-        "resizable": true,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
         "decorations": false,
         "transparent": true,
         "shadow": false,

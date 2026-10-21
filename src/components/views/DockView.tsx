@@ -6,6 +6,10 @@ import './DockView.css'
 import BrandIcon from '../BrandIcon'
 import { reportError } from '../../state/feedback'
 
+const BRANDS = ['openai', 'claude', 'cursor', 'gmail', 'whatsapp', 'instagram', 'telegram', 'outlook', 'discord', 'codex']
+const hasBrand = (name: string) => { const n = name.toLowerCase(); return BRANDS.some(brand => n === brand || n.startsWith(`${brand} `)) }
+const hueFor = (name: string) => { let hash = 0; for (const ch of name) hash = (hash * 31 + ch.codePointAt(0)!) >>> 0; return [211, 262, 330, 14, 36, 142, 174, 195][hash % 8] }
+
 function launchDock(item: DockItem) {
   void (item.kind === 'url' ? cmd.appsOpenUrl(item.target) : cmd.appsLaunch(item.target)).catch(error=>reportError('Could not open app',error))
 }
@@ -24,7 +28,7 @@ export default function DockView(props: { compact?: boolean }) {
   const currentPage = () => Math.min(page(), pages() - 1)
   const shown = () => combined().slice(currentPage() * pageSize(), (currentPage() + 1) * pageSize())
   onMount(() => {
-    const observer = new ResizeObserver(entries => setPageSize(Math.max(1, Math.min(10, Math.floor((entries[0].contentRect.width + 12) / 72)))))
+    const observer = new ResizeObserver(entries => setPageSize(Math.max(1, Math.min(10, Math.floor((entries[0].contentRect.width + 8) / 64)))))
     if (miniGrid) observer.observe(miniGrid)
     onCleanup(() => observer.disconnect())
   })
@@ -41,13 +45,17 @@ export default function DockView(props: { compact?: boolean }) {
   }
 
   const Tile = (tile: { name: string; icon?: string | null; letter: string; url?: string; onClick: () => void }) => (
-    <button class="dock__tile" onClick={tile.onClick} title={tile.url ?? tile.name}>
+    <button class="dock__tile" onClick={tile.onClick} aria-label={tile.name} data-label={tile.name}>
       <span class="dock__art">
-        <Show when={tile.icon} fallback={<BrandIcon name={tile.name} size={24}/>}>
+        <Show when={tile.icon} fallback={
+          <Show when={hasBrand(tile.name)} fallback={<span class="dock__mono" style={`--hue:${hueFor(tile.name)}`} aria-hidden="true">{Array.from(tile.name.trim())[0]?.toUpperCase() ?? '?'}</span>}>
+            <BrandIcon name={tile.name} size={26}/>
+          </Show>
+        }>
           {(src) => <img class="dock__img" src={src()!} alt="" draggable={false} />}
         </Show>
       </span>
-      <span class="dock__name">{tile.name}</span>
+      <span class="dock__name" aria-hidden="true">{tile.name}</span>
     </button>
   )
 

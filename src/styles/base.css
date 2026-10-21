@@ -19,7 +19,7 @@ body {
   font-size: var(--fs-13);
   line-height: var(--lh-snug);
   color: var(--text-1);
-  font-feature-settings: "cv11", "ss01";
+  font-feature-settings: "calt", "kern";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -49,7 +49,8 @@ textarea {
   user-select: text;
 }
 
-/* ---------------------------------------------------------------- buttons */
+/* ---------------------------------------------------------------- buttons
+   Pill buttons on the black island. Filled white is the primary action. */
 
 .button,
 .icon-button {
@@ -57,57 +58,66 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  height: 30px;
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-sm);
-  background: var(--surface-2);
-  padding: 0 12px;
-  font-size: var(--fs-12);
+  height: 32px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--platter-strong);
+  padding: 0 14px;
+  font-size: var(--fs-13);
   font-weight: var(--fw-medium);
+  letter-spacing: var(--track-title);
   color: var(--text-1);
   cursor: pointer;
   transition:
     background var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease),
-    transform var(--dur-fast) var(--ease);
+    transform 200ms var(--spring);
 }
 .button:hover:not(:disabled),
 .icon-button:hover:not(:disabled) {
-  background: var(--surface-active);
+  background: var(--platter-active);
 }
 .button:active:not(:disabled),
 .icon-button:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
+  transition-duration: 80ms;
 }
 .button--primary {
-  background: var(--accent);
-  color: #0b0b0f;
-  border-color: transparent;
+  background: #fff;
+  color: #000;
   font-weight: var(--fw-semibold);
 }
 .button--primary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.86);
+}
+.button--accent {
+  background: var(--accent);
+  color: #fff;
+  font-weight: var(--fw-semibold);
+}
+.button--accent:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 86%, #fff);
 }
 .button--ghost {
   background: transparent;
 }
 .button--danger {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  background: color-mix(in srgb, var(--sys-red) 16%, transparent);
+  color: #ff8a80;
 }
 .button--danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  background: color-mix(in srgb, var(--sys-red) 26%, transparent);
 }
 .icon-button {
-  width: 30px;
-  height: 30px;
+  width: 32px;
   padding: 0;
   background: transparent;
-  border-color: transparent;
   flex: none;
-  border-radius: 9px;
+  border-radius: 50%;
   color: var(--text-2);
+}
+.icon-button:hover:not(:disabled) {
+  color: var(--text-1);
 }
 .icon-button--active {
   color: var(--accent);
@@ -120,13 +130,16 @@ textarea {
   cursor: pointer;
   color: var(--text-3);
   display: inline-flex;
-  transition: color var(--dur-fast) var(--ease);
+  transition: color var(--dur-fast) var(--ease), transform 200ms var(--spring);
 }
 .text-button:hover {
   color: var(--text-1);
 }
+.text-button:active {
+  transform: scale(var(--press-scale));
+}
 .inline-error {
-  color: var(--danger);
+  color: #ff8a80;
   font-size: var(--fs-12);
   line-height: var(--lh-normal);
   overflow-wrap: anywhere;
@@ -141,18 +154,18 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   flex: none;
 }
 .view-heading h2 {
-  font-size: var(--fs-18);
-  line-height: 1.2;
+  font-size: var(--fs-22);
+  line-height: 1.15;
   font-weight: var(--fw-semibold);
-  letter-spacing: var(--track-title);
-  margin: 0 0 5px;
+  letter-spacing: var(--track-display);
+  margin: 0 0 4px;
 }
 .view-heading p {
-  font-size: var(--fs-12);
+  font-size: var(--fs-13);
   line-height: var(--lh-normal);
   color: var(--text-3);
   margin: 0;
@@ -160,29 +173,33 @@ textarea {
 
 input:not([type="range"]):not([type="color"]):not([type="checkbox"]),
 textarea {
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--surface-1) 70%, transparent);
-  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--platter-strong);
+  padding: 8px 12px;
   min-width: 0;
   color: var(--text-1);
-  font-size: var(--fs-12);
+  font-size: var(--fs-13);
   transition:
-    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
     background var(--dur-fast) var(--ease);
 }
 input:not([type="range"]):not([type="color"]):not([type="checkbox"]):focus,
 textarea:focus {
   outline: none;
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line-1));
-  background: color-mix(in srgb, var(--surface-1) 90%, transparent);
+  background: var(--platter-active);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-3);
 }
 
 select {
-  border: 1px solid var(--line-1);
+  border: 0;
   border-radius: var(--r-sm);
-  background: var(--surface-2);
-  padding: 6px 9px;
+  background: var(--platter-strong);
+  padding: 6px 10px;
   font-size: var(--fs-12);
 }
 
@@ -231,15 +248,18 @@ select {
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.18);
   border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.30);
+  background-clip: content-box;
 }
 ::-webkit-scrollbar-track {
   background: transparent;

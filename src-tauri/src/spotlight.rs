@@ -579,8 +579,10 @@ mod tests {
             id: target.into(),
             name: name.into(),
             target: target.into(),
-            kind: "desktop".into(),
+            kind: "win32".into(),
             icon: None,
+            last_used: None,
+            use_count: 0,
         }
     }
 

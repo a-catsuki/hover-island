@@ -1,0 +1,60 @@
+/* AI agent toast: one calm row inside the notch. Colour only carries state. */
+.aat { --aat-tint: var(--text-2); position: relative; display: flex; align-items: center; gap: 14px; width: 100%; min-width: 0; animation: aat-in 460ms var(--spring, cubic-bezier(.2,.9,.25,1.2)) both; transform-origin: 50% 0; }
+.aat--out { animation: aat-out 240ms cubic-bezier(.4,0,.8,.4) both; }
+.aat--question { --aat-tint: var(--sys-orange, #FF9F0A); }
+.aat--completed { --aat-tint: var(--sys-green, #30D158); }
+.aat--failed { --aat-tint: var(--sys-red, #FF453A); animation: aat-in 460ms var(--spring, ease) both, aat-shake 420ms 120ms ease-in-out 1; }
+.aat--started, .aat--progress { --aat-tint: var(--sys-blue, #0A84FF); }
+
+.aat__badge { position: relative; display: grid; flex: none; width: 52px; height: 52px; place-items: center; }
+.aat__ring { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; transform: rotate(-90deg); overflow: visible; }
+.aat__ring-track { stroke: rgba(255, 255, 255, .10); stroke-width: 2.4; }
+.aat__ring-fill { stroke: var(--aat-tint); stroke-width: 2.6; stroke-linecap: round; transition: stroke-dashoffset 520ms var(--spring, ease); }
+.aat__ring-spin { stroke: var(--aat-tint); stroke-width: 2.6; stroke-linecap: round; transform-origin: 24px 24px; animation: aat-spin 1.3s linear infinite; }
+.aat__ring-done { stroke: var(--aat-tint); stroke-width: 2.6; stroke-dasharray: 132; stroke-dashoffset: 132; animation: aat-draw 520ms 80ms cubic-bezier(.3,.7,.2,1) forwards; }
+.aat--failed .aat__ring-track { stroke: color-mix(in srgb, var(--sys-red, #FF453A) 45%, transparent); }
+.aat--question .aat__ring-track { stroke: color-mix(in srgb, var(--sys-orange, #FF9F0A) 38%, transparent); animation: aat-glow 1.8s ease-in-out infinite; }
+
+.aat-mark { position: relative; display: inline-grid; flex: none; place-items: center; border-radius: 9px; background: color-mix(in srgb, var(--mark, #888) 16%, #1b1b1d); color: var(--mark, #fff); font-weight: 650; letter-spacing: -.02em; line-height: 1; }
+.aat-mark b { font-weight: inherit; }
+.aat-mark img { object-fit: contain; }
+
+.aat__q, .aat__check, .aat__fail { position: absolute; right: -2px; bottom: -2px; display: grid; width: 20px; height: 20px; place-items: center; border-radius: 50%; color: #000; box-shadow: 0 0 0 3px #000; background: var(--aat-tint); }
+.aat__q { font-size: 13px; font-weight: 750; animation: aat-pulse 1.6s ease-in-out infinite; }
+.aat__check { animation: aat-pop 420ms 260ms cubic-bezier(.3,1.6,.5,1) both; }
+.aat__fail { color: #fff; }
+.aat__burst { position: absolute; inset: -6px; pointer-events: none; }
+.aat__burst i { position: absolute; left: 50%; top: 50%; width: 3px; height: 3px; margin: -1.5px; border-radius: 50%; background: var(--aat-tint); opacity: 0; animation: aat-burst 640ms 160ms cubic-bezier(.2,.8,.3,1) forwards; transform: rotate(calc(var(--i) * 45deg)) translateY(-18px); }
+.aat__burst i:nth-child(1) { --i: 0 } .aat__burst i:nth-child(2) { --i: 1 } .aat__burst i:nth-child(3) { --i: 2 } .aat__burst i:nth-child(4) { --i: 3 }
+.aat__burst i:nth-child(5) { --i: 4 } .aat__burst i:nth-child(6) { --i: 5 } .aat__burst i:nth-child(7) { --i: 6 } .aat__burst i:nth-child(8) { --i: 7 }
+
+.aat__body { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
+.aat__meta { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--text-3); font-size: 11px; font-weight: 500; line-height: 1.3; }
+.aat__app { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aat__chip { flex: none; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--aat-tint) 20%, transparent); color: color-mix(in srgb, var(--aat-tint) 78%, #fff); font-size: 10.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.aat--question .aat__chip { animation: aat-pulse 1.6s ease-in-out infinite; }
+.aat__title { overflow: hidden; color: var(--text-1); font-size: 15px; font-weight: 600; letter-spacing: -.014em; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.aat__detail { overflow: hidden; color: var(--text-2); font-size: 12.5px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.aat__bar { position: absolute; left: 0; right: 0; bottom: -10px; height: 3px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, .10); }
+.aat__bar span { display: block; height: 100%; border-radius: inherit; background: var(--aat-tint); transition: width 520ms var(--spring, ease); }
+
+/* The generic peek chrome stays out of the way. */
+.peek--ai-activity > :not(.aat) { display: none !important; }
+
+@keyframes aat-in { from { opacity: 0; transform: translateY(-10px) scale(.94); filter: blur(4px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes aat-out { to { opacity: 0; transform: translateY(-8px) scale(.95); filter: blur(4px); } }
+@keyframes aat-spin { to { transform: rotate(360deg); } }
+@keyframes aat-draw { to { stroke-dashoffset: 0; } }
+@keyframes aat-pop { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes aat-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: .82; } }
+@keyframes aat-glow { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes aat-burst { 0% { opacity: 0; transform: rotate(calc(var(--i) * 45deg)) translateY(-14px) scale(.6); } 30% { opacity: 1; } 100% { opacity: 0; transform: rotate(calc(var(--i) * 45deg)) translateY(-30px) scale(1); } }
+@keyframes aat-shake { 0%, 100% { translate: 0 0; } 20% { translate: -4px 0; } 40% { translate: 4px 0; } 60% { translate: -3px 0; } 80% { translate: 2px 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .aat, .aat--out, .aat--failed { animation: none; }
+  .aat--out { opacity: 0; }
+  .aat__ring-spin, .aat__q, .aat__chip, .aat__ring-track, .aat__burst i, .aat__check { animation: none; }
+  .aat__ring-done { animation: none; stroke-dashoffset: 0; }
+  .aat__burst { display: none; }
+}

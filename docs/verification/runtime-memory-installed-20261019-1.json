@@ -1,0 +1,76 @@
+{
+  "capturedAtUtc": "2026-10-19T06:35:17.8148442Z",
+  "rootPid": 34868,
+  "executable": "C:\\Program Files\\WindowsApps\\com.hoverisland.app_0.1.5.1_x64__hq77z97e8bw9y\\hover-island.exe",
+  "measurementComplete": true,
+  "hostFreePhysicalMemoryBytes": 1089015808,
+  "hostTotalPhysicalMemoryBytes": 16858472448,
+  "totalPrivateWorkingSetBytes": 99885056,
+  "totalPrivateCommitBytes": 296976384,
+  "basis": "Owned process tree; private working set is resident RAM excluding shared pages. Private commit is reported separately and is not resident RAM.",
+  "processes": [
+    {
+      "pid": 34868,
+      "parentPid": 13048,
+      "name": "hover-island.exe",
+      "role": "native",
+      "privateWorkingSetBytes": 49545216,
+      "workingSetBytes": 99164160,
+      "privateCommitBytes": 55390208
+    },
+    {
+      "pid": 51156,
+      "parentPid": 34868,
+      "name": "msedgewebview2.exe",
+      "role": "webview-manager",
+      "privateWorkingSetBytes": 4046848,
+      "workingSetBytes": 8347648,
+      "privateCommitBytes": 38780928
+    },
+    {
+      "pid": 26844,
+      "parentPid": 51156,
+      "name": "msedgewebview2.exe",
+      "role": "crashpad-handler",
+      "privateWorkingSetBytes": 2314240,
+      "workingSetBytes": 20619264,
+      "privateCommitBytes": 3731456
+    },
+    {
+      "pid": 37696,
+      "parentPid": 51156,
+      "name": "msedgewebview2.exe",
+      "role": "gpu-process",
+      "privateWorkingSetBytes": 1806336,
+      "workingSetBytes": 3305472,
+      "privateCommitBytes": 111448064
+    },
+    {
+      "pid": 30060,
+      "parentPid": 51156,
+      "name": "msedgewebview2.exe",
+      "role": "utility",
+      "privateWorkingSetBytes": 503808,
+      "workingSetBytes": 966656,
+      "privateCommitBytes": 12963840
+    },
+    {
+      "pid": 56964,
+      "parentPid": 51156,
+      "name": "msedgewebview2.exe",
+      "role": "utility",
+      "privateWorkingSetBytes": 16384,
+      "workingSetBytes": 16384,
+      "privateCommitBytes": 7995392
+    },
+    {
+      "pid": 56656,
+      "parentPid": 51156,
+      "name": "msedgewebview2.exe",
+      "role": "renderer",
+      "privateWorkingSetBytes": 41652224,
+      "workingSetBytes": 51621888,
+      "privateCommitBytes": 66666496
+    }
+  ]
+}

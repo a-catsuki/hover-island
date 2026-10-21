@@ -1,0 +1,25 @@
+/* App notifications: permission card and per-app list (scoped to the notification settings panels). */
+.nacc { display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:16px; background:rgba(255,255,255,.06); }
+.nacc__icon { display:grid; flex:none; place-items:center; width:36px; height:36px; border-radius:10px; background:rgba(255,255,255,.1); color:rgba(255,255,255,.7); }
+.nacc__icon--ok { background:rgba(48,209,88,.16); color:#30D158; }
+.nacc__copy { flex:1; min-width:0; }
+.nacc__state { display:flex; align-items:center; gap:7px; font-size:14px; font-weight:600; letter-spacing:-.01em; }
+.nacc__dot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.3); }
+.nacc__dot--ok { background:#30D158; }
+.nacc__dot--off { background:#FF9F0A; }
+.nacc__copy p { margin:3px 0 0; font-size:12px; line-height:1.4; color:rgba(255,255,255,.6); }
+.nacc .button { flex:none; white-space:nowrap; }
+
+.appn { display:flex; flex-direction:column; gap:16px; }
+.appn__lead { margin:0; font-size:13px; line-height:1.45; color:rgba(255,255,255,.6); }
+.appn__section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
+.appn__section-head h3 { margin:0; font-size:13px; font-weight:600; letter-spacing:-.01em; }
+.appn__list { display:flex; flex-direction:column; border-radius:16px; background:rgba(255,255,255,.06); overflow:hidden; }
+.appn__row { display:flex; align-items:center; gap:12px; min-height:56px; padding:9px 14px; }
+.appn__row+.appn__row { box-shadow:inset 0 .5px 0 rgba(255,255,255,.08); }
+.appn__row-copy { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+.appn__name { overflow:hidden; font-size:13px; font-weight:500; text-overflow:ellipsis; white-space:nowrap; }
+.appn__sub { font-size:11px; color:rgba(255,255,255,.48); }
+.appn__empty { margin:0; padding:22px 16px; border-radius:16px; background:rgba(255,255,255,.06); font-size:12px; line-height:1.45; text-align:center; color:rgba(255,255,255,.55); }
+.appn__status { margin:0; font-size:12px; color:rgba(255,255,255,.6); }
+.appn__shortcuts { margin-top:4px; }

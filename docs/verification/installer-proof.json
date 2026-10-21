@@ -1,7 +1,7 @@
 {
-  "kit": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.4.0-x64-20261016-073751-660-6cfcd014",
-  "zip": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.4.0-x64-20261016-073751-660-6cfcd014.zip",
-  "executableSha256": "ca884711ff7d8ad161758d8eab801bb04d45b31aaac6ecbeb1c54fb0e110bc22",
+  "kit": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.5.2-x64-20261019-095519-329-263ccf5e",
+  "zip": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.5.2-x64-20261019-095519-329-263ccf5e.zip",
+  "executableSha256": "c8036b40e61ffed09d1f5faaeb4599e5b508c8a10f0aaa7d014533636e1a3386",
   "packagedExecutableMatches": true,
   "installedExecutableMatches": true,
   "capabilities": [
@@ -10,7 +10,8 @@
     "userNotificationListener",
     "runFullTrust",
     "bluetooth",
-    "radios"
+    "radios",
+    "location"
   ],
   "signatureVerified": true,
   "privateKeyShipped": false

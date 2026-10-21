@@ -39,7 +39,7 @@
 }
 
 .ambient.ambient--artwork .ambient__art {
-  filter: blur(48px) saturate(1.32);
+  filter: none;
   opacity: 0.24;
   transform: scale(1.08);
 }
@@ -206,3 +206,37 @@
   .ambient--preview.ambient--awake .ambient__light { transition: none; }
 }
 
+
+/* ---- base layer (opt-in scenes only; the default scene renders nothing) ---- */
+.ambient {
+  opacity: 0;
+  transition: opacity 400ms var(--ease-out);
+}
+.ambient--awake { opacity: 1; }
+.ambient__light {
+  position: absolute;
+  width: 75%;
+  height: 110%;
+  top: -35%;
+  left: -20%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--accent) 48%, transparent), transparent 67%);
+  opacity: 0.2;
+  transform: translate3d(var(--pointer-x, 0px), var(--pointer-y, 0px), 0) scale(calc(1 + var(--audio-energy, 0) * 0.28));
+}
+.ambient__light--b {
+  left: 50%;
+  top: 5%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--accent-2) 42%, transparent), transparent 67%);
+  opacity: 0.13;
+}
+.ambient--ember .ambient__light--a { background: radial-gradient(ellipse, #a947287a, transparent 67%); }
+.ambient--ember .ambient__light--b { background: radial-gradient(ellipse, #e3a04166, transparent 67%); }
+.ambient--plain .ambient__light,
+.ambient--plain .ambient__grain { display: none; }
+.ambient__art { width: 100%; height: 100%; background: center / 100% 100% no-repeat; filter: none; opacity: 0.26; transform: scale(1.2); }
+.ambient__grain { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .ambient__light { transform: none !important; animation: none !important; }
+  .ambient__art { transform: none; }
+}

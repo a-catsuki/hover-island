@@ -1,0 +1,91 @@
+[package]
+name = "hover-island"
+version = "0.1.5"
+description = "A macOS-notch-style Dynamic Island for Windows"
+authors = ["Hover Island"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "hover_island_lib"
+# This is a Windows desktop binary; mobile embedding libraries are unnecessary.
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-store = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+dirs = "5"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util", "fs"] }
+axum = { version = "0.7", features = ["json", "http1", "tokio"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream", "http2"] }
+httpdate = "1"
+socket2 = { version = "0.5", features = ["all"] }
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+hostname = "0.4"
+plist = "1.10.1"
+flate2 = "1.1.10"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+
+[target.'cfg(windows)'.dependencies]
+# Match Tauri/Wry's locked WebView2 interfaces for the native memory target hint.
+webview2-com = "=0.39.1"
+windows-core = "=0.62.2"
+windows = { version = "0.52", features = [
+    "Foundation",
+    "Foundation_Collections",
+    "Storage_Streams",
+    "Graphics_Imaging",
+    "ApplicationModel",
+    "Devices_Bluetooth",
+    "Devices_Enumeration",
+    "Devices_Geolocation",
+    "Win32_Devices_FunctionDiscovery",
+      "Devices_Radios",
+    "Media",
+    "Media_Control",
+    "Win32_Foundation",
+      "Win32_Security",
+    "Win32_System_Com",
+    "Win32_System_Ole",
+    "Win32_System_Power",
+      "Win32_System_Registry",
+      "Win32_System_Wmi",
+      "Win32_System_Diagnostics_ToolHelp",
+      "Win32_System_ProcessStatus",
+      "Win32_System_RemoteDesktop",
+      "Win32_System_Threading",
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_System_Rpc",
+    "Win32_Storage_FileSystem",
+    "Win32_System_WindowsProgramming",
+    "Win32_Media_KernelStreaming",
+    "Win32_Media_Multimedia",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+      "Win32_UI_Shell",
+    "Win32_UI_Shell_PropertiesSystem",
+    "implement",
+    "UI_Notifications",
+    "UI_Notifications_Management",
+] }
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+opt-level = "s"
+strip = true
+incremental = false

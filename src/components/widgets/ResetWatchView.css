@@ -1,133 +1,26 @@
-.reset-watch-widget {
-  --reset-accent: #b895ff;
-  container-type: size;
-  display: flex;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-  gap: 8px;
-  color: var(--text-1);
-}
-
-.reset-watch__head {
-  display: flex;
-  flex: none;
-  min-width: 0;
-  min-height: 26px;
-  align-items: center;
-  gap: 7px;
-  margin: 0;
-}
-.reset-watch__brand {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  gap: 7px;
-  color: var(--text-1);
-  font-size: 12px;
-  font-weight: var(--fw-semibold);
-  letter-spacing: -.015em;
-}
-.reset-watch__brand svg { flex: none; color: var(--reset-accent); }
-.reset-watch__source { margin-left: auto; color: var(--text-3); font-size: 9px; text-decoration: none; }
-.reset-watch__source:hover { color: var(--text-1); text-decoration: underline; }
-.reset-watch__stale {
-  flex: none;
-  padding: 4px 7px;
-  border: 1px solid color-mix(in srgb, var(--warn) 32%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--warn) 10%, transparent);
-  color: var(--warn);
-  font: inherit;
-  font-size: 9px;
-  line-height: 1;
-  cursor: pointer;
-}
-.reset-watch__refresh {
-  display: grid;
-  flex: none;
-  width: 26px;
-  height: 26px;
-  margin-left: 0;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--line-2);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
-  color: var(--text-2);
-  cursor: pointer;
-}
-.reset-watch__stale + .reset-watch__refresh { margin-left: 0; }
-.reset-watch__refresh:hover:not(:disabled) { color: var(--text-1); background: var(--surface-hover); }
-.reset-watch__refresh:disabled { opacity: .55; cursor: wait; }
-.reset-watch__refresh:focus-visible,
-.reset-watch__stale:focus-visible,
-.reset-watch__latest:focus-visible { outline: 2px solid var(--reset-accent); outline-offset: 2px; }
-.reset-watch__spin { animation: reset-watch-spin .8s linear infinite; }
+.reset-watch-widget { --reset-accent: #BF5AF2; container-type: size; }
+.reset-watch__source { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--text-3); text-decoration: none; }
+.reset-watch__source:hover { color: var(--text-1); }
+.reset-watch__head { gap: 8px; }
+.reset-watch__head .wk-title { margin-right: auto; }
+.reset-watch__stale { height: 22px; padding: 0 9px; border: 0; border-radius: 999px; background: rgba(255, 159, 10, 0.2); color: #FFB340; font-size: 11px; font-weight: 600; cursor: pointer; }
+.reset-watch__refresh { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-2); cursor: pointer; }
+.reset-watch__refresh:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
+.reset-watch__refresh:disabled { opacity: 0.5; cursor: wait; }
+.reset-watch__spin { animation: reset-watch-spin 800ms linear infinite; }
 @keyframes reset-watch-spin { to { transform: rotate(360deg); } }
-
 .reset-watch__latest-wrap { display: flex; flex: 1 1 0; min-height: 0; flex-direction: column; justify-content: center; }
-.reset-watch__latest {
-  display: grid;
-  flex: 0 0 auto;
-  min-width: 0;
-  min-height: 54px;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto auto;
-  align-items: center;
-  gap: 6px 8px;
-  padding: 9px 10px;
-  overflow: hidden;
-  border: 1px solid var(--line-1);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface-2) 75%, transparent);
-  color: var(--text-1);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 140ms var(--ease), background 140ms var(--ease), transform 140ms var(--ease);
-}
-.reset-watch__latest:hover { border-color: color-mix(in srgb, var(--reset-accent) 36%, var(--line-1)); background: color-mix(in srgb, var(--reset-accent) 5%, var(--surface-2)); }
-.reset-watch__latest:active { transform: scale(.99); }
-.reset-watch__badge {
-  display: inline-flex;
-  max-width: 100%;
-  align-items: center;
-  overflow: hidden;
-  justify-self: start;
-  padding: 4px 7px;
-  border: 1px solid color-mix(in srgb, var(--reset-accent) 26%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--reset-accent) 10%, transparent);
-  color: color-mix(in srgb, var(--reset-accent) 83%, white);
-  font-size: 8px;
-  font-weight: var(--fw-semibold);
-  letter-spacing: .04em;
-  line-height: 1;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.reset-watch__badge--banked { border-color: #dcb98245; background: #dcb98214; color: #e9c982; }
-.reset-watch__latest-title { display: -webkit-box; min-width: 0; overflow: hidden; color: var(--text-1); font-size: 12px; font-weight: var(--fw-medium); line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.reset-watch__latest-meta { display: flex; min-width: 0; grid-column: 1 / -1; align-items: center; gap: 6px; color: var(--text-3); font-size: 9px; line-height: 1.2; }
+.reset-watch__latest { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; width: 100%; min-width: 0; padding: 12px 14px; border: 0; border-radius: 16px; background: rgba(255, 255, 255, 0.06); text-align: left; cursor: pointer; transition: background 140ms, transform 120ms; }
+.reset-watch__latest:hover { background: rgba(255, 255, 255, 0.09); }
+.reset-watch__latest:active { transform: scale(0.99); }
+.reset-watch__badge { display: inline-flex; max-width: 100%; height: 22px; align-items: center; padding: 0 10px; overflow: hidden; border-radius: 999px; background: rgba(191, 90, 242, 0.2); color: #D69AF7; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.reset-watch__badge--banked { background: rgba(255, 159, 10, 0.2); color: #FFB340; }
+.reset-watch__latest-title { display: -webkit-box; min-width: 0; overflow: hidden; font-size: 15px; font-weight: 600; letter-spacing: -0.014em; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.reset-watch__latest-meta { display: flex; width: 100%; min-width: 0; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); }
 .reset-watch__latest-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.reset-watch__latest-meta time { flex: none; margin-left: auto; font-variant-numeric: tabular-nums; }
-.reset-watch__latest-meta svg { flex: none; color: var(--reset-accent); }
-.reset-watch__empty,
-.reset-watch__loading { display: grid; flex: 1 1 0; min-height: 34px; place-items: center; margin: 0; color: var(--text-2); font-size: 10px; line-height: 1.4; text-align: center; }
-.reset-watch__loading[role="alert"] { color: var(--danger); }
-.reset-watch__error { flex: none; max-width: 100%; margin: 0; overflow: hidden; color: var(--warn); font-size: 9px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
-
-@container (max-height: 200px) {
-  .reset-watch-widget { gap: 6px; }
-  .reset-watch__head { min-height: 22px; }
-  .reset-watch__latest { min-height: 42px; grid-template-rows: auto 1fr; padding: 6px 8px; gap: 3px; }
-  .reset-watch__latest-meta { display: none; }
-  .reset-watch__badge { font-size: 8px; padding: 2px 5px; }
-  .reset-watch__latest-title { font-size: 10px; }
-}
-@container (max-width: 310px) { .reset-watch-widget { gap: 6px; } .reset-watch__latest { padding: 7px; gap: 5px 6px; } .reset-watch__latest-title { font-size: 10px; } }
-@media (prefers-reduced-motion: reduce) { .reset-watch__spin, .reset-watch__latest { animation: none; transition: none; } }
-@media (prefers-contrast: more) { .reset-watch__latest { border-color: var(--text-2); } }
+.reset-watch__latest-meta time { flex: none; margin-left: auto; }
+.reset-watch__latest-meta svg { flex: none; }
+.reset-watch__empty, .reset-watch__loading { display: grid; flex: 1 1 0; place-items: center; margin: 0; font-size: 12px; color: var(--text-3); text-align: center; }
+.reset-watch__loading[role="alert"] { color: #FF6961; }
+.reset-watch__error { flex: none; margin: 0; overflow: hidden; font-size: 11px; color: #FF9F0A; text-overflow: ellipsis; white-space: nowrap; }
+@container (max-height: 170px) { .reset-watch__latest { padding: 9px 12px; gap: 5px; } .reset-watch__latest-title { font-size: 13px; -webkit-line-clamp: 1; } }

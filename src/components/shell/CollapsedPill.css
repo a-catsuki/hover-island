@@ -1,48 +1,111 @@
+/* Collapsed island: a slim black capsule. Left glyph or album art (20px), right live status (18px).
+   Content only fades and scales (opacity/transform); the shape itself is the clip in Island.tsx. */
 .pill__compact {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
   align-items: center;
-  gap: clamp(4px, 1.1vw, 8px);
+  justify-content: space-between;
+  gap: 10px;
   overflow: hidden;
 }
-.pill__compact-item { display: flex; min-width: 0; flex: 0 1 auto; align-items: center; gap: 5px; white-space: nowrap; }
-.pill__compact-media { min-width: 0; flex: 1 1 96px; gap: 5px; }
-.pill__compact-art { display: grid; width: 20px; height: 20px; flex: none; place-items: center; overflow: hidden; border-radius: 5px; background: color-mix(in srgb, var(--surface-2) 75%, transparent); color: var(--text-2); }
-.pill__compact-art img { width: 100%; height: 100%; object-fit: cover; }
-.pill__compact-title { min-width: 0; flex: 1 1 auto; overflow: hidden; color: var(--text-1); font-size: 11px; text-overflow: ellipsis; }
-.pill__compact-controls { display: flex; flex: none; align-items: center; gap: 1px; }
-.pill__compact-controls button { display: grid; width: 22px; height: 26px; flex: none; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); cursor: pointer; }
-.pill__compact-controls button:hover:not(:disabled) { background: var(--surface-hover); color: var(--text-1); }
-.pill__compact-controls button:active:not(:disabled) { transform: scale(.94); }
-.pill__compact-controls button:disabled { opacity: .38; cursor: default; }
+.pill__compact-item { display: flex; min-width: 0; flex: 0 1 auto; align-items: center; gap: 6px; white-space: nowrap; animation: pill-in 240ms var(--ease-out) both; }
+.pill__compact-media { min-width: 0; flex: 1 1 80px; gap: 8px; }
+.pill__compact-media--idle { flex: 0 0 auto; }
+.pill__compact-art {
+  display: grid; width: 20px; height: 20px; flex: none; place-items: center; overflow: hidden;
+  border-radius: 6px; background: var(--platter-strong); color: var(--text-2);
+}
+.pill__compact-art img { width: 100%; height: 100%; object-fit: cover; animation: pill-in 240ms var(--ease-out) both; }
+.pill__compact-title { min-width: 0; flex: 1 1 auto; overflow: hidden; color: var(--text-2); font-size: 11.5px; font-weight: var(--fw-medium); letter-spacing: -0.01em; text-overflow: ellipsis; }
+.pill__compact-media--idle .pill__compact-title { display: none; }
+.pill__compact-live { display: grid; flex: none; place-items: center; width: 18px; height: 18px; margin-left: auto; }
+.pill__compact-controls { display: flex; flex: none; align-items: center; gap: 0; }
+.pill__compact-controls button {
+  display: grid; width: 24px; height: 24px; flex: none; place-items: center; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--text-2); cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform 160ms var(--spring);
+}
+.pill__compact-controls button:hover:not(:disabled) { background: var(--platter-hover); color: var(--text-1); }
+.pill__compact-controls button:active:not(:disabled) { transform: scale(var(--press-scale)); }
+.pill__compact-controls button:disabled { opacity: .35; cursor: default; }
+.pill__compact-controls button svg { fill: currentColor; stroke-width: 1.5; }
 .pill__compact-clock strong,
+.pill__compact-aistat strong,
 .pill__compact-battery strong,
-.pill__compact-ai strong { color: var(--text-1); font-size: 11px; font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
-.pill__compact-clock { flex-direction: column; align-items: flex-start; gap: 0; }
-.pill__compact-clock strong {font-family:var(--clock-font,inherit);}
-.pill__compact-clock--analog { flex-direction: row; align-items: center; gap: 6px; }
+.pill__compact-ai strong { color: var(--text-1); font-size: 11.5px; font-weight: var(--fw-semibold); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.pill__compact-clock { flex-direction: row; align-items: center; gap: 6px; flex: none; }
+.pill__compact-clock strong { font-family: var(--clock-font, inherit); }
+.pill__compact-clock--analog { gap: 6px; }
 .pill__analog { display: block; flex: none; }
-.pill__compact-label { max-width: 48px; overflow: hidden; color: var(--text-3); font-size: 9px; text-overflow: ellipsis; }
-.pill__compact-weather { gap: 4px; color: var(--text-2); }
-.pill__compact-weather strong { color: var(--text-1); font-size: 11px; font-variant-numeric: tabular-nums; }
-.pill__compact-weather .pill__compact-label { max-width: 40px; }
-.pill__compact-ai { gap: 4px; }
+.pill__compact-label { max-width: 56px; overflow: hidden; color: var(--text-3); font-size: 11px; text-overflow: ellipsis; }
+.pill__compact-clock .pill__compact-label { display: none; }
+.pill__compact-weather { gap: 5px; color: var(--text-2); }
+.pill__compact-weather strong { color: var(--text-1); font-size: 11.5px; font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.pill__compact-weather .pill__compact-label { max-width: 52px; }
+.pill__compact-ai { gap: 5px; }
 .pill__compact-ai .pill__ring { width: 14px; height: 14px; flex: none; }
-.pill__compact-battery { gap: 4px; color: var(--text-2); }
-.pill__compact-empty { min-width: 0; overflow: hidden; color: var(--text-3); font-size: 10px; text-overflow: ellipsis; }
-.pill__alert-badge {display:flex;align-items:center;gap:5px;max-width:94px;min-width:26px;flex:0 1 94px;border:0;border-radius:8px;padding:4px 5px;background:#ff453a16;color:#ffc4b9;font:inherit;font-size:9px;cursor:pointer;}
-.pill__alert-badge>span:last-child {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.pill__alert-badge--auth {max-width:84px;flex:0 1 84px;background:#829fff20;color:#d5e0ff;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.07em;}
-.pill__alert-badge--auth .pill__alert-dot {background:#9eb7ff;box-shadow:0 0 7px #9eb7ff80;}
-.pill__alert-dot {width:5px;height:5px;border-radius:50%;background:#ff6257;flex:none;box-shadow:0 0 8px #ff453a44;}
-.pill__focus { color: var(--text-2); font-size: 10px; font-variant-numeric: tabular-nums; }
-.pill__beam {display:grid;place-items:center;flex:none;width:25px;height:25px;padding:0;border:0;border-radius:9px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:color-mix(in srgb,var(--accent) 65%,white);cursor:pointer;transition:background 140ms,transform 140ms;}
-.pill__beam:hover {background:color-mix(in srgb,var(--accent) 24%,transparent);}
-.pill__beam:active {transform:scale(.91);}
-.pill__beam:focus-visible {outline:2px solid var(--accent);outline-offset:2px;}
-.pill--compact-small .pill__compact { gap: 5px; }
+.pill__compact-battery { gap: 5px; color: var(--text-2); }
+/* Nothing to show: a quiet grabber dot instead of text. */
+.pill__compact-empty { display: block; width: 28px; height: 4px; margin: 0 auto; border-radius: 2px; background: var(--platter-active); }
+.pill__alert-badge {
+  display: flex; align-items: center; gap: 5px; max-width: 104px; min-width: 22px; flex: 0 1 104px; height: 22px; border: 0; border-radius: 999px;
+  padding: 0 9px 0 8px; background: rgba(255, 69, 58, 0.20); color: #ff8a80; font: inherit; font-size: 11px; font-weight: var(--fw-medium); cursor: pointer;
+  transition: transform 160ms var(--spring), background var(--dur-fast) var(--ease);
+  animation: pill-in 240ms var(--ease-out) both;
+}
+.pill__alert-badge:hover { background: rgba(255, 69, 58, 0.28); }
+.pill__alert-badge:active { transform: scale(var(--press-scale)); }
+.pill__alert-badge > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill__alert-badge--auth { max-width: 96px; flex: 0 1 96px; background: rgba(10, 132, 255, 0.22); color: #7cc0ff; font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; letter-spacing: 0.06em; }
+.pill__alert-badge--auth .pill__alert-dot { background: var(--sys-blue); }
+.pill__alert-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sys-red); flex: none; }
+.pill__badges { gap: 6px; }
+.pill__focus { color: var(--text-1); font-size: 11.5px; font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; animation: pill-in 240ms var(--ease-out) both; }
+.pill__beam { display: grid; place-items: center; flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: var(--platter-strong); color: var(--text-1); cursor: pointer; transition: background 140ms, transform 160ms var(--spring); }
+.pill__beam:hover { background: var(--platter-active); }
+.pill__beam:active { transform: scale(var(--press-scale)); }
+.pill__beam:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pill--compact-small .pill__compact { gap: 8px; }
 .pill--compact-small .pill__compact-label { display: none; }
-.pill--compact-small .pill__compact-controls button { width: 20px; }
-.pill--compact-large .pill__compact { gap: 7px; }
-@media (prefers-reduced-motion: reduce) { .pill__compact-controls button:active:not(:disabled) { transform: none; } }
+.pill--compact-small .pill__compact-controls button { width: 22px; height: 22px; }
+.pill--compact-small .pill__compact-live { display: none; }
+.pill--compact-large .pill__compact { gap: 12px; }
+.pill__compact-media:has(.pill__compact-controls) .pill__compact-live { display: none; }
+
+/* Optional AI stat (compactAiStat). Same compact item rules as the other items. */
+.pill__compact-aistat { gap: 5px; color: var(--text-2); flex: none; }
+.pill__aistat-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--text-3); }
+.pill__compact-aistat--live .pill__aistat-dot { background: var(--sys-green); }
+
+/* States swap with a short fade and scale, never a layout wobble. Runs once on mount only. */
+@keyframes pill-in { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+
+/* A hairline of light on the lower edge, so the black shape reads against dark wallpapers. */
+.island__collapsed .island__bar { position: relative; }
+.island__collapsed .island__bar::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  border-radius: 0 0 9px 9px; inset: 0 10px;
+  box-shadow: inset 0 -0.5px 0 rgba(255, 255, 255, 0.07);
+}
+.island--edge-bottom .island__collapsed .island__bar::after { border-radius: calc(var(--collapsed-h) / 2) calc(var(--collapsed-h) / 2) 0 0; box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.07); }
+.island--mode-bar .island__collapsed .island__bar::after, .island--notch-side .island__collapsed .island__bar::after, .island--mode-sidebar .island__collapsed .island__bar::after { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pill__compact-controls button:active:not(:disabled), .pill__alert-badge:active, .pill__beam:active { transform: none; }
+  .pill__compact-item, .pill__compact-art img, .pill__alert-badge, .pill__focus { animation: none; }
+}
+.pill__compact > .pill__compact-item:only-child, .pill__compact > .pill__compact-clock:only-child { margin: 0 auto; }
+.pill__compact-weather .pill__compact-label { display: none; }
+.pill__compact-label { display: none; }
+
+/* Keep-awake indicator: bolt and time left; breathes softly only while an alarm waits for an answer. */
+.pill__awake { display: inline-flex; align-items: center; gap: 3px; color: #ff9f0a; font-size: 11px; font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
+.pill__awake--pending { animation: pill-awake-pulse 1.6s ease-in-out infinite; }
+@keyframes pill-awake-pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .pill__awake--pending { animation: none; } }
+
+/* Even breathing room on both ends. The notch ears eat into the corners, so the content
+   sits well inside the body; left and right match so nothing looks pushed to one side. */
+.island--mode-notch:not(.island--notch-side) .island__collapsed .island__bar { padding: 0 18px; }
+.island--mode-notch:not(.island--notch-side) .pill__compact { gap: 14px; }

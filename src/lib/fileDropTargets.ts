@@ -5,6 +5,13 @@ export interface TargetRect { left: number; top: number; right: number; bottom: 
 export interface FileDropTargetRects { recycle?: TargetRect; beam?: TargetRect }
 export interface FileDropPreviewState { paths: string[]; count: number; target: FileDropDestination }
 
+/** Transparent webview space is not an activation target for a shell drag. */
+export function pointNearAnchoredSurface(point: Point, host: TargetRect, width: number, height: number, edge: 'top' | 'bottom' | 'left' | 'right', margin = 8): boolean {
+  const left = edge === 'left' ? host.left : edge === 'right' ? host.right - width : (host.left + host.right - width) / 2
+  const top = edge === 'top' ? host.top : edge === 'bottom' ? host.bottom - height : (host.top + host.bottom - height) / 2
+  return point.x >= left - margin && point.x <= left + width + margin && point.y >= top - margin && point.y <= top + height + margin
+}
+
 /** Tauri reports drag positions in physical webview pixels; DOM rectangles use CSS pixels. */
 export function physicalDragPositionToCss(position: Point, devicePixelRatio: number): Point {
   const scale = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1

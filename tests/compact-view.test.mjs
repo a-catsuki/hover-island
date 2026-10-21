@@ -22,10 +22,10 @@ test('compact selections are unique, valid and capped to the chosen preset', () 
   assert.deepEqual(compact.toggleCompactItem(['media', 'clock', 'weather'], 'battery', 'medium'), ['media', 'clock', 'weather'])
 })
 
-test('first-run tour waits for settings and does not reappear for saved or legacy versions', () => {
+test('first-run tour waits for settings, includes missing markers, and respects completion', () => {
   assert.equal(onboarding.shouldShowFirstRun(false, 0), false)
   assert.equal(onboarding.shouldShowFirstRun(true, 0), true)
   assert.equal(onboarding.shouldShowFirstRun(true, 1), false)
-  assert.equal(onboarding.shouldShowFirstRun(true, null), false)
-  assert.equal(onboarding.shouldShowFirstRun(true, undefined), false)
+  assert.equal(onboarding.shouldShowFirstRun(true, null), true)
+  assert.equal(onboarding.shouldShowFirstRun(true, undefined), true)
 })

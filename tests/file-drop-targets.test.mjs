@@ -15,8 +15,19 @@ const {
   fileDropActionAtRelease,
   fileDropDestinationAt,
   physicalDragPositionToCss,
+  pointNearAnchoredSurface,
   updateFileDropPreview,
 } = exported
+
+test('a file over transparent host space cannot activate the compact notch', () => {
+  const host = { left: 0, top: 0, right: 800, bottom: 560 }
+  assert.equal(pointNearAnchoredSurface({ x: 400, y: 25 }, host, 320, 38, 'top'), true)
+  assert.equal(pointNearAnchoredSurface({ x: 400, y: 400 }, host, 320, 38, 'top'), false)
+  assert.equal(pointNearAnchoredSurface({ x: 40, y: 25 }, host, 320, 38, 'top'), false)
+  assert.equal(pointNearAnchoredSurface({ x: 25, y: 280 }, host, 56, 144, 'left'), true)
+  assert.equal(pointNearAnchoredSurface({ x: 400, y: 280 }, host, 56, 144, 'left'), false)
+  assert.equal(pointNearAnchoredSurface({ x: 780, y: 280 }, host, 56, 144, 'right'), true)
+})
 
 test('native physical positions map to CSS pixels at high DPI', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(physicalDragPositionToCss({ x: 480, y: 220 }, 2))), { x: 240, y: 110 })

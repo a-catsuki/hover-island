@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hover Island: a macOS-style notch island for Windows. Free.</title>
+<title>Hover Island: the notch for Windows. Free.</title>
 <meta name="description" content="Hover Island docks a notch to the top of Windows: media with a real speaker visualizer, weather and calendar, quick controls and a local QR file beam to your phone. Built with Rust and Tauri, so it stays tiny. Free.">
 <meta name="theme-color" content="#000000">
 <link rel="icon" type="image/png" href="assets/logo-mark.png">
@@ -126,7 +126,7 @@
           <span class="sb-tray"><span class="sb-mini"></span><span class="sb-mini"></span><span class="sb-clock">15:40</span></span>
         </div>
 
-        <div class="island" id="island" data-state="idle" tabindex="0" role="button" aria-label="Live notch preview. Shows the collapsed notch, an activity peek and the full panel. Activate to advance.">
+        <div class="island" id="island" data-state="idle" tabindex="0" role="button" aria-label="Interactive product preview with sample data. Hover or press Enter to open; choose a panel tab to switch views.">
         <span class="notch-cam" aria-hidden="true"></span>
 
         <div class="face face-peek" data-face="peek">
@@ -136,7 +136,7 @@
               <span class="peekx-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5m0 0-6 6m6-6 6 6"/></svg></span>
             </span>
             <span class="peekx-body">
-              <span class="peekx-meta"><span class="peekx-app">Nearby sharing</span><span class="peekx-pct">64%</span></span>
+              <span class="peekx-meta"><span class="peekx-app">Phone bucket</span><span class="peekx-pct">64%</span></span>
               <span class="peekx-status">Sending…</span>
               <span class="peekx-file"><span class="peekx-name">presentation.pdf</span><span class="peekx-size">8.4 MB</span></span>
               <span class="peekx-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.1l1.6 1.9h8.3A2.5 2.5 0 0 1 21 9.4v7.1A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/></svg>Open Files</span>
@@ -150,9 +150,9 @@
               <span class="pill-art"></span>
               <span class="pill-title">Dance In The Dark</span>
             </span>
-            <span class="pill-item pill-clock"><strong>15:40</strong><span class="pill-label">Lisbon</span></span>
-            <span class="pill-item pill-weather"><strong>32°</strong><span class="pill-label">Clear</span></span>
-            <span class="pill-item pill-ai"><span class="pill-ring"></span><strong>62%</strong></span>
+            <span class="pill-item pill-clock"><strong>15:40</strong><span class="pill-label">Local</span></span>
+            <span class="pill-item pill-weather"><strong>32°</strong><span class="pill-label">Delhi</span></span>
+            <span class="pill-item pill-ai"><span class="pill-ring"></span><strong>62%</strong><span class="pill-label">AI left</span></span>
           </span>
         </div>
 
@@ -277,12 +277,12 @@
               </section>
 
               <section class="widget widget--nearby">
-                <div class="widget__head"><span class="widget__title">File bucket</span><span class="widget__eyebrow">hover.local / s-8f3a</span></div>
+                <div class="widget__head"><span class="widget__title">File bucket</span><span class="widget__eyebrow">local QR · 30 min</span></div>
                 <div class="widget-content">
                   <div class="phone-bucket__drop">
                     <span class="phone-bucket__drop-glyph"><svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.1l1.6 1.9h8.3A2.5 2.5 0 0 1 21 9.4v7.1A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/><path d="M12 16.4v-4.6m0 0-2 2m2-2 2 2"/></svg></span>
                     <strong>Drop files to beam them</strong>
-                    <span>Add anything here, then send it to your phone. Scan the QR on any device, no app.</span>
+                    <span>Scan on the same Wi-Fi, then approve the matching code here.</span>
                   </div>
                 </div>
               </section>
@@ -290,33 +290,36 @@
 
             <div class="widget-grid widget-grid--activity">
               <section class="widget widget--ai">
-                <div class="widget__head"><span class="widget__title">AI usage</span><span class="widget__eyebrow">reported</span></div>
+                <div class="widget__head"><span class="widget__title">AI activity</span><span class="widget__eyebrow">sample reports</span></div>
                 <div class="widget-content">
                   <div class="ai">
                     <div class="ai__row">
                       <span class="prov-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 12h6"/></svg></span>
                       <span class="ai__meta">
-                        <span class="ai__label">Codex</span>
+                        <span class="ai__label">Codex · 5-hour</span>
                         <span class="ai__bar"><span class="ai__fill" style="width:62%"></span></span>
                       </span>
-                      <span class="ai__val">62%</span>
+                      <span class="ai__val">62% left</span>
                     </div>
                     <div class="ai__row">
                       <span class="prov-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 9v6"/></svg></span>
                       <span class="ai__meta">
-                        <span class="ai__label">Claude</span>
+                        <span class="ai__label">Claude Code</span>
                         <span class="ai__bar"><span class="ai__fill" style="width:38%"></span></span>
                       </span>
-                      <span class="ai__val">38%</span>
+                      <span class="ai__val">38% left</span>
                     </div>
-                    <div class="ai__row">
-                      <span class="prov-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>
-                      <span class="ai__meta">
-                        <span class="ai__label">Reset watch</span>
-                        <span class="ai__bar ai__bar--quiet"></span>
-                      </span>
-                      <span class="ai__val">posted</span>
-                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="widget widget--reset-watch">
+                <div class="widget__head"><span class="widget__title">Reset radar</span><span class="widget__eyebrow">Codex Resets</span></div>
+                <div class="widget-content">
+                  <div class="reset-sample">
+                    <span class="reset-sample__status">Global reset announced</span>
+                    <strong>Sample announcement</strong>
+                    <span class="reset-sample__meta">Tibo · sample report</span>
                   </div>
                 </div>
               </section>
@@ -324,17 +327,11 @@
 
           </div>
 
-          <footer class="panel__foot">
-            <span>3 widgets</span>
-            <span class="panel-pager">
-              <span class="icon-button"><svg viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></svg></span>
-              <span>1 / 2</span>
-              <span class="icon-button"><svg viewBox="0 0 24 24"><path d="m10 6 6 6-6 6"/></svg></span>
-            </span>
-          </footer>
+          <footer class="panel__foot" aria-hidden="true"><span></span></footer>
         </div>
         </div>
       </div>
+      <p class="demo-caption reveal"><span>Hover or press Enter to open · choose a panel · press Esc to close</span><span>Interactive preview · sample data</span></p>
     </div>
   </section>
 
@@ -345,7 +342,7 @@
       <div class="phone">
         <span class="phone-island"></span>
         <div class="phone-screen">
-          <div class="ps-bar"><span class="ps-url">hover.local / s-8f3a</span></div>
+          <div class="ps-bar"><span class="ps-url">Local link · browser</span></div>
           <div class="ps-body">
             <span class="ps-bucket">
               <span class="ps-bucket-glyph"><svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.1l1.6 1.9h8.3A2.5 2.5 0 0 1 21 9.4v7.1A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/><path d="M12 16.4v-4.6m0 0-2 2m2-2 2 2"/></svg></span>
@@ -378,33 +375,33 @@
     </div>
 
   <!-- INTRO -->
-  <!-- COUNTER HERO: the lockup's styling, expanded from a square into a rectangle -->
+  <!-- Product workflow: glance, open the workspace, then beam to a phone. -->
   <section class="counter-hero" aria-labelledby="counter-hero-title">
     <div class="container">
       <div class="ch-panel reveal">
-        <span class="ch-notch" aria-hidden="true"></span>
-
         <div class="ch-copy">
-          <p class="ch-eyebrow">Free for Windows 10 and 11</p>
-          <h2 class="ch-title" id="counter-hero-title">Your desktop, <span class="ch-hl">one notch</span> better.</h2>
+          <p class="ch-eyebrow">A desktop companion for Windows</p>
+          <h2 class="ch-title" id="counter-hero-title">Your most-used things, <span class="ch-hl">right at the edge.</span></h2>
           <p class="ch-lede">
-            A notch on top of Windows. Media, weather, calendar, quick
-            controls and file beaming, with no account to make and no ads
-            to sit through.
+            Hover Island stays compact until you need more: a quick glance,
+            a flexible workspace, or a local handoff to your phone.
           </p>
-          <ul class="ch-stats">
-            <li><span class="ch-num">7</span><span class="ch-cap">themes</span></li>
-            <li><span class="ch-num">24</span><span class="ch-cap">visualizer bands</span></li>
-            <li><span class="ch-num">5</span><span class="ch-cap">scene presets</span></li>
-            <li><span class="ch-num">3</span><span class="ch-cap">docking modes</span></li>
-            <li><span class="ch-num">30</span><span class="ch-cap">minute beam links</span></li>
-            <li><span class="ch-num">0</span><span class="ch-cap">accounts and ads</span></li>
-          </ul>
         </div>
 
-        <div class="ch-plate">
-          <img class="ch-lockup" src="assets/logo.png" alt="Hover Island logo: a black notch tab above the word hover.">
-        </div>
+        <ol class="ch-steps" aria-label="How Hover Island fits into your day">
+          <li class="ch-step">
+            <span class="ch-index">01</span>
+            <div><h3 class="ch-step-title">At a glance</h3><p>Choose what appears in the compact notch: media, local time, weather, battery, or reported AI usage.</p></div>
+          </li>
+          <li class="ch-step">
+            <span class="ch-index">02</span>
+            <div><h3 class="ch-step-title">Room to work</h3><p>Open the Today, Desk, or Activity panel with a hover, click, or Alt + Space. Rearrange widgets to suit you.</p></div>
+          </li>
+          <li class="ch-step">
+            <span class="ch-index">03</span>
+            <div><h3 class="ch-step-title">A local handoff</h3><p>Drop files into Beam and scan its QR link on the same Wi-Fi. No phone app or cloud relay; links expire after 30 minutes.</p></div>
+          </li>
+        </ol>
       </div>
     </div>
   </section>
@@ -415,9 +412,7 @@
         <p class="eyebrow">One island, your whole day</p>
         <h2>Rust and Tauri. Light on your PC.</h2>
         <p class="lead">
-          No bundled browser engine, no separate background service, no
-          updater daemon. Hover Island runs in the WebView Windows already
-          ships, docks as a notch, a top bar or a side rail, and springs
+          No bundled browser engine and no separate background service. Hover Island runs in the WebView Windows already ships, docks as a notch, a top bar or a side rail, and springs
           between a compact pill, an activity peek and the full workspace.
         </p>
       </div>
@@ -429,10 +424,10 @@
     <div class="container chapter">
       <div class="chapter-copy reveal">
         <p class="eyebrow">Media</p>
-        <h2>Now playing, with ten ways to see the music.</h2>
+        <h2>Now playing, with twelve ways to see the music.</h2>
         <p class="lead">
-          Album art, player controls and synchronized lyrics when your player
-          reports them. A 24-band visualizer reads your speaker output — ten
+          Album art, player controls and lyrics that scroll in time with the song,
+          from Spotify, Apple Music or anything that reports to Windows. A 24-band visualizer reads your speaker output, twelve
           styles including album-derived ambient lighting. It never touches
           your microphone.
         </p>
@@ -541,6 +536,27 @@
     </div>
   </section>
 
+  <!-- CHAPTER: FOCUS -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">Stay on task</p>
+        <h2>Keep going until it is done.</h2>
+        <p class="lead">
+          A few small tools that earn their spot at the top of your screen.
+        </p>
+      </div>
+      <div class="spec-grid">
+        <div class="spec reveal"><strong>Keep me awake</strong><span>pick a finish time. The PC stays on and a gentle alarm nudges you until you are done.</span></div>
+        <div class="spec reveal"><strong>Timed reminders</strong><span>type "call Ana at 4pm" and it taps you on the notch at 4pm.</span></div>
+        <div class="spec reveal"><strong>Spotlight, your way</strong><span>apps and files ranked by what you actually open, not alphabet order.</span></div>
+        <div class="spec reveal"><strong>Every app, with its logo</strong><span>search all installed apps and pin the ones you want in the island.</span></div>
+        <div class="spec reveal"><strong>Real quick settings</strong><span>vertical sliders for volume and brightness, Wi-Fi, Bluetooth, Do Not Disturb.</span></div>
+        <div class="spec reveal"><strong>Windows alerts, your call</strong><span>hide the Windows banners and still get every alert in the notch.</span></div>
+      </div>
+    </div>
+  </section>
+
   <!-- CHAPTER: WEATHER -->
   <section class="section band-soft">
     <div class="container chapter">
@@ -574,7 +590,7 @@
         <h2>Seven themes. Five scenes.</h2>
         <p class="lead">
           Each theme retunes the accent and material across the island. Five
-          scene presets — Graphite to Paper — layer atmosphere from the
+          scene presets, Graphite to Paper, layer atmosphere from the
           pointer, your album art or the audio, and freeze under reduced
           motion.
         </p>
@@ -605,6 +621,7 @@
   <section class="section">
     <div class="container">
       <div class="spec-grid">
+        <div class="spec reveal"><strong>Updates itself</strong><span>check in Settings, install in one click, nothing to uninstall</span></div>
         <div class="spec reveal"><strong>Rust + Tauri</strong><span>no bundled browser engine</span></div>
         <div class="spec reveal"><strong>Light</strong><span>small download, no separate background service</span></div>
         <div class="spec reveal"><strong>Keyboard-first</strong><span>Alt + Space island, Ctrl + Space spotlight</span></div>
@@ -621,7 +638,7 @@
       <p class="eyebrow reveal">Free, always</p>
       <h2 class="reveal">Put an island on your desktop.</h2>
       <p class="lead download-lede reveal">
-        No account, no subscription, no ads. One small download, and it
+        No Hover Island account, subscription, or ads. One small download, and it
         disappears into your work.
       </p>
       <div class="hero-actions reveal">
@@ -632,7 +649,7 @@
       </div>
       <p class="download-meta reveal">
         <span class="os-badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM3 12.5h7.5v7L3 18.5zM11.5 4.3 21 3v8.5h-9.5zM11.5 12.5H21V21l-9.5-1.3z"/></svg> Windows 10 &amp; 11</span>
-        <span class="dot-sep">·</span><span>Rust + Tauri build</span><span class="dot-sep">·</span><span>v0.1.4</span>
+        <span class="dot-sep">·</span><span>Rust + Tauri build</span><span class="dot-sep">·</span><span>v0.1.6</span>
       </p>
     </div>
   </section>
@@ -647,7 +664,7 @@
       <div class="faq">
         <details class="faq-item glass reveal" open>
           <summary><span>Is Hover Island really free?</span><span class="faq-mark" aria-hidden="true"></span></summary>
-          <div class="faq-answer"><p>Yes. No premium tier, subscription or ads. It's a desktop companion, not a storefront.</p></div>
+          <div class="faq-answer"><p>Yes. No Hover Island account, premium tier, subscription or ads. It's a desktop companion, not a storefront.</p></div>
         </details>
         <details class="faq-item glass reveal">
           <summary><span>Does it use my microphone?</span><span class="faq-mark" aria-hidden="true"></span></summary>
@@ -667,19 +684,27 @@
         </details>
         <details class="faq-item glass reveal">
           <summary><span>What does it need to run?</span><span class="faq-mark" aria-hidden="true"></span></summary>
-          <div class="faq-answer"><p>Windows 11, or Windows 10 with the free WebView2 runtime. Hover Island is built with Rust, Tauri 2 and SolidJS and runs in the system WebView — it installs as a signed package, not a browser app.</p></div>
+          <div class="faq-answer"><p>Windows 11, or Windows 10 with the free WebView2 runtime. Hover Island is built with Rust, Tauri 2 and SolidJS and runs in the system WebView. It installs as a signed package, not a browser app.</p></div>
         </details>
         <details class="faq-item glass reveal">
           <summary><span>Where can it dock?</span><span class="faq-mark" aria-hidden="true"></span></summary>
-          <div class="faq-answer"><p>Three modes: the classic notch on any screen edge, a monitor-wide top or bottom bar, and a full-height side rail that opens into a narrow workspace. A side-attached notch becomes a vertical capsule, and dragging snaps to edge centers.</p></div>
+          <div class="faq-answer"><p>Three modes: the classic notch on the top, left, or right screen edge, a monitor-wide top or bottom bar, and a full-height side rail that opens into a narrow workspace. A side-attached notch becomes a vertical capsule, and dragging snaps to edge centers.</p></div>
         </details>
         <details class="faq-item glass reveal">
           <summary><span>What system controls are included?</span><span class="faq-mark" aria-hidden="true"></span></summary>
-          <div class="faq-answer"><p>Volume, display brightness, Do Not Disturb, Night Light, power mode, paired Bluetooth devices and a memory optimizer. The optimizer scans and trims eligible background apps' working sets — it closes or suspends nothing, and Windows may page the memory back in. Brightness and Bluetooth actions depend on what your drivers support.</p></div>
+          <div class="faq-answer"><p>Volume, display brightness, Do Not Disturb, Night Light, power mode, paired Bluetooth devices and a memory optimizer. The optimizer scans and trims eligible background apps' working sets. It closes or suspends nothing, and Windows may page the memory back in. Brightness and Bluetooth actions depend on what your drivers support.</p></div>
         </details>
         <details class="faq-item glass reveal">
           <summary><span>Can it read my Windows notifications or email codes?</span><span class="faq-mark" aria-hidden="true"></span></summary>
-          <div class="faq-answer"><p>Desktop alerts require installing the signed package and granting Windows notification access — the raw executable alone can't listen. Verification-code detection is a separate opt-in: you register your own Google or Microsoft desktop client, sign in, and codes appear in the notch. Nothing is connected by default.</p></div>
+          <div class="faq-answer"><p>Desktop alerts require installing the signed package and granting Windows notification access. The raw executable alone can't listen. Verification-code detection is a separate opt-in: you register your own Google or Microsoft desktop client, sign in, and codes appear in the notch. Nothing is connected by default.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>How do updates work?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Open Settings, then About, and press Check for updates. If there is a newer build it downloads, checks its hash, installs over the old one and reopens. Your settings stay. It also checks once a day if you leave that on, and never installs without your click.</p></div>
+        </details>
+        <details class="faq-item glass reveal">
+          <summary><span>Does it work with Apple Music?</span><span class="faq-mark" aria-hidden="true"></span></summary>
+          <div class="faq-answer"><p>Yes. Apple Music, Spotify and most players show up through Windows media controls, so album art, play, pause, skip and timed lyrics all work.</p></div>
         </details>
       </div>
     </div>
@@ -740,8 +765,8 @@
 
 <footer class="site-footer">
   <div class="foot-art" aria-hidden="true">
-    <img class="foot-cursor" src="assets/logo.png" alt="">
-    <img class="foot-wordmark" src="assets/logo.png" alt="">
+    <img class="foot-cursor" src="assets/logo.png" loading="lazy" decoding="async" alt="">
+    <img class="foot-wordmark" src="assets/logo.png" loading="lazy" decoding="async" alt="">
   </div>
 
   <div class="container foot-base">

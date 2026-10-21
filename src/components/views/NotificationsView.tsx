@@ -1,58 +1,19 @@
-import { createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { Bell, Trash2 } from 'lucide-solid'
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
+import { Bell, ChevronDown, Trash2, X } from 'lucide-solid'
 import { cmd, type AppNotification } from '../../lib/ipc'
-import { clearNotifications, notifications, notificationError, requestNotificationAccess } from '../../state/notifications'
+import { clearNotifications, dismissNotification, notifications, notificationError, openNotificationSource, requestNotificationAccess } from '../../state/notifications'
 import { reportError } from '../../state/feedback'
+import { relativeTime } from '../../lib/connectionSources'
+import NotificationAppIcon from '../shell/NotificationAppIcon'
 import './NotificationsView.css'
 
-function hashHue(input: string): number {
-  let hash = 0
-  for (let i = 0; i < input.length; i++) hash = (hash * 31 + input.charCodeAt(i)) >>> 0
-  return hash % 360
-}
-
-function relativeTime(timestamp: number, now: number): string {
-  const diff = Math.max(0, now - timestamp)
-  const seconds = Math.floor(diff / 1000)
-  if (seconds < 45) return 'now'
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h`
-  return `${Math.floor(hours / 24)}d`
-}
-
-function Dot(props: { app: string; icon?: string | null; class?: string }) {
-  const hue = hashHue(props.app)
-  return (
-    <Show
-      when={props.icon ?? null}
-      fallback={
-        <span
-          class={props.class ?? 'notif__dot'}
-          style={{
-            background: `linear-gradient(140deg, hsl(${hue} 62% 58%), hsl(${(hue + 40) % 360} 62% 40%))`,
-          }}
-        />
-      }
-    >
-      {(src) => (
-        <img
-          class={`${props.class ?? 'notif__dot'} notif__dot--img`}
-          src={src()}
-          alt=""
-          draggable={false}
-        />
-      )}
-    </Show>
-  )
-}
+interface AppGroup { app: string; icon?: string | null; items: AppNotification[] }
 
 export default function NotificationsView(props: { compact?: boolean }) {
   const [now, setNow] = createSignal(Date.now())
-  const [permissionStatus, setPermissionStatus] = createSignal('')
   const [requesting, setRequesting] = createSignal(false)
   const [page, setPage] = createSignal(0)
+  const [expanded, setExpanded] = createSignal<Set<string>>(new Set())
 
   onMount(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000)
@@ -64,14 +25,33 @@ export default function NotificationsView(props: { compact?: boolean }) {
   const ordered = () => [...items()].sort((a, b) => b.timestamp - a.timestamp)
   const pages = () => Math.max(1, Math.ceil(count() / 2))
   const currentPage = () => Math.min(page(), pages() - 1)
+  /** Newest first, grouped by app; groups ordered by their newest notification. */
+  const groups = createMemo<AppGroup[]>(() => {
+    const byApp = new Map<string, AppGroup>()
+    for (const item of ordered()) {
+      const group = byApp.get(item.app)
+      if (group) { group.items.push(item); group.icon ??= item.icon }
+      else byApp.set(item.app, { app: item.app, icon: item.icon, items: [item] })
+    }
+    return [...byApp.values()]
+  })
+  const toggle = (app: string) => setExpanded(previous => { const next = new Set(previous); if (next.has(app)) next.delete(app); else next.add(app); return next })
+  const open = (item: AppNotification) => { if (item.id.startsWith('notification:')) void openNotificationSource(item.app) }
+  const settingsWindow = () => void cmd.openSettingsWindow().catch(error => reportError('Could not open settings', error))
+  const allow = async () => {
+    setRequesting(true)
+    try { if (!await requestNotificationAccess()) settingsWindow() }
+    catch (error) { reportError('Notification access failed', error) }
+    finally { setRequesting(false) }
+  }
 
   if (props.compact) {
     return (
       <>
         <header class="widget__head">
           <span class="widget__title">
-            <Bell class="icon icon--sm" strokeWidth={1.7} aria-hidden="true" />
-            Alerts
+            <Bell class="icon icon--sm" strokeWidth={1.75} aria-hidden="true" />
+            Notifications
           </span>
           <Show
             when={count() > 0}
@@ -93,9 +73,9 @@ export default function NotificationsView(props: { compact?: boolean }) {
           fallback={
             <div class="widget__empty">
               <Bell class="icon" strokeWidth={1.5} aria-hidden="true" />
-              <Show when={notificationError()} fallback={<span>Nothing needs your attention.</span>}>
+              <Show when={notificationError()} fallback={<span>No notifications</span>}>
                 <span>{notificationError()}</span>
-                <button class="text-button" onClick={() => void cmd.openSettingsWindow().catch(error => reportError('Could not open settings',error))}>Notification settings</button>
+                <button class="text-button" onClick={settingsWindow}>Notification settings</button>
               </Show>
             </div>
           }
@@ -104,7 +84,7 @@ export default function NotificationsView(props: { compact?: boolean }) {
             <For each={ordered().slice(currentPage() * 2, currentPage() * 2 + 2)}>
               {(item) => (
                 <div class="notif-mini__row">
-                  <Dot app={item.app} icon={item.icon} class="notif-mini__dot" />
+                  <NotificationAppIcon app={item.app} icon={item.icon} size={28} />
                   <div class="notif-mini__meta">
                     <div class="notif-mini__top">
                       <span class="notif-mini__app">{item.app}</span>
@@ -118,7 +98,7 @@ export default function NotificationsView(props: { compact?: boolean }) {
               )}
             </For>
           </div>
-          <Show when={pages() > 1}><nav class="widget-list-pager" aria-label="Alerts"><button aria-label="Previous alerts" disabled={currentPage() === 0} onClick={() => setPage(currentPage() - 1)}>‹</button><span>{currentPage() + 1} / {pages()}</span><button aria-label="Next alerts" disabled={currentPage() >= pages() - 1} onClick={() => setPage(currentPage() + 1)}>›</button></nav></Show>
+          <Show when={pages() > 1}><nav class="widget-list-pager" aria-label="Notifications"><button aria-label="Previous notifications" disabled={currentPage() === 0} onClick={() => setPage(currentPage() - 1)}>‹</button><span>{currentPage() + 1} / {pages()}</span><button aria-label="Next notifications" disabled={currentPage() >= pages() - 1} onClick={() => setPage(currentPage() + 1)}>›</button></nav></Show>
         </Show>
       </>
     )
@@ -127,72 +107,60 @@ export default function NotificationsView(props: { compact?: boolean }) {
   return (
     <div class="notif">
       <div class="notif__head">
-        <div class="notif__head-left">
-          <span class="notif__count">{count()}</span>
-          <span class="notif__head-label">{count() === 1 ? 'notification' : 'notifications'}</span>
-        </div>
-        <button type="button" class="notif__clear" onClick={clearNotifications} disabled={count() === 0}>
-          <Trash2 class="icon icon--sm" strokeWidth={1.75} aria-hidden="true" />
-          <span>Clear all</span>
-        </button>
+        <h2 class="notif__title-lg">Notifications</h2>
+        <Show when={count() > 0}>
+          <button type="button" class="notif__clear" onClick={clearNotifications} aria-label="Clear all notifications">Clear all</button>
+        </Show>
       </div>
 
       <Show
         when={count() > 0}
         fallback={
           <div class="notif__empty">
-            <span class="notif__empty-glyph">
-              <Bell class="icon" strokeWidth={1.75} aria-hidden="true" />
-            </span>
-            <span class="notif__empty-title">A little peace and quiet.</span>
-            <span class="notif__empty-hint">Connect Windows notifications to keep your alerts here.</span>
-            <button
-              class="button"
-              disabled={requesting()}
-              onClick={async () => {
-                setRequesting(true)
-                try {
-                  const allowed = await requestNotificationAccess()
-                  setPermissionStatus(
-                    allowed
-                      ? 'Access granted. New Windows notifications will appear here.'
-                      : 'Windows denied notification access. Allow Hover Island in Windows Settings → Privacy & security → Notification access, then retry.',
-                  )
-                } catch (error) {
-                  setPermissionStatus(String(error))
-                  reportError('Notification access failed', error)
-                } finally {
-                  setRequesting(false)
-                }
-              }}
-            >
-              {requesting() ? 'Requesting access…' : 'Enable notification access'}
-            </button>
-            <Show when={permissionStatus()}>
-              <p class="muted" role="status">
-                {permissionStatus()}
-              </p>
+            <Bell class="notif__empty-icon" strokeWidth={1.5} aria-hidden="true" />
+            <span class="notif__empty-title">No notifications</span>
+            <Show when={notificationError()}>
+              <span class="notif__empty-hint" role="status">{notificationError()}</span>
+              <button type="button" class="notif__clear notif__clear--solid" disabled={requesting()} onClick={() => void allow()}>{requesting() ? 'Waiting for Windows…' : 'Allow notifications'}</button>
             </Show>
           </div>
         }
       >
         <div class="notif__list">
-          <For each={ordered()}>
-            {(item) => (
-              <article class="notif__item">
-                <Dot app={item.app} icon={item.icon} />
-                <div class="notif__content">
-                  <div class="notif__row">
-                    <span class="notif__app">{item.app}</span>
-                    <span class="notif__time">{relativeTime(item.timestamp, now())}</span>
-                  </div>
-                  <div class="notif__title">{item.title}</div>
-                  <Show when={item.body}>
-                    <div class="notif__body">{item.body}</div>
+          <For each={groups()}>
+            {(group) => {
+              const isOpen = () => group.items.length === 1 || expanded().has(group.app)
+              const visible = () => isOpen() ? group.items : group.items.slice(0, 1)
+              return (
+                <section class="notif-group" classList={{ 'notif-group--stack': !isOpen() && group.items.length > 1 }} aria-label={group.app}>
+                  <Show when={group.items.length > 1}>
+                    <button type="button" class="notif-group__head" aria-expanded={isOpen()} onClick={() => toggle(group.app)}>
+                      <span class="notif-group__name">{group.app}</span>
+                      <span class="notif-group__count">{group.items.length}</span>
+                      <ChevronDown class="notif-group__chev" classList={{ 'notif-group__chev--open': isOpen() }} size={14} strokeWidth={2} aria-hidden="true" />
+                    </button>
                   </Show>
-                </div>
-              </article>
-            )}
+                  <div class="notif-group__cards">
+                    <For each={visible()}>
+                      {(item) => (
+                        <article class="notif-card" onClick={() => { if (!isOpen()) toggle(group.app); else open(item) }}>
+                          <NotificationAppIcon app={item.app} icon={item.icon} size={36} />
+                          <div class="notif-card__content">
+                            <div class="notif-card__row">
+                              <span class="notif-card__app">{item.app}</span>
+                              <span class="notif-card__time">{relativeTime(item.timestamp, now())}</span>
+                            </div>
+                            <div class="notif-card__title">{item.title}</div>
+                            <Show when={item.body}><div class="notif-card__body">{item.body}</div></Show>
+                          </div>
+                          <button type="button" class="notif-card__dismiss" aria-label={`Dismiss ${item.title || item.app}`} title="Dismiss" onClick={(event) => { event.stopPropagation(); dismissNotification(item.id) }}><X size={13} strokeWidth={2.25} aria-hidden="true" /></button>
+                        </article>
+                      )}
+                    </For>
+                  </div>
+                </section>
+              )
+            }}
           </For>
         </div>
       </Show>

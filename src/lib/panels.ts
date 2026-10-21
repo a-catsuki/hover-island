@@ -6,15 +6,37 @@ export const DEFAULT_PANEL_ORDER: PanelId[] = ['today', 'desk', 'activity']
 export const MAX_PANEL_COUNT = 128
 
 export const SIZE_PRESETS = {
-  small: { label: 'Small', collapsed: { w: 256, h: 36 }, expanded: { w: 640, h: 440 } },
-  medium: { label: 'Medium', collapsed: { w: 320, h: 38 }, expanded: { w: 800, h: 560 } },
-  large: { label: 'Large', collapsed: { w: 384, h: 42 }, expanded: { w: 960, h: 640 } },
+  small: { label: 'Small', collapsed: { w: 232, h: 32 }, expanded: { w: 640, h: 490 } },
+  medium: { label: 'Medium', collapsed: { w: 288, h: 32 }, expanded: { w: 800, h: 510 } },
+  large: { label: 'Large', collapsed: { w: 344, h: 32 }, expanded: { w: 960, h: 520 } },
 } as const
 
 export interface PanelLayout {
   panels: Record<PanelId, string>
   panelOrder: PanelId[]
   widgets: WidgetConfig[]
+}
+
+/** Capacity pages become ordinary user pages as soon as their layout is edited.
+ * This keeps the legacy capacity migration from undoing a deliberate move. */
+export function customizePanelLayout(layout: PanelLayout): { layout: PanelLayout; ids: Map<string, string> } {
+  const ids = new Map(layout.panelOrder.filter(id => id.startsWith('overflow-')).map(id => [id, `panel-${crypto.randomUUID()}`]))
+  const remap = (id: string) => ids.get(id) ?? id
+  return {
+    ids,
+    layout: {
+      panels: Object.fromEntries(Object.entries(layout.panels).map(([id, title]) => [remap(id), title])),
+      panelOrder: layout.panelOrder.map(remap),
+      widgets: layout.widgets.map(widget => ({ ...widget, panel: widget.panel ? remap(widget.panel) : widget.panel })),
+    },
+  }
+}
+
+export function reorderPanel(order: string[], source: string, target: string, after = false): string[] {
+  if (source === target || !order.includes(source) || !order.includes(target)) return [...order]
+  const next = order.filter(id => id !== source)
+  next.splice(next.indexOf(target) + (after ? 1 : 0), 0, source)
+  return next
 }
 
 const validPanelId = (id: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(id)
@@ -152,3 +174,70 @@ export function removePanelLayout(layout: PanelLayout, id: PanelId): PanelLayout
   }
   return fitPanelLayout(panels, panelOrder, widgets)
 }
+
+/* ------------------------------------------------------------------ dedicated pages
+   Quick controls and Beam are ordinary pages (tab, order, rename) that happen to be
+   created for their widget. Their tab shows only while that widget is enabled there. */
+
+export const SPECIAL_PANELS = [
+  { id: 'quick-controls', kind: 'controls', title: 'Quick controls' },
+  { id: 'beam', kind: 'nearby', title: 'Beam' },
+] as const
+
+export const specialPanelForKind = (kind: string) => SPECIAL_PANELS.find(spec => spec.kind === kind)
+
+/** A dedicated page is hidden from the tab strip when its widget is not enabled in it. */
+export function panelVisible(id: PanelId, widgets: readonly Pick<WidgetConfig, 'kind' | 'enabled' | 'panel'>[]): boolean {
+  const spec = SPECIAL_PANELS.find(item => item.id === id)
+  if (!spec) return true
+  return widgets.some(widget => widget.kind === spec.kind && widget.enabled && widget.panel === id)
+}
+
+export const visiblePanelOrder = (order: readonly PanelId[], widgets: readonly Pick<WidgetConfig, 'kind' | 'enabled' | 'panel'>[]): PanelId[] =>
+  order.filter(id => panelVisible(id, widgets))
+
+/** Move (or create) a widget kind into its own page, enabling it. Pure: returns the new layout. */
+export function dedicatePanelLayout(layout: PanelLayout, kind: string): PanelLayout {
+  const spec = specialPanelForKind(kind)
+  if (!spec) return layout
+  const panels = { ...layout.panels }
+  const order = [...layout.panelOrder]
+  if (!panels[spec.id]) {
+    if (order.length >= MAX_PANEL_COUNT) return layout
+    panels[spec.id] = spec.title
+    order.push(spec.id)
+  }
+  const widgets = layout.widgets.map(widget => widget.kind === kind ? { ...widget, enabled: true, panel: spec.id, slot: undefined } : { ...widget })
+  return fitPanelLayout(panels, order, widgets)
+}
+
+/* ------------------------------------------------------------------ custom page names */
+
+export const PANEL_NAME_MAX = 16
+
+export function cleanPanelName(raw: string): string {
+  return raw.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, PANEL_NAME_MAX).trim()
+}
+
+/** Keep only known pages with non-empty names (mirrors settings.rs validation). */
+export function normalizePanelNames(names: Record<string, string> | null | undefined, panels: Record<string, string>): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const [id, value] of Object.entries(names ?? {})) {
+    if (!Object.hasOwn(panels, id) || typeof value !== 'string') continue
+    const clean = cleanPanelName(value)
+    if (clean) result[id] = clean
+  }
+  return result
+}
+
+/** An empty name, or one equal to the default title, resets the page to its default. */
+export function setPanelName(names: Record<string, string> | undefined, panels: Record<string, string>, id: PanelId, raw: string): Record<string, string> {
+  const next = { ...(names ?? {}) }
+  const clean = cleanPanelName(raw)
+  if (!clean || clean === panels[id]) delete next[id]
+  else next[id] = clean
+  return normalizePanelNames(next, panels)
+}
+
+export const panelDisplayName = (id: PanelId, panels: Record<string, string>, names?: Record<string, string>): string =>
+  (names && names[id]) || panels[id] || ''

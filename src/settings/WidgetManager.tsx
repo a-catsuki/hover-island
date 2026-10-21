@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-solid'
+import { ArrowDown, ArrowUp, Minus, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-solid'
 import type { WidgetConfig, WidgetKind } from '../lib/ipc'
 import { settings, patchSettings } from '../state/settings'
 import { WIDGETS, WIDGET_KINDS } from '../components/widgets/registry'
@@ -8,23 +8,35 @@ import {
   createPanelLayout,
   defaultPanelForKind,
   removePanelLayout,
-  renamePanelLayout,
+  panelDisplayName,
+  setPanelName,
+  PANEL_NAME_MAX,
   widgetPanel,
   MAX_PANEL_COUNT,
   type PanelId,
 } from '../lib/panels'
 import { widgetPages, widgetResolvedSize } from '../lib/widgetPages'
 import { clearWidgetSlot, firstFreeCell, placeWidgetAtCell, swapWidgetCells } from '../lib/widgetPlacement'
+import { SHAPE_SPAN, defaultWidgetShape, widgetShapeLocked, widgetShapeOptions } from '../lib/widgetShapes'
+import Dropdown from '../components/widgets/Dropdown'
 import './WidgetManager.css'
 
 type WidgetSize = NonNullable<WidgetConfig['size']>
-const SIZES: { id: WidgetSize; label: string; detail: string }[] = [
-  { id: 'compact', label: 'Compact', detail: 'One tile' },
-  { id: 'wide', label: 'Wide', detail: 'Two columns' },
-  { id: 'full', label: 'Full', detail: 'Tall tile' },
-]
-const MIN_FULL = new Set<WidgetKind>(['calendar', 'nearby', 'controls'])
-const SPAN: Record<WidgetSize, [number, number]> = { compact: [1, 1], wide: [2, 1], full: [2, 2] }
+const SPAN = SHAPE_SPAN
+const SHAPE_LABEL: Record<WidgetSize, string> = { compact: 'Compact', wide: 'Wide', tall: 'Tall', full: 'Large' }
+
+/** A 2x2 mini grid with the cells a shape covers filled in. */
+function ShapeGlyph(props: { shape: WidgetSize }) {
+  const cell = 9
+  const gap = 2
+  const span = () => SPAN[props.shape]
+  return (
+    <svg class="wmp__glyph" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+      <For each={[[0, 0], [1, 0], [0, 1], [1, 1]]}>{([x, y]) => <rect x={x * (cell + gap)} y={y * (cell + gap)} width={cell} height={cell} rx="2.4" fill="currentColor" opacity="0.22" />}</For>
+      <rect x="0" y="0" width={span()[0] * cell + (span()[0] - 1) * gap} height={span()[1] * cell + (span()[1] - 1) * gap} rx="2.8" fill="currentColor" />
+    </svg>
+  )
+}
 const resolvedSize = widgetResolvedSize
 
 export default function WidgetManager() {
@@ -77,7 +89,7 @@ export default function WidgetManager() {
     const widget: WidgetConfig = {
       id: crypto.randomUUID(), kind, enabled: true, order: visibleWidgets().length,
       panel: defaultPanelForKind(kind, settings.panelOrder),
-      size: MIN_FULL.has(kind) || ['usage', 'web-alerts', 'clock'].includes(kind) ? 'full' : kind === 'dock' ? 'wide' : 'compact',
+      size: defaultWidgetShape(kind),
       ...(kind === 'media' ? { showLyrics: false } : {}),
     }
     commit([...visibleWidgets(), widget])
@@ -115,7 +127,7 @@ export default function WidgetManager() {
       ? target
         ? `${label} dropped on ${WIDGETS[target.kind]?.label ?? target.kind}`
         : `${label} placed at row ${cell.row}, column ${cell.column}`
-      : `${label} moved to ${settings.panels[panel]}`)
+      : `${label} moved to ${pageName(panel)}`)
   }
   const trackMove = (clientX: number, clientY: number) => {
     if (!pointerDrag) return
@@ -133,7 +145,7 @@ export default function WidgetManager() {
       const members = enabled(panel).filter((widget) => widget.id !== pointerDrag?.widgetId)
       const cell = firstFreeCell(members)
       setDropTarget({ panel, row: cell.row, column: cell.column })
-      setAnnounce(`Release to move into ${settings.panels[panel]}, row ${cell.row}, column ${cell.column}.`)
+      setAnnounce(`Release to move into ${pageName(panel)}, row ${cell.row}, column ${cell.column}.`)
     } else if (target.dataset.widgetId && target.dataset.widgetId !== pointerDrag.widgetId) {
       const panel = target.closest<HTMLElement>('[data-panel-id]')?.dataset.panelId
       if (panel) { setDropTarget({ panel, widgetId: target.dataset.widgetId }); setAnnounce(`Release to drop on ${WIDGETS[visibleWidgets().find(item => item.id === target.dataset.widgetId)?.kind ?? 'notes']?.label ?? 'widget'}.`) }
@@ -177,7 +189,7 @@ export default function WidgetManager() {
     })
   })
   const setSize = (widget: WidgetConfig, size: WidgetSize) => {
-    if (MIN_FULL.has(widget.kind) && size !== 'full') return
+    if (!widgetShapeOptions(widget.kind, resolvedSize(widget)).some(option => option.id === size)) return
     const [spanX, spanY] = SPAN[size]
     const keepsCell = !widget.slot || (widget.slot.row + spanY - 1 <= 2 && widget.slot.column + spanX - 1 <= 2)
     updateWidget(widget.id, keepsCell ? { size } : { size, slot: undefined })
@@ -198,73 +210,96 @@ export default function WidgetManager() {
     setSelectedPanel(next.panelOrder[0] ?? 'today')
     setAnnounce(`${title} page removed; its widgets were moved to another page`)
   }
-  const renamePage = (panel: PanelId, title: string) =>
-    patchSettings(renamePanelLayout({ panels: settings.panels, panelOrder: settings.panelOrder, widgets: settings.widgets }, panel, title))
+  const pageName = (panel: PanelId) => panelDisplayName(panel, settings.panels, settings.panelNames)
+  const [renamingPage, setRenamingPage] = createSignal<PanelId | null>(null)
+  const savePageName = (panel: PanelId, value: string) => {
+    patchSettings({ panelNames: setPanelName(settings.panelNames, settings.panels, panel, value) })
+    setRenamingPage(null)
+    setAnnounce(`Page renamed to ${panelDisplayName(panel, settings.panels, setPanelName(settings.panelNames, settings.panels, panel, value))}`)
+  }
+  const resetPageName = (panel: PanelId) => {
+    patchSettings({ panelNames: setPanelName(settings.panelNames, settings.panels, panel, '') })
+    setRenamingPage(null)
+    setAnnounce(`${settings.panels[panel]} name restored`)
+  }
   const focusPage = (panel: PanelId) => setSelectedPanel(panel)
+
+  const focusTray = () => document.querySelector<HTMLElement>('.wmp__chips button')?.focus()
+  const labelOf = (widget: WidgetConfig) => WIDGETS[widget.kind]?.label ?? widget.kind
 
   return (
     <div class="wmp">
-      <div class="wmp__page-jumps" role="tablist" aria-label="Widget pages">
-        <For each={settings.panelOrder}>{(panel, pageIndex) => <button type="button" role="tab" data-drop-page={panel} aria-selected={selectedPanel() === panel} class="wmp__page-jump" classList={{ 'wmp__page-jump--active': selectedPanel() === panel, 'wmp__page-jump--drop': dropTarget()?.panel === panel }} onClick={() => focusPage(panel)}>{pageIndex() + 1}. {settings.panels[panel]}</button>}</For>
-        <button type="button" class="wmp__add-page" disabled={settings.panelOrder.length >= MAX_PANEL_COUNT} onClick={createPage}><Plus size={15} /> Add page</button>
+      <div class="wmp__top">
+        <div class="wmp__page-jumps" role="tablist" aria-label="Widget pages">
+          <For each={settings.panelOrder}>{(panel, pageIndex) => <button type="button" role="tab" data-drop-page={panel} aria-selected={selectedPanel() === panel} class="wmp__page-jump" classList={{ 'wmp__page-jump--active': selectedPanel() === panel, 'wmp__page-jump--drop': !!draggingId() && dropTarget()?.panel === panel && panel !== selectedPanel() }} onClick={() => focusPage(panel)}><span class="wmp__page-num">{pageIndex() + 1}</span>{pageName(panel)}</button>}</For>
+        </div>
+        <button type="button" class="wmp__add-page" disabled={settings.panelOrder.length >= MAX_PANEL_COUNT} onClick={createPage}><Plus size={13} strokeWidth={2.2} /> New page</button>
       </div>
       <div class="wmp__pages" role="list" aria-label="Selected widget page">
-        <span id="wmp-drag-hint" class="wmp__sr-only">Drag this widget onto an empty cell to pin it there, onto another tile to drop on it, or onto a page shortcut to move it to that page. Use the Order arrows for keyboard reordering.</span>
-        <For each={settings.panelOrder.filter(panel => panel === selectedPanel())}>{(panel, pageIndex) => {
+        <span id="wmp-drag-hint" class="wmp__sr-only">Drag this widget onto an empty cell to pin it there, onto another tile to swap with it, or onto a page tab to move it to that page. Use the Order arrows for keyboard reordering.</span>
+        <For each={settings.panelOrder.filter(panel => panel === selectedPanel())}>{(panel) => {
           const widgets = () => pageWidgets(panel)
           const slots = () => slotsFor(panel)
           return (
-            <section class="wmp__page" data-panel-id={panel} role="listitem" aria-label={`${settings.panels[panel]} page preview`}>
-              <header class="wmp__page-head">
-                <label class="wmp__page-name">
-                  <span>Page {settings.panelOrder.indexOf(panel) + 1}</span>
-                  <input aria-label={`Page ${settings.panelOrder.indexOf(panel) + 1} name`} maxlength={24} value={settings.panels[panel]} onInput={(event) => renamePage(panel, event.currentTarget.value)} />
-                </label>
-                <button class="wmp__icon-button" type="button" aria-label={`Delete ${settings.panels[panel]} page`} title="Delete page" disabled={settings.panelOrder.length <= 1} onClick={() => deletePage(panel)}><Trash2 size={14} /></button>
-              </header>
+            <section class="wmp__page" data-panel-id={panel} role="listitem" aria-label={`${pageName(panel)} page preview`}>
               <div class="wmp__phone">
                 <div class="wmp__notch" aria-hidden="true"><i /><i /><i /></div>
-                <div class="wmp__screen-head"><span>{settings.panels[panel]}</span><span>{enabled(panel).length} widgets</span></div>
+                <div class="wmp__screen-head">
+                  <Show when={renamingPage() === panel} fallback={<span class="wmp__title"><strong title={pageName(panel)}>{pageName(panel)}</strong>
+                    <button class="wmp__icon-button" type="button" aria-label={`Rename ${pageName(panel)} page`} title="Rename page" onClick={() => setRenamingPage(panel)}><Pencil size={12} /></button>
+                    <Show when={settings.panelNames?.[panel]}><button class="wmp__reset" type="button" title={`Restore "${settings.panels[panel]}"`} onClick={() => resetPageName(panel)}><RotateCcw size={11} /> Reset</button></Show></span>}>
+                    <input class="wmp__title-input" aria-label={`Page ${settings.panelOrder.indexOf(panel) + 1} name`} maxlength={PANEL_NAME_MAX} value={pageName(panel)} placeholder={settings.panels[panel]}
+                      ref={node => queueMicrotask(() => { node.focus(); node.select() })}
+                      onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); savePageName(panel, event.currentTarget.value) } else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setRenamingPage(null) } }}
+                      onBlur={(event) => { if (renamingPage() === panel) savePageName(panel, event.currentTarget.value) }} />
+                    <button class="wmp__reset" type="button" title={`Restore "${settings.panels[panel]}"`} onMouseDown={(event) => event.preventDefault()} onClick={() => resetPageName(panel)}><RotateCcw size={11} /> Reset</button>
+                  </Show>
+                  <span>{enabled(panel).length} {enabled(panel).length === 1 ? 'widget' : 'widgets'}</span>
+                  <button class="wmp__icon-button" type="button" aria-label={`Delete ${pageName(panel)} page`} title="Delete page" disabled={settings.panelOrder.length <= 1} onClick={() => deletePage(panel)}><Trash2 size={13} /></button>
+                </div>
                 <div
                   class="wmp__grid"
-                  classList={{ 'wmp__grid--drop-target': dropTarget()?.panel === panel }}
+                  classList={{ 'wmp__grid--drop-target': dropTarget()?.panel === panel, 'wmp__grid--dragging': !!draggingId() }}
                   role="group"
-                  aria-label={`${settings.panels[panel]} widgets`}
+                  aria-label={`${pageName(panel)} widgets`}
                 >
                   <For each={freeCellsFor(panel, draggingId())}>{([row, column]) => <button type="button"
                     class="wmp__empty-cell" data-drop-panel={panel} data-drop-row={row} data-drop-column={column}
                     classList={{ 'wmp__empty-cell--active': dropTarget()?.panel === panel && dropTarget()?.row === row && dropTarget()?.column === column }}
-                    aria-label={`Place selected widget in row ${row}, column ${column}`} disabled={!selectedId()}
-                    onClick={() => { const id = selectedId(); if (id) placeWidget(id, panel, { row, column }) }}
+                    aria-label={`Place selected widget in row ${row}, column ${column}`}
+                    onClick={() => { const id = selectedId(); if (id) placeWidget(id, panel, { row, column }); else { setAnnounce('Choose a widget to add below.'); focusTray() } }}
                     style={{ 'grid-column': `${column}`, 'grid-row': `${row}` }}>
-                    <span>{slots().length ? 'Drop here' : 'Add a widget here'}</span>
+                    <span class="wmp__plus" aria-hidden="true"><Plus size={14} strokeWidth={2.4} /></span>
+                    <span class="wmp__empty-text">{draggingId() ? 'Drop here' : selectedId() ? 'Place here' : 'Add widget'}</span>
                   </button>}</For>
                   <Show when={slots().length > 0} fallback={<div class="wmp__empty">Add a widget to this page</div>}>
                     <For each={slots()}>{(slot) => {
                       const widget = slot.widget
                       const def = WIDGETS[widget.kind]
-                      return <button
-                        type="button"
-                        class="wmp__tile"
-                        data-widget-id={widget.id}
-                        classList={{ 'wmp__tile--selected': selectedId() === widget.id, 'wmp__tile--full': slot.rows > 1, 'wmp__tile--wide': slot.columns > 1, 'wmp__tile--off': !widget.enabled, 'wmp__tile--dragging': draggingId() === widget.id, 'wmp__tile--drop-target': dropTarget()?.widgetId === widget.id }}
-                        style={{ 'grid-column': `${slot.column} / span ${slot.columns}`, 'grid-row': `${slot.row} / span ${slot.rows}` }}
-                        aria-pressed={selectedId() === widget.id}
-                        aria-label={`${def?.label ?? widget.kind}, ${resolvedSize(widget)} size, position ${widgets().findIndex((item) => item.id === widget.id) + 1} of ${widgets().length}`}
-                        aria-describedby="wmp-drag-hint"
-                        onClick={() => { if (suppressClickId === widget.id) { suppressClickId = null; return }; choose(widget) }}
-                        onPointerDown={(event) => { if (!widget.enabled || event.button !== 0) return; pointerDrag = { pointerId: event.pointerId, pointerType: event.pointerType, widgetId: widget.id, x: event.clientX, y: event.clientY, started: false } }}
-                        onKeyDown={(event) => { if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) { event.preventDefault(); move(widget, event.key === 'ArrowUp' ? -1 : 1) } }}
-                      >
-                        <span class="wmp__tile-icon">{def?.icon()}</span>
-                        <strong>{def?.label ?? widget.kind}</strong>
-                        <small>{resolvedSize(widget)}</small>
-                      </button>
+                      return <div class="wmp__cell" style={{ 'grid-column': `${slot.column} / span ${slot.columns}`, 'grid-row': `${slot.row} / span ${slot.rows}` }}>
+                        <button
+                          type="button"
+                          class="wmp__tile"
+                          data-widget-id={widget.id}
+                          classList={{ 'wmp__tile--selected': selectedId() === widget.id, 'wmp__tile--full': slot.rows > 1, 'wmp__tile--tall': slot.rows > 1 && slot.columns === 1, 'wmp__tile--wide': slot.columns > 1, 'wmp__tile--off': !widget.enabled, 'wmp__tile--dragging': draggingId() === widget.id, 'wmp__tile--drop-target': dropTarget()?.widgetId === widget.id }}
+                          aria-pressed={selectedId() === widget.id}
+                          aria-label={`${def?.label ?? widget.kind}, ${SHAPE_LABEL[resolvedSize(widget)]} shape, position ${widgets().findIndex((item) => item.id === widget.id) + 1} of ${widgets().length}`}
+                          aria-describedby="wmp-drag-hint"
+                          onClick={() => { if (suppressClickId === widget.id) { suppressClickId = null; return }; choose(widget) }}
+                          onPointerDown={(event) => { if (!widget.enabled || event.button !== 0) return; pointerDrag = { pointerId: event.pointerId, pointerType: event.pointerType, widgetId: widget.id, x: event.clientX, y: event.clientY, started: false } }}
+                          onKeyDown={(event) => { if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) { event.preventDefault(); move(widget, event.key === 'ArrowUp' ? -1 : 1) } }}
+                        >
+                          <span class="wmp__tile-icon">{def?.icon()}</span>
+                          <strong>{def?.label ?? widget.kind}</strong>
+                          <small>{SHAPE_LABEL[resolvedSize(widget)]}</small>
+                        </button>
+                        <button type="button" class="wmp__badge wmp__badge--minus" aria-label={`Hide ${labelOf(widget)}`} title="Hide widget" onClick={() => { updateWidget(widget.id, { enabled: false }); if (selectedId() === widget.id) setSelectedId(null); setAnnounce(`${labelOf(widget)} hidden`) }}><Minus size={11} strokeWidth={3} /></button>
+                      </div>
                     }}</For>
                   </Show>
                 </div>
                 <Show when={widgets().some((widget) => !widget.enabled)}>
-                  <div class="wmp__hidden"><span>Hidden</span><For each={widgets().filter((widget) => !widget.enabled)}>{(widget) => <button type="button" onClick={() => choose(widget)}>{WIDGETS[widget.kind]?.label ?? widget.kind}</button>}</For></div>
+                  <div class="wmp__hidden"><span>Hidden</span><For each={widgets().filter((widget) => !widget.enabled)}>{(widget) => <button type="button" onClick={() => choose(widget)}>{labelOf(widget)}</button>}</For></div>
                 </Show>
               </div>
             </section>
@@ -272,28 +307,28 @@ export default function WidgetManager() {
         }}</For>
       </div>
 
-      <Show when={selected()} fallback={<p class="wmp__hint">Choose a tile to edit it. Reorder it with the arrows below.</p>}>
+      <Show when={selected()} fallback={<p class="wmp__hint">Select a tile to change its size or page. Drag tiles to rearrange them.</p>}>
         {(widget) => {
           const def = () => WIDGETS[widget().kind]
           const page = () => widgetPanel(widget(), settings.panelOrder)
           const local = () => pageWidgets(page())
           const index = () => local().findIndex((item) => item.id === widget().id)
-          return <section class="wmp__inspector" aria-label={`${def()?.label ?? widget().kind} settings`}>
-            <header class="wmp__inspect-head"><span class="wmp__inspect-icon">{def()?.icon()}</span><div><strong>{def()?.label ?? widget().kind}</strong><small>{settings.panels[page()]}</small></div><button type="button" class="set-switch" classList={{ 'set-switch--on': widget().enabled }} role="switch" aria-checked={widget().enabled} aria-label={`${widget().enabled ? 'Hide' : 'Show'} ${def()?.label ?? widget().kind}`} onClick={() => toggle(widget())}><span /></button></header>
-            <div class="wmp__edit-row"><span>Size</span><div class="wmp__size-options" role="group" aria-label={`${def()?.label ?? widget().kind} size`}>
-              <For each={SIZES}>{(size) => <button type="button" aria-pressed={resolvedSize(widget()) === size.id} disabled={MIN_FULL.has(widget().kind) && size.id !== 'full'} title={MIN_FULL.has(widget().kind) && size.id !== 'full' ? 'This widget needs more room to stay readable.' : size.detail} onClick={() => setSize(widget(), size.id)}><strong>{size.label}</strong><small>{size.detail}</small></button>}</For>
-            </div></div>
-            <div class="wmp__edit-bottom"><label>Page<select aria-label={`Page for ${def()?.label ?? widget().kind}`} value={page()} onChange={(event) => { const panel = event.currentTarget.value; updateWidget(widget().id, { panel }); setSelectedPanel(panel) }}><For each={settings.panelOrder}>{(panel) => <option value={panel}>{settings.panels[panel]}</option>}</For></select></label>
-              <div class="wmp__reorder"><span>Order</span><button type="button" aria-label={`Move ${def()?.label ?? widget().kind} earlier`} disabled={index() <= 0} onClick={() => move(widget(), -1)}><ArrowUp size={14} /></button><button type="button" aria-label={`Move ${def()?.label ?? widget().kind} later`} disabled={index() >= local().length - 1} onClick={() => move(widget(), 1)}><ArrowDown size={14} /></button></div>
-              <button type="button" class="wmp__remove" onClick={() => remove(widget())}><Trash2 size={14} /> Remove</button>
-            </div>
-            <Show when={widget().kind === 'clock'}><div class="wmp__edit-row"><span>Clock face</span><div class="wmp__seg"><For each={[['analog', 'Analog'], ['digital', 'Digital']] as const}>{([id, label]) => <button type="button" aria-pressed={(widget().clockStyle ?? 'analog') === id} onClick={() => updateWidget(widget().id, { clockStyle: id })}>{label}</button>}</For></div></div></Show>
-            <Show when={widget().kind === 'media'}><div class="wmp__media-option"><label title={resolvedSize(widget()) === 'compact' ? 'Choose Wide or Full size to enable lyrics.' : undefined}><input type="checkbox" checked={widget().showLyrics ?? false} disabled={resolvedSize(widget()) === 'compact'} onChange={(event) => updateWidget(widget().id, { showLyrics: event.currentTarget.checked })} /> Show lyrics</label><small>{resolvedSize(widget()) === 'compact' ? 'Choose Wide or Full to show lyrics.' : 'Show synchronized lyrics when available.'}</small></div></Show>
+          return <section class="wmp__inspector set-card" aria-label={`${def()?.label ?? widget().kind} settings`}>
+            <div class="set-row wmp__inspect-head"><span class="wmp__inspect-icon">{def()?.icon()}</span><span class="set-row__text"><strong>{def()?.label ?? widget().kind}</strong><small>{pageName(page())}</small></span><button type="button" class="set-switch" classList={{ 'set-switch--on': widget().enabled }} role="switch" aria-checked={widget().enabled} aria-label={`${widget().enabled ? 'Hide' : 'Show'} ${def()?.label ?? widget().kind}`} onClick={() => toggle(widget())}><span /></button></div>
+            <div class="set-row wmp__shape-row"><span class="set-row__text"><strong>Shape</strong><small>{widgetShapeLocked(widget().kind) ? 'This widget needs the whole page to stay readable.' : 'Pick the layout that suits it best'}</small></span>
+              <div class="wmp__shapes" role="radiogroup" aria-label={`${def()?.label ?? widget().kind} shape`}>
+                <For each={widgetShapeOptions(widget().kind, resolvedSize(widget()))}>{(option) => <button type="button" role="radio" aria-checked={resolvedSize(widget()) === option.id} classList={{ 'wmp__shape--on': resolvedSize(widget()) === option.id }} disabled={widgetShapeLocked(widget().kind)} title={option.detail} onClick={() => setSize(widget(), option.id)}><ShapeGlyph shape={option.id} /><span>{option.label}</span></button>}</For>
+              </div></div>
+            <div class="set-row"><span class="set-row__text"><strong>Page</strong></span><Dropdown ariaLabel={`Page for ${def()?.label ?? widget().kind}`} align="end" value={page()} options={settings.panelOrder.map((panel) => ({ value: panel, label: pageName(panel) }))} onChange={(panel) => { updateWidget(widget().id, { panel }); setSelectedPanel(panel) }} /></div>
+            <div class="set-row"><span class="set-row__text"><strong>Order</strong><small>Alt with the arrow keys works on a tile too</small></span><div class="wmp__reorder"><button type="button" aria-label={`Move ${def()?.label ?? widget().kind} earlier`} disabled={index() <= 0} onClick={() => move(widget(), -1)}><ArrowUp size={13} /></button><button type="button" aria-label={`Move ${def()?.label ?? widget().kind} later`} disabled={index() >= local().length - 1} onClick={() => move(widget(), 1)}><ArrowDown size={13} /></button></div></div>
+            <Show when={widget().kind === 'clock'}><div class="set-row"><span class="set-row__text"><strong>Clock face</strong></span><div class="set-seg" role="radiogroup" aria-label="Clock face" style={{ '--n': 2, '--i': (widget().clockStyle ?? 'analog') === 'analog' ? 0 : 1 }}><span class="set-seg__thumb" aria-hidden="true" /><For each={[['analog', 'Analog'], ['digital', 'Digital']] as const}>{([id, label]) => <button type="button" role="radio" aria-checked={(widget().clockStyle ?? 'analog') === id} classList={{ 'set-seg__item--on': (widget().clockStyle ?? 'analog') === id }} onClick={() => updateWidget(widget().id, { clockStyle: id })}>{label}</button>}</For></div></div></Show>
+            <Show when={widget().kind === 'media'}><label class="set-row wmp__media-option" title={resolvedSize(widget()) === 'compact' ? 'Choose Wide or Full size to enable lyrics.' : undefined}><span class="set-row__text"><strong>Show lyrics</strong><small>{resolvedSize(widget()) === 'compact' ? 'Choose Wide or Full to show lyrics.' : 'Synced lyrics when available.'}</small></span><input type="checkbox" checked={widget().showLyrics ?? false} disabled={resolvedSize(widget()) === 'compact'} onChange={(event) => updateWidget(widget().id, { showLyrics: event.currentTarget.checked })} /></label></Show>
+            <div class="set-row"><span class="set-row__text"><strong>Remove widget</strong><small>You can add it back below</small></span><button type="button" class="button button--danger wmp__remove" onClick={() => remove(widget())}>Remove</button></div>
           </section>
         }}
       </Show>
 
-      <Show when={available().length > 0}><div class="wmp__add"><span class="wmp__add-label">Add widget</span><div class="wmp__chips"><For each={available()}>{(kind) => <button type="button" class="wmp__chip" onClick={() => add(kind)}><Plus size={13} />{WIDGETS[kind].label}</button>}</For></div></div></Show>
+      <Show when={available().length > 0}><div class="wmp__add wmp__tray"><span class="wmp__add-label">Add widgets</span><div class="wmp__chips"><For each={available()}>{(kind) => <button type="button" class="wmp__chip" onClick={() => add(kind)}><span class="wmp__chip-plus" aria-hidden="true"><Plus size={10} strokeWidth={3.2} /></span>{WIDGETS[kind].label}</button>}</For></div></div></Show>
       <div class="wmp__live" aria-live="polite">{announce()}</div>
     </div>
   )

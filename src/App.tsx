@@ -7,7 +7,8 @@ import { subscribeMedia } from './state/media'
 import { focusTimer } from './state/focus'
 import { notifications, subscribeNotifications } from './state/notifications'
 import { subscribeUsage } from './state/usage'
-import { collapseIsland, syncExpanded, expandIsland } from './state/ui'
+import { collapseIsland, syncExpanded, expandIsland, expanded } from './state/ui'
+import { matchesShortcut } from './lib/shortcuts'
 import { beginFirstRun, onboardingOpen, shouldShowFirstRun } from './state/onboarding'
 import { closeSpotlight, openSpotlight, spotlightOpen } from './state/spotlight'
 import { reportError } from './state/feedback'
@@ -116,6 +117,21 @@ export default function App() {
     )
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      if (matchesShortcut(event, settings.spotlightHotkey)) {
+        event.preventDefault()
+        openSpotlight()
+        return
+      }
+      if (matchesShortcut(event, settings.hotkey)) {
+        event.preventDefault()
+        // The desktop binding is handled once by the native global shortcut.
+        if (browserPreview) {
+          if (expanded()) collapseIsland()
+          else expandIsland()
+        }
+        return
+      }
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.code === 'KeyB') {
         event.preventDefault()
         expandIsland()
@@ -128,10 +144,6 @@ export default function App() {
           void flushSettings().catch(() => {})
           collapseIsland()
         }
-      }
-      if ((event.ctrlKey || event.metaKey) && event.code === 'Space') {
-        event.preventDefault()
-        openSpotlight()
       }
     }
     const onLeave = () => {

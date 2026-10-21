@@ -1,0 +1,75 @@
+/* Pomodoro. The layout follows the tile: compact is ring + controls side by side, wide adds presets,
+   tall stacks everything, and large gives the ring room. */
+.focus-host { --focus-color: #FF9F0A; container-type: size; }
+.focus { width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: clamp(12px, 5cqw, 28px); padding: 2px; }
+.focus__ring-wrap { flex: 0 1 auto; height: 100%; max-height: min(100%, 210px); aspect-ratio: 1; min-width: 0; min-height: 0; display: grid; }
+.focus__ring-wrap .wk-ring { width: 100%; height: 100%; }
+.focus__readout { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.focus .focus-clock { padding: 0; font-size: clamp(22px, 15cqmin, 50px); font-weight: 300; letter-spacing: -0.035em; line-height: 1; font-variant-numeric: tabular-nums; }
+.focus__status { font-size: 11px; font-weight: 600; color: var(--focus-color); letter-spacing: 0; }
+.focus-host[data-running] .focus__status::before { content: ''; display: inline-block; width: 5px; height: 5px; margin: 0 5px 1px 0; border-radius: 50%; background: currentColor; animation: focus-pulse 1.6s ease-in-out infinite; }
+@keyframes focus-pulse { 50% { opacity: 0.25; } }
+
+.focus__side { flex: 1 1 0; max-width: 300px; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+.focus__top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+
+/* segmented control with a sliding thumb */
+.focus-seg { position: relative; flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, 1fr); padding: 2px; border-radius: 9px; background: rgba(255, 255, 255, 0.08); }
+.focus-seg__thumb { position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc((100% - 4px) / 3); border-radius: 7px; background: rgba(255, 255, 255, 0.2); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); transform: translateX(calc(var(--i, 0) * 100%)); transition: transform 260ms cubic-bezier(0.32, 1.2, 0.5, 1); }
+.focus-seg button { position: relative; z-index: 1; height: 24px; min-width: 0; padding: 0 4px; border: 0; border-radius: 7px; background: transparent; color: var(--text-3); font-size: 11.5px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: color 160ms; }
+.focus-seg button.on { color: var(--text-1); }
+.focus-seg button:disabled:not(.on) { opacity: 0.5; cursor: default; }
+.focus-seg__full { display: none; }
+.focus__bell { flex: none; width: 26px; height: 26px; color: var(--text-3); }
+.focus__bell[aria-pressed='true'] { color: var(--focus-color); }
+
+.focus__adjust { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.focus__adjust .wk-icon-btn { width: 30px; height: 30px; background: rgba(255, 255, 255, 0.08); }
+.focus__minutes { font-size: 12px; font-weight: 500; color: var(--text-3); }
+.focus__minutes strong { font-size: 17px; font-weight: 600; color: var(--text-1); letter-spacing: -0.02em; }
+
+.focus .focus-presets { display: none; flex-wrap: nowrap; gap: 5px; }
+.focus-presets button { flex: 1; min-width: 0; height: 26px; padding: 0 6px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.08); font-size: 12px; font-weight: 600; color: var(--text-2); cursor: pointer; transition: background 140ms, color 140ms; }
+.focus-presets button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
+.focus-presets button.selected { background: color-mix(in srgb, var(--focus-color) 24%, transparent); color: var(--focus-color); }
+.focus-presets button:disabled:not(.selected) { opacity: 0.4; cursor: default; }
+
+.focus .focus-controls { flex-wrap: nowrap; align-items: center; justify-content: center; gap: 12px; }
+.focus__go, .focus__reset { display: grid; place-items: center; border: 0; border-radius: 50%; cursor: pointer; transition: transform 120ms, background 140ms, filter 140ms; }
+.focus__go { width: 52px; height: 52px; background: #fff; color: #000; }
+.focus__go--on { background: color-mix(in srgb, var(--focus-color) 26%, transparent); color: var(--focus-color); }
+.focus__reset { width: 38px; height: 38px; background: rgba(255, 255, 255, 0.1); color: var(--text-2); }
+.focus__go:active, .focus__reset:active { transform: scale(0.94); }
+.focus__go:hover { filter: brightness(1.08); }
+.focus__reset:hover { background: rgba(255, 255, 255, 0.16); }
+
+.focus__sessions { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 11.5px; font-weight: 500; color: var(--text-3); }
+.focus__dots { display: inline-flex; gap: 5px; }
+.focus__dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.16); transition: background 200ms, transform 200ms; }
+.focus__dots i.on { background: var(--focus-color); transform: scale(1.1); }
+
+/* short tiles: drop the least useful rows first */
+@container (max-height: 215px) { .focus__adjust { display: none; } .focus__side { gap: 8px; } }
+@container (max-height: 160px) { .focus__sessions { display: none; } .focus__top { display: none; } }
+/* narrow and short, like a compact tile on the Small island */
+@container (max-width: 420px) and (max-height: 260px) { .focus { gap: 12px; } .focus__ring-wrap { max-height: 112px; } .focus__side { flex-basis: 150px; min-width: 150px; } .focus-seg button { font-size: 10.5px; padding: 0 2px; } .focus .focus-clock { font-size: 22px; } }
+
+/* wide and large tiles: room for presets and full mode names */
+@container (min-width: 560px) {
+  .focus .focus-presets { display: flex; }
+  .focus-seg__full { display: inline; } .focus-seg__short { display: none; }
+  .focus__side { max-width: 360px; }
+}
+@container (min-width: 560px) and (max-height: 260px) { .focus__adjust { display: flex; } .focus__side { gap: 8px; } .focus__sessions { display: flex; } }
+@container (min-width: 560px) and (min-height: 340px) { .focus__ring-wrap { max-height: 280px; } .focus__go { width: 60px; height: 60px; } .focus .focus-clock { font-size: clamp(30px, 14cqmin, 64px); } }
+
+/* tall: stack the ring over the controls */
+@container (max-width: 480px) and (min-height: 320px) {
+  .focus { flex-direction: column; justify-content: flex-start; gap: 12px; }
+  .focus__ring-wrap { flex: none; height: auto; max-height: none; width: clamp(110px, min(70cqw, 40cqh), 230px); }
+  .focus__side { flex: none; width: 100%; max-width: 340px; justify-content: flex-start; }
+  .focus__adjust, .focus__sessions { display: flex; }
+  .focus .focus-presets { display: flex; }
+  .focus-seg__full { display: inline; } .focus-seg__short { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .focus-seg__thumb, .focus__dots i { transition: none; } .focus__status::before { animation: none !important; } }

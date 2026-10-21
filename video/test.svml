@@ -1,0 +1,34 @@
+<?svml using="@hypit/markup@1"?>
+<svml>
+  <import as="time" from="@hypit/timeline-author@1"/>
+  <import as="space" from="@hypit/spatial@1"/>
+  <import as="media" from="@hypit/media@1"/>
+  <import as="fontsource" from="@hypit/fontsource@1"/>
+  <import as="typo" from="@hypit/text-fine@1"/>
+  <import as="visual" from="@hypit/visual-track@1"/>
+  <import as="film" from="@hypit/film@1"/>
+  <import as="html" from="@hypit/html-video@1"/>
+  <import as="style" source="./style.svs"/>
+
+  <time:Clock id="clock" frame-rate="30"/>
+  <time:Timeline id="program" clock={clock} end="2s">
+    <time:Window id="shot" from="start" for="2s"/>
+  </time:Timeline>
+  <space:Canvas id="canvas" width="1080" height="1920"/>
+  <space:Extent id="shot-extent" width="2560" height="1800"/>
+  <space:Frame id="headline-frame" within={canvas.bounds} left="8%" top="58%" right="92%" bottom="76%"/>
+  <fontsource:Face id="archivo" package="@fontsource-variable/archivo" weight="700" style="normal"/>
+  <typo:Style id="headline-style" recipe={style.text.headline} font={archivo}>
+    <typo:Fill color="#f5f2ea"/>
+  </typo:Style>
+  <media:Image id="shot" src="./assets/ui/dashboard.png"/>
+  <visual:Track id="picture" timeline={program.timeline}>
+    <visual:Clip image={shot} extent={shot-extent} during={program.shot} frame={canvas.bounds} fit="cover" z="10"/>
+  </visual:Track>
+  <typo:Flow id="headline" timeline={program.timeline} within={headline-frame} style={headline-style} z="40" during={program.shot}>THE NOTCH, FOR WINDOWS.</typo:Flow>
+  <film:Film id="main" canvas={canvas.canvas} timeline={program.timeline} appearance={style.film.main}>
+    <film:Track source={picture.visual}/>
+    <film:Track source={headline.visual}/>
+  </film:Film>
+  <html:Video id="final" composition={main.composition} timeline={program.timeline}/>
+</svml>

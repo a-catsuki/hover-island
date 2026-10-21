@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Hover Island · layout and visualiser review</title>
+  <script>window.addEventListener('error',event=>{const note=document.createElement('pre');note.setAttribute('role','alert');note.style.cssText='position:fixed;inset:20px;background:#402020;color:white;z-index:100000;white-space:pre-wrap';note.textContent=event.message;document.body.append(note)});window.addEventListener('unhandledrejection',event=>{const note=document.createElement('pre');note.setAttribute('role','alert');note.style.cssText='position:fixed;inset:20px;background:#402020;color:white;z-index:100000;white-space:pre-wrap';note.textContent=String(event.reason?.stack??event.reason);document.body.append(note)});</script>
+  <style>
+    body:has(.preview-label) .island-stage { width:var(--review-host-width,960px)!important;height:560px!important;max-width:100vw; }
+    .review-controls {position:fixed;bottom:24px;left:50%;translate:-50% 0;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;width:min(900px,94vw);padding:14px;background:#161921;border:1px solid #ffffff20;border-radius:16px;z-index:9999;font:12px system-ui;color:#ddd;}
+    .review-controls button,.review-controls select {padding:7px 10px;background:#2b3041;color:white;border:1px solid #ffffff20;border-radius:7px;font:inherit;}
+    .review-controls>p {width:100%;margin:0 0 4px;text-align:center;color:#b5bbca;}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <aside class="review-controls" aria-label="Manual review controls">
+    <p>Browser review fixture · synthetic PCM envelopes for visual inspection only · does not prove live audio capture</p>
+    <button id="normal">640px content / 960px host</button><button id="narrow">400px content / 640px host</button>
+    <button id="large">960px content</button><button id="side">Side notch</button>
+    <button id="play">Play labelled audio fixture</button><button id="silent">Silence fixture</button>
+    <select id="mode" aria-label="Review visualiser mode"><option value="ambient">Atmosphere</option><option value="wave">Contour</option><option value="bars">Spectrum</option><option value="radial">Orbit</option><option value="particles">Lightfield</option></select>
+  </aside>
+  <script type="module">
+    import { DEFAULT_SETTINGS } from '/src/lib/ipc.ts'
+    const status = document.querySelector('.review-controls > p'), readyMessage = status.textContent
+    status.textContent = 'Loading the application module…'
+    const preset = structuredClone(DEFAULT_SETTINGS)
+    Object.assign(preset,{onboardingVersion:1,hideBehindWindows:false,background:'plain',sizePreset:'small',collapsed:{w:256,h:38},expanded:{w:640,h:560},panels:{today:'Today',desk:'Desk',activity:'Activity',plan:'Plans',home:'Home',work:'Work',archive:'Archive'},panelOrder:['today','desk','activity','plan','home','work','archive']})
+    preset.widgets = preset.widgets.map((widget,index)=>({...widget,enabled:['media','notes','focus','dock','weather','clock'].includes(widget.kind),panel:['media','weather'].includes(widget.kind)?'today':['notes','focus','dock'].includes(widget.kind)?'desk':'activity',size:['media','dock'].includes(widget.kind)?'wide':'compact',order:index}))
+    localStorage.setItem('hover-island.preview.settings',JSON.stringify(preset))
+    localStorage.setItem('hover-island.preview.audio-fixture','true')
+    window.addEventListener('pagehide',()=>localStorage.removeItem('hover-island.preview.audio-fixture'))
+    await import('/src/main.tsx')
+    status.textContent = 'Application loaded · restoring review layout…'
+    const ui = await import('/src/state/ui.ts'), prefs = await import('/src/state/settings.ts')
+    const { setActivePanel } = await import('/src/state/panel.ts')
+    await prefs.loadSettings();ui.setPinned(true);ui.expandIsland();setActivePanel('today')
+    status.textContent = readyMessage
+    const shape = (w,host,edge='top') => {document.documentElement.style.setProperty('--review-host-width',host+'px');prefs.patchSettings({expanded:{w,h:560},placement:{mode:'notch',edge,monitor:null}})}
+    document.querySelector('#normal').onclick=()=>shape(640,960)
+    document.querySelector('#narrow').onclick=()=>shape(400,640)
+    document.querySelector('#large').onclick=()=>shape(960,960)
+    document.querySelector('#side').onclick=()=>shape(640,960,'left')
+    document.querySelector('#mode').onchange=event=>prefs.patchSettings({visualizer:{...prefs.settings.visualizer,style:event.target.value}})
+    let sounding=false,sequence=0,beatSequence=0,lastBeat=-1
+    document.querySelector('#play').onclick=()=>{sounding=true;window.dispatchEvent(new CustomEvent('audio://capture-ready'))}
+    document.querySelector('#silent').onclick=()=>{sounding=false}
+    setInterval(()=>{
+      const at=performance.now(),beat=Math.floor(at/500),phase=(at%500)/500,pulse=Math.exp(-phase*9),newBeat=sounding&&beat!==lastBeat
+      if(newBeat){beatSequence++;lastBeat=beat}
+      const energy=sounding?.25+pulse*.45:0
+      window.dispatchEvent(new CustomEvent('audio://spectrum',{detail:{
+        bands:Array.from({length:24},(_,i)=>sounding?(.08+energy*(1-i/35))*(.6+.4*Math.sin(i*.7+at/2000)**2):0),
+        waveform:Array.from({length:128},(_,i)=>sounding?Math.sin(i/128*Math.PI*8)*energy:0),
+        rms:sounding?.06:0,peak:sounding?.18:0,energy,bass:sounding?.2+pulse*.7:0,mid:energy*.65,treble:energy*.35,flux:newBeat?.6:0,onset:newBeat?.8:0,sequence:++sequence,beatSequence,beatAtMs:Date.now(),capturedAtMs:Date.now(),sampleRate:48000,
+      }}))
+    },33)
+  </script>
+</body>
+</html>

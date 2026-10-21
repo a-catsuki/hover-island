@@ -1,74 +1,110 @@
 :root {
   color-scheme: dark;
 
+  /* ---- system palette (Apple dark, vibrant) ---- */
+  --sys-blue: #0a84ff;
+  --sys-green: #30d158;
+  --sys-red: #ff453a;
+  --sys-orange: #ff9f0a;
+  --sys-yellow: #ffd60a;
+  --sys-teal: #64d2ff;
+  --sys-purple: #bf5af2;
+  --sys-pink: #ff375f;
+  --sys-gray: #8e8e93;
+
   /* ---- surfaces ---- */
-  --surface-0: #050506;
-  --surface-1: #111113;
-  --surface-2: #1d1d20;
-  --surface-3: rgba(255, 255, 255, 0.09);
-  --surface-hover: rgba(255, 255, 255, 0.06);
-  --surface-active: rgba(255, 255, 255, 0.11);
+  --surface-0: #000000;
+  --surface-1: #0d0d0f;
+  --surface-2: #1c1c1e;
+  --surface-3: rgba(255, 255, 255, 0.10);
+  --surface-hover: rgba(255, 255, 255, 0.07);
+  --surface-active: rgba(255, 255, 255, 0.12);
+
+  /* ---- platters: the cards that sit on the black island ---- */
+  --platter: rgba(255, 255, 255, 0.06);
+  --platter-hover: rgba(255, 255, 255, 0.09);
+  --platter-active: rgba(255, 255, 255, 0.13);
+  --platter-strong: rgba(255, 255, 255, 0.12);
+  --hairline: inset 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  --control-off: rgba(255, 255, 255, 0.12);
+  --menu-bg: rgba(38, 38, 41, 0.86);
 
   /* ---- text ---- */
-  --text-1: rgba(255, 255, 255, 0.96);
-  --text-2: rgba(255, 255, 255, 0.72);
-  --text-3: rgba(255, 255, 255, 0.48);
+  --text-1: rgba(255, 255, 255, 0.92);
+  --text-2: rgba(255, 255, 255, 0.60);
+  --text-3: rgba(255, 255, 255, 0.38);
+  --text-on-light: #000000;
 
   /* ---- lines ---- */
-  --line-1: rgba(255, 255, 255, 0.10);
-  --line-2: rgba(255, 255, 255, 0.055);
+  --line-1: rgba(255, 255, 255, 0.08);
+  --line-2: rgba(255, 255, 255, 0.05);
 
   /* ---- accent (overridable at runtime) ---- */
-  --accent: #6e8bff;
-  --accent-soft: rgba(110, 139, 255, 0.18);
-  --accent-2: #b18cff;
-  --ok: #4ade80;
-  --warn: #fbbf24;
-  --danger: #f87171;
+  --accent: var(--sys-blue);
+  --accent-soft: rgba(10, 132, 255, 0.18);
+  --accent-2: var(--sys-purple);
+  --ok: var(--sys-green);
+  --warn: var(--sys-orange);
+  --danger: var(--sys-red);
 
   /* ---- geometry ---- */
-  --r-notch: 22px;
-  --r-panel: 20px;
-  --r-card: 14px;
-  --r-sm: 10px;
+  --r-notch: 32px;
+  --r-panel: 28px;
+  --r-platter: 22px;
+  --r-card: 18px;
+  --r-control: 14px;
+  --r-sm: 12px;
   --r-pill: 999px;
-  --blur: saturate(160%) blur(28px);
+  --blur: saturate(180%) blur(30px);
 
   /* ---- notch material (pure CSS; host supplies the shape) ---- */
   --notch-bg-0: #000000;
-  --notch-bg-1: #09090b;
-  --notch-edge: rgba(255, 255, 255, 0.06);
-  --notch-lip: rgba(255, 255, 255, 0.10);
+  --notch-bg-1: #000000;
+  --notch-edge: transparent;
+  --notch-lip: rgba(255, 255, 255, 0.06);
   --glass-pill: rgba(255, 255, 255, 0.10);
-  --glass-pill-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 0 rgba(255, 255, 255, 0.05);
+  --glass-pill-ring: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08);
 
   /* ---- shadow ---- */
-  --shadow-soft: 0 1px 1px rgba(0, 0, 0, 0.30), 0 10px 30px rgba(0, 0, 0, 0.42);
-  --shadow-lift: 0 2px 6px rgba(0, 0, 0, 0.35), 0 24px 60px rgba(0, 0, 0, 0.50);
-  --ring: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-  --notch-shadow: 0 18px 44px rgba(0, 0, 0, 0.55), 0 3px 10px rgba(0, 0, 0, 0.40);
-  --notch-shadow-open: 0 26px 70px rgba(0, 0, 0, 0.60), 0 4px 14px rgba(0, 0, 0, 0.45);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.30), 0 8px 24px rgba(0, 0, 0, 0.36);
+  --shadow-lift: 0 2px 6px rgba(0, 0, 0, 0.35), 0 20px 48px rgba(0, 0, 0, 0.48);
+  --shadow-island: 0 10px 28px rgba(0, 0, 0, 0.34);
+  --shadow-menu: 0 0 0 0.5px rgba(255, 255, 255, 0.10), 0 12px 36px rgba(0, 0, 0, 0.55);
+  --ring: inset 0 0 0 0.5px rgba(255, 255, 255, 0.07);
+  --notch-shadow: var(--shadow-island);
+  --notch-shadow-open: var(--shadow-island);
 
-  /* ---- motion ---- */
-  --spring: cubic-bezier(0.16, 1, 0.3, 1);
-  --spring-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  /* ---- motion ----
+     --spring family are linear() approximations of real springs.
+     response 0.36s / damping 0.9 (settles, no visible bounce) */
+  --spring: linear(0, 0.118, 0.337, 0.548, 0.713, 0.83, 0.905, 0.951, 0.977, 0.991, 0.998, 1.001, 1);
+  --spring-soft: var(--spring);
+  /* response 0.42s / damping 0.78, the island open feel (about 2% overshoot) */
+  --spring-island: linear(0, 0.094, 0.288, 0.497, 0.677, 0.814, 0.909, 0.968, 1, 1.015, 1.02, 1.019, 1.015, 1.011, 1.007, 1.004, 1.002, 1);
+  /* response 0.30s / damping 0.70, for small things that pop */
+  --spring-pop: linear(0, 0.126, 0.375, 0.625, 0.82, 0.947, 1.015, 1.042, 1.045, 1.036, 1.024, 1.014, 1.006, 1.001, 0.999, 1);
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 140ms;
   --dur: 240ms;
   --dur-slow: 400ms;
+  --enter-scale: 0.96;
+  --enter-blur: 4px;
+  --press-scale: 0.96;
 
   /* ---- type ---- */
   --font: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont,
-    "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    "SF Pro Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "Consolas", monospace;
 
+  --fs-10: 10px;
   --fs-11: 11px;
   --fs-12: 12px;
   --fs-13: 13px;
   --fs-14: 14px;
   --fs-15: 15px;
   --fs-16: 16px;
+  --fs-17: 17px;
   --fs-18: 18px;
   --fs-20: 20px;
   --fs-22: 22px;
@@ -89,7 +125,7 @@
   --track-title: -0.014em;
   --track-body: -0.008em;
   --track-normal: 0em;
-  --track-caps: 0.07em;
+  --track-caps: 0.04em;
 
   /* ---- spacing rhythm ---- */
   --sp-1: 4px;
@@ -109,13 +145,13 @@
 
 /* ---- island shell ---- */
 :root {
-  --island-opacity: 0.98;
+  --island-opacity: 1;
   --collapsed-w: 240px;
-  --collapsed-h: 40px;
+  --collapsed-h: 38px;
   --expanded-w: 720px;
   --expanded-h: 460px;
   --pill-gap: 10px;
-  --pill-art: 24px;
+  --pill-art: 22px;
   --marquee-dur: 15s;
   --panel-pad: 18px;
 }

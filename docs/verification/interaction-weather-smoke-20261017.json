@@ -1,0 +1,28 @@
+{
+  "results": [
+    "New install tour remains visible when the pointer leaves",
+    "New user weather waits for manual city or explicit permission",
+    "Size presets expand horizontally at a stable height; weather adapts without duplicate hero icons",
+    "Compact, wide and full weather tile branches fit their assigned space",
+    "Collapsed shell releases artwork scene and weather DOM",
+    "File drag in transparent host area does not activate notch",
+    "Side notch stacks time and status vertically",
+    "Browser slider hold retains workspace; queued peek appears after release and quiet period"
+  ],
+  "errors": [],
+  "screenshots": [
+    "C:\\Users\\HP\\source\\hover-island\\docs\\verification\\new-install-tour-20261017.png",
+    "C:\\Users\\HP\\source\\hover-island\\docs\\verification\\weather-consent-empty-20261017.png",
+    "C:\\Users\\HP\\source\\hover-island\\docs\\verification\\weather-location-consent-20261017.png",
+    "C:\\Users\\HP\\source\\hover-island\\docs\\verification\\weather-small-20261017.png",
+    "C:\\Users\\HP\\source\\hover-island\\docs\\verification\\weather-medium-20261017.png",
+    "C:\\Users\\HP\\source\\hover-island\\docs\\verification\\weather-large-20261017.png",
+    "C:\\Users\\HP\\source\\hover-island\\docs\\verification\\weather-tile-compact-20261017.png",
+    "C:\\Users\\HP\\source\\hover-island\\docs\\verification\\weather-tile-wide-20261017.png",
+    "C:\\Users\\HP\\source\\hover-island\\docs\\verification\\weather-tile-full-20261017.png",
+    "C:\\Users\\HP\\source\\hover-island\\docs\\verification\\side-notch-vertical-20261017.png",
+    "C:\\Users\\HP\\source\\hover-island\\docs\\verification\\brightness-hold-20261017.png",
+    "C:\\Users\\HP\\source\\hover-island\\docs\\verification\\brightness-after-release-20261017.png"
+  ],
+  "scope": "Browser preview only; native location, shell drag, topmost and total WebView2 RAM not proven"
+}

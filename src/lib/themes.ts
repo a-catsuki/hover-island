@@ -51,15 +51,15 @@ export const TEMPLATES: TemplatePreset[] = [
   {
     id: 'midnight',
     label: 'Midnight',
-    accent: '#818cf8',
-    accent2: '#312e81',
+    accent: '#0a84ff',
+    accent2: '#5e5ce6',
     surface0: 'rgba(6, 7, 12, 0.82)',
     surface1: 'rgba(14, 16, 24, 0.84)',
     surface2: 'rgba(24, 27, 38, 0.8)',
     notch0: '#05060b',
     notch1: '#0f1119',
     visualizer: 'bloom',
-    swatch: 'linear-gradient(135deg, #818cf8, #0b1020)',
+    swatch: 'linear-gradient(135deg, #0a84ff, #000000)',
   },
   {
     id: 'aurora',
@@ -148,9 +148,7 @@ export function applyTemplate(id: string): void {
   root.setProperty('--accent', t.accent)
   root.setProperty('--accent-2', t.accent2)
   root.setProperty('--accent-soft', withAlpha(t.accent, 0.18))
-  root.setProperty('--surface-0', t.surface0)
-  root.setProperty('--surface-1', t.surface1)
-  root.setProperty('--surface-2', t.surface2)
-  root.setProperty('--notch-bg-0', t.notch0)
-  root.setProperty('--notch-bg-1', t.notch1)
+  // The island material stays true black like the hardware notch; themes
+  // only change the accent. Clear any tint left by an older build.
+  for (const name of ['--surface-0', '--surface-1', '--surface-2', '--notch-bg-0', '--notch-bg-1']) root.removeProperty(name)
 }

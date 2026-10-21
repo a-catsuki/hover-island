@@ -5,7 +5,12 @@
 //! - Brightness through WMI (`root/wmi` `WmiMonitorBrightness` /
 //!   `WmiMonitorBrightnessMethods.WmiSetBrightness`).
 //! - Night light through the undocumented CloudStore registry blob (best effort).
-//! - Do Not Disturb through the shell's `WNF_QUIETHOURS_PROFILE` WNF state (best effort).
+//! - Do Not Disturb through the Windows 11 notification toggle in the registry plus the
+//!   shell's `WNF_QUIETHOURS_PROFILE` WNF state (best effort).
+//! - Wi-Fi, Bluetooth and Airplane mode through `Windows.Devices.Radios`.
+//! - Dark / light theme through the Personalize registry values (HKCU) and a
+//!   `WM_SETTINGCHANGE` broadcast.
+//! - Battery saver is read-only (`GetSystemPowerStatus`); Windows has no public toggle.
 //! - Power mode through the documented Windows 11 `powrprof` APIs.
 //!
 //! Windows exposes no documented public API for apps to toggle Energy Saver, so the
@@ -71,15 +76,45 @@ pub struct DoNotDisturbControl {
     pub error: Option<String>,
 }
 
+/// A plain on/off control (Wi-Fi, Airplane mode, theme, battery saver).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToggleControl {
+    pub supported: bool,
+    pub enabled: Option<bool>,
+    /// Rides undocumented or indirect Windows state.
+    pub best_effort: bool,
+    /// Windows exposes the state but offers no way to change it.
+    pub read_only: bool,
+    pub error: Option<String>,
+}
+
+impl ToggleControl {
+    fn unavailable(error: impl Into<String>) -> Self {
+        Self {
+            supported: false,
+            enabled: None,
+            best_effort: false,
+            read_only: false,
+            error: Some(error.into()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuickControlsSnapshot {
     pub volume: VolumeControl,
     pub brightness: BrightnessControl,
     pub bluetooth: BluetoothControl,
+    pub wifi: ToggleControl,
+    pub airplane: ToggleControl,
     pub power_mode: PowerModeControl,
     pub night_light: NightLightControl,
     pub do_not_disturb: DoNotDisturbControl,
+    /// `enabled` means dark theme.
+    pub theme: ToggleControl,
+    pub battery_saver: ToggleControl,
 }
 
 /// Accepts any finite level and pins it into the 0-100 range. Non-finite input
@@ -166,13 +201,21 @@ fn apply_night_light(data: &[u8], enabled: bool, now: u64) -> Option<Vec<u8>> {
 
 #[tauri::command]
 pub async fn quick_controls_get() -> Result<QuickControlsSnapshot, String> {
-    tauri::async_runtime::spawn_blocking(|| QuickControlsSnapshot {
-        volume: volume_status(),
-        brightness: brightness_status(),
-        bluetooth: bluetooth_status(),
-        power_mode: power_mode_status(),
-        night_light: night_light_status(),
-        do_not_disturb: do_not_disturb_status(),
+    tauri::async_runtime::spawn_blocking(|| {
+        // One radio enumeration feeds Bluetooth, Wi-Fi and Airplane mode.
+        let (bluetooth, wifi, airplane) = platform::radio_snapshot();
+        QuickControlsSnapshot {
+            volume: volume_status(),
+            brightness: brightness_status(),
+            bluetooth,
+            wifi,
+            airplane,
+            power_mode: power_mode_status(),
+            night_light: night_light_status(),
+            do_not_disturb: do_not_disturb_status(),
+            theme: platform::theme_status(),
+            battery_saver: platform::battery_saver_status(),
+        }
     })
     .await
     .map_err(|error| format!("Quick-controls worker failed: {error}"))
@@ -238,6 +281,13 @@ fn windows_settings_uri(page: &str) -> Result<&'static str, String> {
         "sound" => Ok("ms-settings:sound"),
         "display" => Ok("ms-settings:display"),
         "notifications" => Ok("ms-settings:notifications"),
+        "notification-access" => Ok("ms-settings:privacy-notifications"),
+        "bluetooth" => Ok("ms-settings:bluetooth"),
+        "wifi" => Ok("ms-settings:network-wifi"),
+        "airplane" => Ok("ms-settings:network-airplanemode"),
+        "colors" => Ok("ms-settings:colors"),
+        "battery" => Ok("ms-settings:batterysaver"),
+        "focus" => Ok("ms-settings:quiethours"),
         _ => Err("Unknown Windows settings page.".into()),
     }
 }
@@ -288,11 +338,142 @@ pub fn restore_previous_power_plan() -> Result<(), String> {
     platform::restore_previous_power_plan()
 }
 
+/* ------------------------- Windows banners (setting) ------------------------- */
+
+static BANNER_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+fn banner_backup_path(dir: &std::path::Path) -> std::path::PathBuf {
+    dir.join("windows-banners-previous.txt")
+}
+
+/// Hide (`quiet`/`clear`) or show (`normal`) Windows' own toast banners using the
+/// same global toast switch as Do Not Disturb. The user's previous raw value is
+/// saved to app data first, so a crash still restores it on the next launch.
+/// The island's own `dnd` setting is never touched.
+pub fn apply_windows_banners(dir: &std::path::Path, mode: &str) -> Result<(), String> {
+    if matches!(mode, "quiet" | "clear") {
+        let path = banner_backup_path(dir);
+        if !path.exists() {
+            // A missing value means banners are on.
+            let previous = platform::banner_value_read().unwrap_or(1);
+            std::fs::create_dir_all(dir)
+                .and_then(|()| std::fs::write(&path, previous.to_string()))
+                .map_err(|error| format!("Could not save the Windows banner setting: {error}"))?;
+        }
+        platform::banner_value_write(0)
+    } else {
+        restore_windows_banners(dir)
+    }
+}
+
+/// Put the saved value back and forget it. A no-op when nothing was saved.
+pub fn restore_windows_banners(dir: &std::path::Path) -> Result<(), String> {
+    let path = banner_backup_path(dir);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Ok(());
+    };
+    let previous = text.trim().parse::<u32>().ok().filter(|v| *v <= 1).unwrap_or(1);
+    platform::banner_value_write(previous)?;
+    let _ = std::fs::remove_file(&path);
+    Ok(())
+}
+
+/// Restore using the directory remembered by `spawn_banner_watcher`; used on exit,
+/// tray Quit and from the panic hook.
+pub fn restore_windows_banners_global() {
+    if let Some(dir) = BANNER_DIR.get() {
+        let _ = restore_windows_banners(dir);
+    }
+}
+
+/// Follows `settings.windowsBanners` (checked every 2 s) and installs a panic
+/// hook that restores the user's value if the app crashes.
+pub fn spawn_banner_watcher(app: tauri::AppHandle) {
+    use std::sync::atomic::Ordering;
+    use tauri::Manager;
+    let Ok(dir) = app.path().app_data_dir() else {
+        return;
+    };
+    let _ = BANNER_DIR.set(dir.clone());
+    let previous_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        restore_windows_banners_global();
+        previous_hook(info);
+    }));
+    std::thread::spawn(move || {
+        let mut applied: Option<String> = None;
+        let mut reported = false;
+        loop {
+            let state = app.state::<crate::state::AppState>();
+            if state.shutdown.load(Ordering::Relaxed) {
+                restore_windows_banners_global();
+                return;
+            }
+            let mode = {
+                let settings = state.settings.lock().unwrap();
+                match settings.windows_banners.as_str() {
+                    "quiet" => "quiet",
+                    "clear" => "clear",
+                    _ => "normal",
+                }
+            };
+            // quiet and clear both hide banners; only the notification poll differs.
+            let hidden = mode != "normal";
+            let target = if hidden { "hidden" } else { "normal" };
+            if applied.as_deref() != Some(target) {
+                match apply_windows_banners(&dir, mode) {
+                    Ok(()) => {
+                        applied = Some(target.to_string());
+                        reported = false;
+                    }
+                    Err(error) => {
+                        if !reported {
+                            eprintln!("Windows banner setting: {error}");
+                            reported = true;
+                        }
+                    }
+                }
+            }
+            drop(state);
+            std::thread::sleep(std::time::Duration::from_secs(2));
+        }
+    });
+}
+
 #[tauri::command]
 pub async fn set_bluetooth_radio(app: tauri::AppHandle, enabled: bool) -> Result<bool, String> {
     tauri::async_runtime::spawn_blocking(move || platform::set_bluetooth_radio(enabled, app))
         .await
         .map_err(|error| format!("Bluetooth worker failed: {error}"))?
+}
+
+/// Cheap Bluetooth radio read for the Bluetooth widget (no brightness or volume queries).
+#[tauri::command]
+pub async fn bluetooth_radio_get() -> Result<BluetoothControl, String> {
+    tauri::async_runtime::spawn_blocking(|| platform::radio_snapshot().0)
+        .await
+        .map_err(|error| format!("Bluetooth worker failed: {error}"))
+}
+
+#[tauri::command]
+pub async fn set_wifi_radio(app: tauri::AppHandle, enabled: bool) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || platform::set_wifi_radio(enabled, app))
+        .await
+        .map_err(|error| format!("Wi-Fi worker failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn set_airplane_mode(app: tauri::AppHandle, enabled: bool) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || platform::set_airplane_mode(enabled, app))
+        .await
+        .map_err(|error| format!("Airplane mode worker failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn set_dark_mode(enabled: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || platform::set_dark_mode(enabled))
+        .await
+        .map_err(|error| format!("Theme worker failed: {error}"))?
 }
 
 pub(crate) fn volume_status() -> VolumeControl {
@@ -301,10 +482,6 @@ pub(crate) fn volume_status() -> VolumeControl {
 
 pub(crate) fn brightness_status() -> BrightnessControl {
     platform::brightness_status()
-}
-
-fn bluetooth_status() -> BluetoothControl {
-    platform::bluetooth_status()
 }
 
 fn power_mode_status() -> PowerModeControl {
@@ -334,13 +511,13 @@ mod platform {
     use super::{
         apply_night_light, clamp_brightness, clamp_volume, decode_night_light, short_error,
         BluetoothControl, BrightnessControl, DoNotDisturbControl, NightLightControl,
-        PowerModeControl, VolumeControl,
+        PowerModeControl, ToggleControl, VolumeControl,
     };
     use std::ffi::c_void;
     use std::sync::{Mutex, OnceLock};
     use windows::core::{w, BSTR, GUID, PCWSTR};
     use windows::Devices::Radios::{Radio, RadioAccessStatus, RadioKind, RadioState};
-    use windows::Win32::Foundation::{BOOL, HWND};
+    use windows::Win32::Foundation::{BOOL, HWND, LPARAM, WPARAM};
     use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
     use windows::Win32::Media::Audio::{
         eConsole, eRender, IMMDeviceEnumerator, MMDeviceEnumerator,
@@ -349,9 +526,11 @@ mod platform {
         CoCreateInstance, CoInitializeEx, CoSetProxyBlanket, CLSCTX_ALL, CLSCTX_INPROC_SERVER,
         COINIT_MULTITHREADED, EOAC_NONE, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE,
     };
+    use windows::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
     use windows::Win32::System::Registry::{
-        RegCloseKey, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW, HKEY, HKEY_CURRENT_USER,
-        KEY_QUERY_VALUE, KEY_SET_VALUE, REG_BINARY, REG_VALUE_TYPE,
+        RegCloseKey, RegCreateKeyExW, RegGetValueW, RegOpenKeyExW, RegQueryValueExW,
+        RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_BINARY,
+        REG_DWORD, REG_OPTION_NON_VOLATILE, REG_VALUE_TYPE, RRF_RT_REG_DWORD,
     };
     use windows::Win32::System::Variant::{
         VariantChangeType, VariantClear, VARIANT, VARIANT_0_0, VARIANT_0_0_0, VAR_CHANGE_FLAGS,
@@ -362,7 +541,9 @@ mod platform {
         WbemLocator, WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_GENERIC_FLAG_TYPE,
     };
     use windows::Win32::UI::Shell::ShellExecuteW;
-    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SendMessageTimeoutW, HWND_BROADCAST, SMTO_ABORTIFHUNG, SW_SHOWNORMAL, WM_SETTINGCHANGE,
+    };
 
     const BEST_EFFICIENCY: GUID = GUID::from_values(
         0x961CC777,
@@ -373,6 +554,21 @@ mod platform {
     static RESTORE_MODE: OnceLock<Mutex<Option<(GUID, GUID)>>> = OnceLock::new();
     static RADIO_ACCESS: OnceLock<Mutex<Option<RadioAccessStatus>>> = OnceLock::new();
     static POWER_OPERATION: Mutex<()> = Mutex::new(());
+    /// Radio kinds that were on when Airplane mode was switched on from here, so
+    /// switching it off brings back the same set instead of forcing everything on.
+    static AIRPLANE_RESTORE: Mutex<Vec<i32>> = Mutex::new(Vec::new());
+    const AIRPLANE_KINDS: [RadioKind; 3] = [
+        RadioKind::WiFi,
+        RadioKind::Bluetooth,
+        RadioKind::MobileBroadband,
+    ];
+
+    // Windows 11 Do Not Disturb is the global toast switch in the notification settings.
+    const NOTIFICATIONS_KEY: &str =
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Notifications\\Settings";
+    const TOASTS_ENABLED_VALUE: &str = "NOC_GLOBAL_SETTING_TOASTS_ENABLED";
+    const PERSONALIZE_KEY: &str =
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
 
     // Night light lives in an undocumented CloudStore registry blob.
     const NIGHT_LIGHT_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\CloudStore\\Store\\DefaultAccount\\Current\\default$windows.data.bluelightreduction.bluelightreductionstate\\windows.data.bluelightreduction.bluelightreductionstate";
@@ -1012,9 +1208,57 @@ mod platform {
         Ok(())
     }
 
+    /* ------------------------------------------------------ registry helpers */
+
+    fn read_hkcu_dword(subkey: &str, name: &str) -> Option<u32> {
+        let subkey = wide(subkey);
+        let name = wide(name);
+        let mut data = 0u32;
+        let mut size = std::mem::size_of::<u32>() as u32;
+        unsafe {
+            RegGetValueW(
+                HKEY_CURRENT_USER,
+                PCWSTR(subkey.as_ptr()),
+                PCWSTR(name.as_ptr()),
+                RRF_RT_REG_DWORD,
+                None,
+                Some((&mut data as *mut u32).cast::<c_void>()),
+                Some(&mut size),
+            )
+        }
+        .ok()?;
+        Some(data)
+    }
+
+    fn write_hkcu_dword(subkey: &str, name: &str, value: u32) -> Result<(), String> {
+        let subkey = wide(subkey);
+        let name = wide(name);
+        let mut hkey = HKEY::default();
+        unsafe {
+            RegCreateKeyExW(
+                HKEY_CURRENT_USER,
+                PCWSTR(subkey.as_ptr()),
+                0,
+                PCWSTR::null(),
+                REG_OPTION_NON_VOLATILE,
+                KEY_SET_VALUE,
+                None,
+                &mut hkey,
+                None,
+            )
+        }
+        .map_err(|error| hresult_error("Could not open the Windows setting", &error))?;
+        let bytes = value.to_le_bytes();
+        let result =
+            unsafe { RegSetValueExW(hkey, PCWSTR(name.as_ptr()), 0, REG_DWORD, Some(&bytes)) };
+        let _ = unsafe { RegCloseKey(hkey) };
+        result.map_err(|error| hresult_error("Could not write the Windows setting", &error))
+    }
+
     /* -------------------------------------------------- do not disturb */
 
-    pub(super) fn do_not_disturb_status() -> DoNotDisturbControl {
+    /// Focus assist / quiet hours profile from the shell's WNF state (0 = off).
+    fn wnf_quiet_hours_profile() -> Option<i32> {
         let mut state_name = WNF_QUIETHOURS_PROFILE;
         let mut change_stamp = 0u32;
         let mut buffer = [0u8; 8];
@@ -1030,160 +1274,419 @@ mod platform {
             )
         };
         if status != 0 || size != 4 {
-            return DoNotDisturbControl {
-                supported: false,
-                enabled: None,
-                best_effort: true,
-                error: Some("Windows did not report a Do Not Disturb state.".into()),
-            };
+            return None;
         }
         let value = i32::from_ne_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
-        if !(0..=2).contains(&value) {
-            return DoNotDisturbControl {
-                supported: false,
-                enabled: None,
-                best_effort: true,
-                error: Some("Windows reported an unsupported Do Not Disturb profile.".into()),
-            };
-        }
-        DoNotDisturbControl {
-            supported: true,
-            enabled: Some(value != 0),
-            best_effort: true,
-            error: None,
-        }
+        (0..=2).contains(&value).then_some(value)
     }
 
-    pub(super) fn set_do_not_disturb(enabled: bool) -> Result<(), String> {
-        if !do_not_disturb_status().supported {
-            return Err("Windows Do Not Disturb control is unavailable on this version.".into());
-        }
+    fn wnf_set_quiet_hours_profile(value: i32) -> i32 {
         let state_name = WNF_QUIETHOURS_PROFILE;
-        let value = i32::from(enabled).to_ne_bytes();
-        let status = unsafe {
+        let bytes = value.to_ne_bytes();
+        unsafe {
             NtUpdateWnfStateData(
                 &state_name,
-                value.as_ptr(),
-                value.len() as u32,
+                bytes.as_ptr(),
+                bytes.len() as u32,
                 std::ptr::null(),
                 std::ptr::null(),
                 0,
                 0,
             )
-        };
-        if status != 0 {
-            Err(format!(
-                "Windows rejected the Do Not Disturb change (0x{:08X}).",
-                status as u32
-            ))
-        } else {
-            if do_not_disturb_status().enabled != Some(enabled) {
-                return Err("Windows did not confirm the Do Not Disturb change.".into());
-            }
-            Ok(())
         }
     }
 
-    /* ----------------------------------------------------------- bluetooth */
+    pub(super) fn do_not_disturb_status() -> DoNotDisturbControl {
+        // Windows 11 keeps the Do Not Disturb switch in the registry (0 means toasts are
+        // silenced). Older builds only have the Focus assist WNF state. Either one counts.
+        let toasts_off = read_hkcu_dword(NOTIFICATIONS_KEY, TOASTS_ENABLED_VALUE) == Some(0);
+        let focus_assist = wnf_quiet_hours_profile().is_some_and(|profile| profile != 0);
+        DoNotDisturbControl {
+            supported: true,
+            enabled: Some(toasts_off || focus_assist),
+            best_effort: true,
+            error: None,
+        }
+    }
 
-    pub(super) fn bluetooth_status() -> BluetoothControl {
-        let _com = match com_apartment() {
-            Ok(apartment) => apartment,
-            Err(error) => {
-                return BluetoothControl {
+    /// Raw global toast switch (`NOC_GLOBAL_SETTING_TOASTS_ENABLED`); None when unset.
+    pub(super) fn banner_value_read() -> Option<u32> {
+        read_hkcu_dword(NOTIFICATIONS_KEY, TOASTS_ENABLED_VALUE)
+    }
+
+    pub(super) fn banner_value_write(value: u32) -> Result<(), String> {
+        write_hkcu_dword(NOTIFICATIONS_KEY, TOASTS_ENABLED_VALUE, value)
+    }
+
+    pub(super) fn set_do_not_disturb(enabled: bool) -> Result<(), String> {
+        write_hkcu_dword(
+            NOTIFICATIONS_KEY,
+            TOASTS_ENABLED_VALUE,
+            if enabled { 0 } else { 1 },
+        )?;
+        // Keep the Focus assist state in step where Windows still has it. Failure here is
+        // not fatal; the verification below decides whether the change took.
+        if wnf_quiet_hours_profile().is_some() {
+            let _ = wnf_set_quiet_hours_profile(i32::from(enabled));
+        }
+        for _ in 0..5 {
+            if do_not_disturb_status().enabled == Some(enabled) {
+                return Ok(());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(120));
+        }
+        Err("Windows did not confirm the Do Not Disturb change.".into())
+    }
+
+    /* ----------------------------------------------------------------- theme */
+
+    pub(super) fn theme_status() -> ToggleControl {
+        let apps = read_hkcu_dword(PERSONALIZE_KEY, "AppsUseLightTheme");
+        let system = read_hkcu_dword(PERSONALIZE_KEY, "SystemUsesLightTheme");
+        // Windows treats a missing value as the light theme.
+        let light = apps.or(system).map_or(true, |value| value != 0);
+        ToggleControl {
+            supported: true,
+            enabled: Some(!light),
+            best_effort: false,
+            read_only: false,
+            error: None,
+        }
+    }
+
+    pub(super) fn set_dark_mode(enabled: bool) -> Result<(), String> {
+        let value = if enabled { 0 } else { 1 };
+        write_hkcu_dword(PERSONALIZE_KEY, "AppsUseLightTheme", value)?;
+        write_hkcu_dword(PERSONALIZE_KEY, "SystemUsesLightTheme", value)?;
+        // Tell running apps and the shell to re-read the colour mode.
+        let setting = wide("ImmersiveColorSet");
+        let mut broadcast_result = 0usize;
+        unsafe {
+            SendMessageTimeoutW(
+                HWND_BROADCAST,
+                WM_SETTINGCHANGE,
+                WPARAM(0),
+                LPARAM(setting.as_ptr() as isize),
+                SMTO_ABORTIFHUNG,
+                500,
+                Some(&mut broadcast_result),
+            );
+        }
+        if theme_status().enabled != Some(enabled) {
+            return Err("Windows did not keep the theme change.".into());
+        }
+        Ok(())
+    }
+
+    /* --------------------------------------------------------- battery saver */
+
+    pub(super) fn battery_saver_status() -> ToggleControl {
+        let mut status = SYSTEM_POWER_STATUS::default();
+        if unsafe { GetSystemPowerStatus(&mut status) }.is_err() {
+            return ToggleControl::unavailable("Windows did not report the battery state.");
+        }
+        // 128 = no system battery, 255 = unknown.
+        if status.BatteryFlag == 128 || status.BatteryFlag == 255 {
+            return ToggleControl::unavailable("This PC has no battery.");
+        }
+        ToggleControl {
+            supported: true,
+            enabled: Some(status.SystemStatusFlag == 1),
+            best_effort: false,
+            // Windows offers no public way for an app to switch Energy Saver.
+            read_only: true,
+            error: None,
+        }
+    }
+
+    /* --------------------------------------------------------------- radios */
+
+    fn all_radios() -> Result<Vec<Radio>, String> {
+        let radios = Radio::GetRadiosAsync()
+            .map_err(|error| hresult_error("Could not list the wireless radios", &error))?
+            .get()
+            .map_err(|error| hresult_error("Could not read the wireless radios", &error))?;
+        let mut list = Vec::new();
+        for index in 0..radios.Size().unwrap_or(0) {
+            if let Ok(radio) = radios.GetAt(index) {
+                list.push(radio);
+            }
+        }
+        Ok(list)
+    }
+
+    /// (supported, enabled, error) for every radio of one kind.
+    fn radio_kind_status(
+        radios: &[Radio],
+        kind: RadioKind,
+        missing: &str,
+    ) -> (bool, Option<bool>, Option<String>) {
+        let states: Vec<RadioState> = radios
+            .iter()
+            .filter(|radio| radio.Kind().ok() == Some(kind))
+            .filter_map(|radio| radio.State().ok())
+            .collect();
+        if states.is_empty() {
+            return (false, None, Some(missing.to_string()));
+        }
+        if states.iter().all(|state| *state == RadioState::Disabled) {
+            return (
+                false,
+                Some(false),
+                Some("A hardware switch or Device Manager has turned this radio off.".into()),
+            );
+        }
+        (
+            true,
+            Some(states.iter().any(|state| *state == RadioState::On)),
+            None,
+        )
+    }
+
+    fn is_airplane_kind(kind: RadioKind) -> bool {
+        AIRPLANE_KINDS.contains(&kind)
+    }
+
+    /// Airplane mode is "every wireless radio is off", which is exactly what Windows
+    /// does when you switch it on, and it keeps working whichever app changed it.
+    fn airplane_from(radios: &[Radio]) -> ToggleControl {
+        let states: Vec<RadioState> = radios
+            .iter()
+            .filter(|radio| radio.Kind().ok().is_some_and(is_airplane_kind))
+            .filter_map(|radio| radio.State().ok())
+            .collect();
+        if states.is_empty() {
+            return ToggleControl::unavailable("No wireless radios were found on this PC.");
+        }
+        ToggleControl {
+            supported: true,
+            enabled: Some(states.iter().all(|state| *state != RadioState::On)),
+            best_effort: true,
+            read_only: false,
+            error: None,
+        }
+    }
+
+    pub(super) fn radio_snapshot() -> (BluetoothControl, ToggleControl, ToggleControl) {
+        let failed = |error: String| {
+            let short = short_error(&error);
+            (
+                BluetoothControl {
                     supported: false,
                     enabled: None,
-                    error: Some(error),
+                    error: Some(short.clone()),
+                },
+                ToggleControl::unavailable(short.clone()),
+                ToggleControl::unavailable(short),
+            )
+        };
+        let _com = match com_apartment() {
+            Ok(apartment) => apartment,
+            Err(error) => return failed(error),
+        };
+        let radios = match all_radios() {
+            Ok(radios) => radios,
+            Err(error) => return failed(error),
+        };
+        let (bt_supported, bt_enabled, bt_error) = radio_kind_status(
+            &radios,
+            RadioKind::Bluetooth,
+            "No Bluetooth radio is available on this PC.",
+        );
+        let (wifi_supported, wifi_enabled, wifi_error) = radio_kind_status(
+            &radios,
+            RadioKind::WiFi,
+            "No Wi-Fi adapter is available on this PC.",
+        );
+        (
+            BluetoothControl {
+                supported: bt_supported,
+                enabled: bt_enabled,
+                error: bt_error,
+            },
+            ToggleControl {
+                supported: wifi_supported,
+                enabled: wifi_enabled,
+                best_effort: false,
+                read_only: false,
+                error: wifi_error,
+            },
+            airplane_from(&radios),
+        )
+    }
+
+    #[cfg(test)]
+    pub(super) fn bluetooth_status() -> BluetoothControl {
+        radio_snapshot().0
+    }
+
+    /// Asks Windows once for permission to change radios. Only a grant is cached, so a
+    /// permission fixed in Settings works on the next try.
+    fn ensure_radio_access(app: &tauri::AppHandle) -> Result<(), String> {
+        let access_cache = RADIO_ACCESS.get_or_init(|| Mutex::new(None));
+        let mut access = access_cache
+            .lock()
+            .map_err(|_| "Radio access state is unavailable.".to_string())?;
+        let granted = match *access {
+            Some(status) => status,
+            None => {
+                let (sender, receiver) = std::sync::mpsc::channel();
+                app.run_on_main_thread(move || {
+                    let _ = sender.send(Radio::RequestAccessAsync());
+                })
+                .map_err(|error| {
+                    format!("Could not request radio access on the UI thread: {error}")
+                })?;
+                let operation = receiver
+                    .recv_timeout(std::time::Duration::from_secs(10))
+                    .map_err(|_| "Radio access request could not reach the UI thread.".to_string())?
+                    .map_err(|error| hresult_error("Could not request radio control access", &error))?;
+                let status = operation.get().map_err(|error| {
+                    hresult_error("Could not finish the radio access request", &error)
+                })?;
+                if status == RadioAccessStatus::Allowed {
+                    *access = Some(status);
                 }
+                status
             }
         };
-        match find_bluetooth_radio() {
-            Ok(Some(radio)) => BluetoothControl {
-                supported: true,
-                enabled: radio.State().ok().map(|state| state == RadioState::On),
-                error: None,
-            },
-            Ok(None) => BluetoothControl {
-                supported: false,
-                enabled: None,
-                error: Some("No Bluetooth radio is available on this PC.".into()),
-            },
-            Err(error) => BluetoothControl {
-                supported: false,
-                enabled: None,
-                error: Some(short_error(&error)),
-            },
+        drop(access);
+        if granted == RadioAccessStatus::Allowed {
+            return Ok(());
         }
+        Err(match granted {
+            RadioAccessStatus::DeniedByUser => {
+                "Windows denied radio control. Check app permissions in Settings.".into()
+            }
+            RadioAccessStatus::DeniedBySystem => {
+                "Windows policy does not allow this app to control radios.".into()
+            }
+            _ => "Windows did not grant radio control access.".to_string(),
+        })
+    }
+
+    fn apply_radio_state(radio: &Radio, target: RadioState) -> Result<(), String> {
+        let current = radio.State().ok();
+        if current == Some(target) {
+            return Ok(());
+        }
+        if current == Some(RadioState::Disabled) {
+            return Err("A hardware switch or Device Manager has turned this radio off.".into());
+        }
+        let result = radio
+            .SetStateAsync(target)
+            .map_err(|error| hresult_error("Could not change the radio state", &error))?
+            .get()
+            .map_err(|error| hresult_error("Could not finish changing the radio state", &error))?;
+        if result != RadioAccessStatus::Allowed {
+            return Err(format!("Windows did not apply the radio change ({result:?})."));
+        }
+        Ok(())
+    }
+
+    fn set_radio_kind(
+        kind: RadioKind,
+        enabled: bool,
+        app: &tauri::AppHandle,
+        missing: &str,
+    ) -> Result<(), String> {
+        let _com = com_apartment()?;
+        let target = if enabled { RadioState::On } else { RadioState::Off };
+        // Check for the adapter first so a missing one is not reported as a permission issue.
+        let radios = all_radios()?;
+        if !radios.iter().any(|radio| radio.Kind().ok() == Some(kind)) {
+            return Err(missing.to_string());
+        }
+        ensure_radio_access(app)?;
+        for radio in radios.iter().filter(|radio| radio.Kind().ok() == Some(kind)) {
+            apply_radio_state(radio, target)?;
+        }
+        // Some drivers report the new state a moment after the call returns.
+        for _ in 0..15 {
+            let (_, now, _) = radio_kind_status(&all_radios()?, kind, missing);
+            if now == Some(enabled) {
+                return Ok(());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+        Err("Windows did not confirm the requested radio state.".into())
     }
 
     pub(super) fn set_bluetooth_radio(
         enabled: bool,
         app: tauri::AppHandle,
     ) -> Result<bool, String> {
-        let _com = com_apartment()?;
-        let radio = find_bluetooth_radio()?;
-        let Some(radio) = radio else {
-            return Err("No Bluetooth radio is available on this PC.".into());
-        };
-        let access_cache = RADIO_ACCESS.get_or_init(|| Mutex::new(None));
-        let mut access = access_cache
-            .lock()
-            .map_err(|_| "Bluetooth access state is unavailable.".to_string())?;
-        if access.is_none() {
-            let (sender, receiver) = std::sync::mpsc::channel();
-            app.run_on_main_thread(move || {
-                let _ = sender.send(Radio::RequestAccessAsync());
-            })
-            .map_err(|error| {
-                format!("Could not request Bluetooth access on the UI thread: {error}")
-            })?;
-            let operation = receiver
-                .recv_timeout(std::time::Duration::from_secs(10))
-                .map_err(|_| "Bluetooth access request could not reach the UI thread.".to_string())?
-                .map_err(|error| format!("Could not request Bluetooth control access: {error}"))?;
-            *access = Some(operation.get().map_err(|error| {
-                format!("Could not finish Bluetooth control access request: {error}")
-            })?);
-        }
-        let granted = (*access).unwrap_or(RadioAccessStatus::Unspecified);
-        drop(access);
-        let access = granted;
-        if access != RadioAccessStatus::Allowed {
-            return Err(match access {
-                RadioAccessStatus::DeniedByUser => {
-                    "Windows denied Bluetooth radio control. Check app permissions in Settings."
-                        .into()
-                }
-                RadioAccessStatus::DeniedBySystem => {
-                    "Windows policy does not allow this app to control Bluetooth.".into()
-                }
-                _ => "Windows did not grant Bluetooth radio control access.".into(),
-            });
-        }
-        let state = if enabled {
-            RadioState::On
-        } else {
-            RadioState::Off
-        };
-        let result = radio
-            .SetStateAsync(state)
-            .map_err(|error| format!("Could not set Bluetooth radio state: {error}"))?
-            .get()
-            .map_err(|error| format!("Could not finish changing Bluetooth radio state: {error}"))?;
-        if result != RadioAccessStatus::Allowed {
-            return Err(format!(
-                "Windows did not apply the Bluetooth change ({:?}).",
-                result
-            ));
-        }
-        let now_enabled = radio
-            .State()
-            .map_err(|error| format!("Could not verify Bluetooth state: {error}"))?
-            == state;
-        if !now_enabled {
-            return Err("Windows did not confirm the requested Bluetooth state.".into());
-        }
+        set_radio_kind(
+            RadioKind::Bluetooth,
+            enabled,
+            &app,
+            "No Bluetooth radio is available on this PC.",
+        )?;
         Ok(enabled)
+    }
+
+    pub(super) fn set_wifi_radio(enabled: bool, app: tauri::AppHandle) -> Result<bool, String> {
+        set_radio_kind(
+            RadioKind::WiFi,
+            enabled,
+            &app,
+            "No Wi-Fi adapter is available on this PC.",
+        )?;
+        Ok(enabled)
+    }
+
+    pub(super) fn set_airplane_mode(enabled: bool, app: tauri::AppHandle) -> Result<bool, String> {
+        let _com = com_apartment()?;
+        let radios = all_radios()?;
+        let considered: Vec<&Radio> = radios
+            .iter()
+            .filter(|radio| radio.Kind().ok().is_some_and(is_airplane_kind))
+            .collect();
+        if considered.is_empty() {
+            return Err("No wireless radios were found on this PC.".into());
+        }
+        ensure_radio_access(&app)?;
+        let mut first_error: Option<String> = None;
+        if enabled {
+            let on_kinds: Vec<i32> = considered
+                .iter()
+                .filter(|radio| radio.State().ok() == Some(RadioState::On))
+                .filter_map(|radio| radio.Kind().ok())
+                .map(|kind| kind.0)
+                .collect();
+            if !on_kinds.is_empty() {
+                if let Ok(mut slot) = AIRPLANE_RESTORE.lock() {
+                    *slot = on_kinds;
+                }
+            }
+            for radio in &considered {
+                if let Err(error) = apply_radio_state(radio, RadioState::Off) {
+                    first_error.get_or_insert(error);
+                }
+            }
+        } else {
+            let remembered = AIRPLANE_RESTORE
+                .lock()
+                .map(|mut slot| std::mem::take(&mut *slot))
+                .unwrap_or_default();
+            for radio in &considered {
+                let kind = radio.Kind().map(|kind| kind.0).unwrap_or(-1);
+                if !remembered.is_empty() && !remembered.contains(&kind) {
+                    continue;
+                }
+                if let Err(error) = apply_radio_state(radio, RadioState::On) {
+                    first_error.get_or_insert(error);
+                }
+            }
+        }
+        for _ in 0..15 {
+            if airplane_from(&all_radios()?).enabled == Some(enabled) {
+                return Ok(enabled);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+        Err(first_error
+            .unwrap_or_else(|| "Windows did not confirm the requested Airplane mode state.".into()))
     }
 
     pub(super) fn open_bluetooth_settings() -> Result<(), String> {
@@ -1227,22 +1730,6 @@ mod platform {
         } else {
             Ok(())
         }
-    }
-
-    fn find_bluetooth_radio() -> Result<Option<Radio>, String> {
-        let radios = Radio::GetRadiosAsync()
-            .map_err(|error| format!("Could not list Bluetooth radios: {error}"))?
-            .get()
-            .map_err(|error| format!("Could not read Bluetooth radios: {error}"))?;
-        for index in 0..radios.Size().unwrap_or(0) {
-            let radio = radios
-                .GetAt(index)
-                .map_err(|error| format!("Could not read Bluetooth radio: {error}"))?;
-            if radio.Kind().ok() == Some(RadioKind::Bluetooth) {
-                return Ok(Some(radio));
-            }
-        }
-        Ok(None)
     }
 
     pub(super) fn open_night_light_settings() -> Result<(), String> {
@@ -1557,7 +2044,7 @@ mod platform {
 mod platform {
     use super::{
         BluetoothControl, BrightnessControl, DoNotDisturbControl, NightLightControl,
-        PowerModeControl, VolumeControl,
+        PowerModeControl, ToggleControl, VolumeControl,
     };
 
     const UNAVAILABLE: &str = "Controls are available only on Windows.";
@@ -1586,12 +2073,31 @@ mod platform {
     pub(super) fn set_brightness(_: u32) -> Result<(), String> {
         Err(UNAVAILABLE.into())
     }
-    pub(super) fn bluetooth_status() -> BluetoothControl {
-        BluetoothControl {
-            supported: false,
-            enabled: None,
-            error: Some(UNAVAILABLE.into()),
-        }
+    pub(super) fn radio_snapshot() -> (BluetoothControl, ToggleControl, ToggleControl) {
+        (
+            BluetoothControl {
+                supported: false,
+                enabled: None,
+                error: Some(UNAVAILABLE.into()),
+            },
+            ToggleControl::unavailable(UNAVAILABLE),
+            ToggleControl::unavailable(UNAVAILABLE),
+        )
+    }
+    pub(super) fn theme_status() -> ToggleControl {
+        ToggleControl::unavailable(UNAVAILABLE)
+    }
+    pub(super) fn battery_saver_status() -> ToggleControl {
+        ToggleControl::unavailable(UNAVAILABLE)
+    }
+    pub(super) fn set_wifi_radio(_: bool, _: tauri::AppHandle) -> Result<bool, String> {
+        Err(UNAVAILABLE.into())
+    }
+    pub(super) fn set_airplane_mode(_: bool, _: tauri::AppHandle) -> Result<bool, String> {
+        Err(UNAVAILABLE.into())
+    }
+    pub(super) fn set_dark_mode(_: bool) -> Result<(), String> {
+        Err(UNAVAILABLE.into())
     }
     pub(super) fn power_mode_status() -> PowerModeControl {
         PowerModeControl {
@@ -1622,6 +2128,12 @@ mod platform {
         }
     }
     pub(super) fn set_do_not_disturb(_: bool) -> Result<(), String> {
+        Err(UNAVAILABLE.into())
+    }
+    pub(super) fn banner_value_read() -> Option<u32> {
+        None
+    }
+    pub(super) fn banner_value_write(_: u32) -> Result<(), String> {
         Err(UNAVAILABLE.into())
     }
     pub(super) fn open_night_light_settings() -> Result<(), String> {
@@ -1661,6 +2173,19 @@ mod tests {
             windows_settings_uri("notifications").unwrap(),
             "ms-settings:notifications"
         );
+        assert_eq!(
+            windows_settings_uri("notification-access").unwrap(),
+            "ms-settings:privacy-notifications"
+        );
+        assert_eq!(
+            windows_settings_uri("bluetooth").unwrap(),
+            "ms-settings:bluetooth"
+        );
+        assert_eq!(
+            windows_settings_uri("airplane").unwrap(),
+            "ms-settings:network-airplanemode"
+        );
+        assert_eq!(windows_settings_uri("colors").unwrap(), "ms-settings:colors");
         assert!(windows_settings_uri("file:///C:/anything").is_err());
         assert!(windows_settings_uri("ms-settings:privacy").is_err());
     }

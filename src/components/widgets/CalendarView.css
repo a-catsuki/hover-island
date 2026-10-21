@@ -1,5 +1,7 @@
+/* Calendar: month grid beside a day agenda, in the spirit of the system calendar widget. */
 .cal {
-  --cal-accent: #ff655b;
+  --cal-red: #FF453A;
+  --cal-hair: rgba(255, 255, 255, 0.08);
   container-type: size;
   display: flex;
   width: 100%;
@@ -7,279 +9,148 @@
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  gap: 7px;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
 }
+:where(.cal) button { font: inherit; color: inherit; }
 
-.cal__head {
-  display: flex;
-  flex: none;
+.cal__layout {
+  flex: 1 1 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
   min-width: 0;
-  min-height: 30px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  margin: 0;
+  min-height: 0;
 }
-.cal__month-controls {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  align-items: center;
-  gap: 5px;
-}
+.cal__month-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding-right: 22px; }
+.cal__agenda-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; gap: 10px; padding-left: 22px; border-left: 0.5px solid var(--cal-hair); }
+
+/* ---- month ---------------------------------------------------------------- */
+.cal__head { flex: none; margin: 0 0 6px; }
+.cal__month-controls { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .cal__month-controls h2 {
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  color: var(--text-1);
-  font-size: clamp(12px, 4cqw, 15px);
-  font-weight: var(--fw-semibold);
-  letter-spacing: -.025em;
-  text-align: center;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.cal__head-actions { display: flex; flex: none; align-items: center; gap: 3px; }
-.cal__nav,
-.cal__today,
-.cal__agenda-add,
-.cal__add,
-.cal__connect,
-.cal__agenda-open {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--text-2);
-  font: inherit;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform 120ms var(--ease);
-}
-.cal__nav,
-.cal__add { width: 28px; height: 28px; }
-.cal__connect { min-width: 28px; height: 28px; padding: 0 7px; border-color: var(--line-2); }
-.cal__connect-label { font-size: 9px; font-weight: var(--fw-medium); }
-.cal__today,
-.cal__agenda-add,
-.cal__agenda-open { min-height: 28px; padding: 0 8px; color: var(--cal-accent); font-size: 10px; font-weight: var(--fw-medium); }
-.cal__agenda-open { border-color: var(--line-2); color: var(--text-2); }
-.cal__nav:hover,
-.cal__add:hover,
-.cal__connect:hover,
-.cal__agenda-open:hover { background: var(--surface-hover); color: var(--text-1); }
-.cal__today:hover,
-.cal__agenda-add:hover { background: color-mix(in srgb, var(--cal-accent) 13%, transparent); color: #ff928a; }
-.cal__nav:active,
-.cal__today:active,
-.cal__add:active,
-.cal__connect:active,
-.cal__agenda-add:active,
-.cal__agenda-open:active { transform: scale(.95); }
-.cal__nav:focus-visible,
-.cal__today:focus-visible,
-.cal__add:focus-visible,
-.cal__connect:focus-visible,
-.cal__agenda-add:focus-visible,
-.cal__agenda-open:focus-visible,
-.cal__cell:focus-visible { outline: 2px solid var(--cal-accent); outline-offset: 2px; }
-.cal__file { display: none; }
-
-.cal__layout {
-  display: flex;
-  flex: 1 1 0;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-}
-.cal__month-pane {
-  display: flex;
-  flex: 1 1 100%;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-}
-.cal__weekdays,
-.cal__grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
-.cal__weekdays {
-  flex: none;
-  margin: 0 0 2px;
-  color: var(--text-3);
-  font-size: 9px;
-  font-weight: var(--fw-semibold);
-  letter-spacing: .045em;
-  text-align: center;
-  text-transform: uppercase;
-}
-.cal__weekdays span { padding: 2px 0; }
-.cal__grid {
-  flex: 1 1 0;
-  min-height: 0;
-  grid-template-rows: repeat(6, minmax(0, 1fr));
-  gap: 2px;
-}
-.cal__cell {
-  container-type: size;
-  display: grid;
-  min-width: 0;
-  min-height: 0;
+.cal__nav, .cal__today, .cal__icon, .cal__add, .cal__action {
+  display: inline-grid;
   place-items: center;
+  flex: none;
   padding: 0;
   border: 0;
-  border-radius: 9px;
   background: transparent;
-  color: var(--text-2);
-  font: inherit;
-  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 140ms, color 140ms, transform 120ms, opacity 140ms;
+}
+.cal__nav { width: 28px; height: 28px; border-radius: 50%; color: var(--cal-red); }
+.cal__today { height: 28px; margin-right: 2px; padding: 0 10px; border-radius: 999px; color: var(--cal-red); font-size: 13px; font-weight: 600; }
+.cal__nav:hover, .cal__today:hover { background: rgba(255, 69, 58, 0.14); }
+.cal__nav:active, .cal__today:active, .cal__icon:active, .cal__add:active, .cal__action:active { transform: scale(0.94); }
+.cal button:focus-visible { outline: 2px solid #0A84FF; outline-offset: 1px; }
+
+.cal__weekdays, .cal__grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal__weekdays { flex: none; text-align: center; font-size: 11px; font-weight: 600; color: var(--text-3); }
+.cal__weekdays span { padding: 2px 0 4px; }
+.cal__grid { flex: 1 1 0; min-height: 0; grid-template-rows: repeat(6, minmax(0, 1fr)); border-top: 0.5px solid var(--cal-hair); padding-top: 2px; }
+.cal__cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
   cursor: pointer;
 }
 .cal__num {
-  position: relative;
   display: grid;
-  width: auto;
-  height: min(38px, 100%);
-  max-width: 100%;
-  aspect-ratio: 1;
   place-items: center;
+  width: 30px;
+  max-width: 100%;
+  height: 30px;
+  max-height: 100%;
+  aspect-ratio: 1;
   border-radius: 50%;
-  color: inherit;
-  font-size: clamp(10px, 42cqh, 13px);
-  line-height: 1;
-  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 140ms var(--spring);
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 140ms;
 }
-.cal__cell--outside .cal__num { color: var(--text-3); opacity: .58; }
-.cal__cell--today:not(.cal__cell--selected) .cal__num {
-  color: var(--cal-accent);
-  font-weight: var(--fw-semibold);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--cal-accent) 70%, transparent);
-}
-.cal__cell--selected .cal__num {
-  background: linear-gradient(155deg, #ff796f, #ec4e47);
-  color: white;
-  font-weight: var(--fw-semibold);
-  box-shadow: 0 3px 9px #e94e4638, inset 0 0 0 1px #ffffff26;
-}
-.cal__cell:not(.cal__cell--selected):hover .cal__num { background: var(--surface-hover); color: var(--text-1); }
-.cal__dot {
-  position: absolute;
-  bottom: 13%;
-  left: 50%;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: transparent;
-  transform: translateX(-50%);
-}
-.cal__dot--visible { background: var(--cal-accent); }
-.cal__cell--selected .cal__dot--visible { background: white; }
+.cal__cell:hover .cal__num { background: rgba(255, 255, 255, 0.08); }
+.cal__cell--outside { color: var(--text-3); opacity: 0.55; }
+.cal__cell--selected .cal__num { background: rgba(255, 255, 255, 0.18); }
+.cal__cell--today .cal__num, .cal__cell--today:hover .cal__num { background: var(--cal-red); color: #fff; font-weight: 700; }
+.cal__dot { position: absolute; left: 50%; bottom: 1px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--text-3); opacity: 0; }
+.cal__cell--events .cal__dot { opacity: 1; }
+.cal__cell--today .cal__dot { background: var(--cal-red); }
 
-/* The full calendar page has enough room to make the day marks easy to scan. */
-.widget-grid .cal .cal__month-controls h2 { font-size: clamp(14px, 2cqw, 19px); }
-.widget-grid .cal .cal__weekdays { font-size: 10px; }
-.widget-grid .cal .cal__num { font-size: clamp(12px, 30cqw, 17px); }
-.cal .cal__month-controls h2 {text-align:left;font-size:16px;font-weight:600;letter-spacing:-.4px;}
+/* ---- agenda --------------------------------------------------------------- */
+.cal__agenda-head { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.cal__date { display: grid; grid-template-areas: "wk" "num" "mo"; justify-items: start; min-width: 0; }
+.cal__weekday { grid-area: wk; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cal-red); }
+.cal__bignum { grid-area: num; font-size: 44px; line-height: 1.05; font-weight: 300; letter-spacing: -0.03em; }
+.cal__monthcap { grid-area: mo; font-size: 12px; font-weight: 500; color: var(--text-3); }
+.cal__head-actions { display: flex; align-items: center; gap: 2px; }
+.cal__icon { width: 30px; height: 30px; border-radius: 50%; color: var(--text-3); }
+.cal__icon:hover { background: rgba(255, 255, 255, 0.09); color: var(--text-1); }
+.cal__add { width: 30px; height: 30px; margin-left: 2px; border-radius: 50%; background: rgba(255, 255, 255, 0.12); color: var(--text-1); }
+.cal__add:hover { background: rgba(255, 255, 255, 0.2); }
+.cal__file { display: none; }
 
-.cal__agenda-pane { display: none; }
-.cal__agenda-head {
-  display: flex;
-  flex: none;
-  min-width: 0;
-  min-height: 30px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 0 0 6px;
-  padding: 0 0 6px;
-  border-bottom: 1px solid var(--line-2);
-}
-.cal__agenda-head h3 {
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  color: var(--text-2);
-  font-size: var(--fs-12);
-  font-weight: var(--fw-semibold);
-  letter-spacing: -.01em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cal__agenda { display: flex; flex: 1 1 0; min-height: 0; flex-direction: column; gap: 5px; overflow: auto; }
-.cal__event {
-  position: relative;
-  display: flex;
-  flex: none;
-  min-width: 0;
-  min-height: 38px;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 7px 6px 13px;
-  border: 1px solid var(--line-2);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-2) 78%, transparent);
-}
-.cal__event::before { position: absolute; top: 8px; bottom: 8px; left: 6px; width: 2px; border-radius: 999px; background: var(--cal-accent); content: ''; }
-.cal__event-time { flex: none; width: 44px; color: var(--text-3); font-size: 9px; font-variant-numeric: tabular-nums; text-align: right; }
-.cal__event-main { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; gap: 2px; }
-.cal__event-main strong,
-.cal__event-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cal__event-main strong { color: var(--text-1); font-size: 11px; font-weight: var(--fw-medium); line-height: 1.3; }
-.cal__event-main small { color: var(--text-3); font-size: 9px; line-height: 1.25; }
-.cal__event .cal__action { display: inline-grid; width: 22px; height: 22px; flex: none; place-items: center; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--text-3); cursor: pointer; }
-.cal__event .cal__action:hover { background: var(--surface-active); color: var(--text-1); }
-.cal__event .cal__action--delete:hover { color: var(--danger); }
-.cal__empty { display: grid; flex: 1 1 0; min-height: 36px; place-items: center; margin: 0; padding: 4px; color: var(--text-3); font-size: 10px; line-height: 1.4; text-align: center; }
-.cal__error { flex: none; margin: 2px 0; color: var(--danger); font-size: 10px; }
-.cal .widget-list-pager { flex: none; margin-top: 4px; }
+.cal__agenda { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding-bottom: 2px; }
+.cal__agenda::-webkit-scrollbar { display: none; }
+.cal__event { display: flex; align-items: stretch; gap: 9px; min-width: 0; }
+.cal__event-bar { flex: none; width: 3.5px; border-radius: 2px; background: var(--event-color, var(--cal-red)); }
+.cal__event-main { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 1px; padding: 1px 0; }
+.cal__event-main strong { overflow: hidden; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.cal__event-main small { overflow: hidden; font-size: 12px; color: var(--text-3); text-overflow: ellipsis; white-space: nowrap; }
+.cal__event-where { display: flex; align-items: center; gap: 3px; }
+.cal__event-actions { display: flex; align-items: center; gap: 1px; opacity: 0; transition: opacity 140ms; }
+.cal__event:hover .cal__event-actions, .cal__event:focus-within .cal__event-actions { opacity: 1; }
+.cal__action { width: 26px; height: 26px; border-radius: 50%; color: var(--text-3); }
+.cal__action:hover { background: rgba(255, 255, 255, 0.1); color: var(--text-1); }
+.cal__action--delete:hover { color: var(--cal-red); }
+.cal__empty { margin: 4px 0 0; font-size: 13px; color: var(--text-3); }
+.cal__error { margin: 0; font-size: 12px; color: var(--cal-red); }
 
-.cal__form { display: flex; flex: none; flex-direction: column; gap: 7px; padding: 8px; border: 1px solid var(--line-1); border-radius: 10px; background: color-mix(in srgb, var(--surface-0) 55%, transparent); }
-.cal__form > input,
-.cal__times input { width: 100%; min-width: 0; height: 29px; padding: 0 7px; border: 1px solid var(--line-1); border-radius: 6px; background: var(--surface-0); color: var(--text-1); font: inherit; font-size: 10px; }
-.cal__times { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.cal__times label { display: flex; min-width: 0; flex-direction: column; gap: 3px; color: var(--text-3); font-size: 9px; }
-.cal__form p { margin: 0; color: var(--danger); font-size: 10px; }
-.cal__form-actions { display: flex; justify-content: flex-end; gap: 6px; }
-.cal__form-actions button { display: inline-flex; min-height: 26px; align-items: center; gap: 4px; padding: 0 8px; border: 1px solid var(--line-1); border-radius: 7px; background: var(--surface-1); color: var(--text-2); font: inherit; font-size: 10px; cursor: pointer; }
-.cal__form-actions button[type='submit'] { color: var(--accent); }
-.cal__form-actions button:disabled { opacity: .55; }
+/* ---- event editor --------------------------------------------------------- */
+.cal__form { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.cal__form-head strong { font-size: 17px; font-weight: 600; letter-spacing: -0.02em; }
+.cal__fields { display: flex; flex-direction: column; border-radius: 14px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
+.cal__fields > * { min-height: 38px; border-top: 0.5px solid var(--cal-hair); }
+.cal__fields > :first-child { border-top: 0; }
+.cal .cal__fields input { min-width: 0; height: 100%; min-height: 38px; border: 0; border-radius: 0; outline: 0; box-shadow: none; background: transparent; color: var(--text-1); font: inherit; font-size: 14px; color-scheme: dark; }
+.cal .cal__fields > input { padding: 0 12px; }
+.cal__fields label { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 12px; font-size: 14px; }
+.cal .cal__fields label input { text-align: right; font-size: 13px; color: var(--text-2); }
+.cal .cal__fields input::placeholder { color: var(--text-3); }
+.cal__fields > :focus-within { background: rgba(255, 255, 255, 0.05); }
+.cal__form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; }
+.cal__form-actions button { height: 32px; padding: 0 16px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.1); font-size: 13px; font-weight: 600; cursor: pointer; transition: transform 120ms, opacity 140ms; }
+.cal__form-actions button:active { transform: scale(0.96); }
+.cal__form-actions .cal__save { background: #0A84FF; color: #fff; }
+.cal__form-actions button:disabled { opacity: 0.55; cursor: default; }
 
-@container (min-width: 560px) and (min-height: 240px) {
-  .cal__month-controls {flex:0 1 52.5%;}
-  .cal__head-actions {flex:1;justify-content:flex-end;}
-  .cal__layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(220px, .95fr); gap: 18px; }
-  .cal__agenda-pane { display: flex; min-width: 0; min-height: 0; flex-direction: column; padding-left: 15px; border-left: 1px solid var(--line-2); }
-  .cal__agenda-open { display: none; }
+/* ---- narrow: month above the agenda --------------------------------------- */
+@container (max-width: 560px) {
+  .cal__layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr); gap: 10px; }
+  .cal__month-pane { padding-right: 0; }
+  .cal__agenda-pane { padding-left: 0; border-left: 0; border-top: 0.5px solid var(--cal-hair); padding-top: 10px; gap: 8px; }
+  .cal__date { grid-template-areas: "num wk" "num mo"; column-gap: 10px; align-items: center; }
+  .cal__bignum { font-size: 34px; }
+  .cal__num { width: 26px; height: 26px; font-size: 13px; }
+  .cal__head { margin-bottom: 2px; }
+  .cal__fields > * { min-height: 34px; }
+  .cal .cal__fields input { min-height: 34px; }
 }
-@container (max-width: 559px) and (min-height: 380px) {
-  .cal__layout { flex-direction: column; gap: 8px; }
-  .cal__agenda-pane { display: flex; min-height: 100px; max-height: 35%; flex: 0 1 35%; flex-direction: column; padding-top: 7px; border-top: 1px solid var(--line-2); }
-  .cal__agenda-open { display: none; }
+@container (max-height: 300px) {
+  .cal__bignum { font-size: 30px; }
 }
-
-@container (max-width: 330px) {
-  .cal .cal__month-controls h2 {font-size:13px;}
-  .cal { gap: 5px; }
-  .cal__head { gap: 3px; }
-  .cal__month-controls { gap: 2px; }
-  .cal__nav, .cal__add { width: 25px; height: 26px; }
-  .cal__connect { width: 25px; min-width: 25px; height: 26px; padding: 0; }
-  .cal__connect-label { display: none; }
-  .cal__head-actions { gap: 1px; }
-  .cal__today { padding-inline: 5px; }
-  .cal__weekdays { font-size: 8px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cal__num,
-  .cal__nav,
-  .cal__today,
-  .cal__add,
-  .cal__connect,
-  .cal__agenda-add,
-  .cal__agenda-open,
-  .cal__event .cal__action { transition: none; }
-}
+@media (prefers-reduced-motion: reduce) { .cal * { transition: none !important; } }

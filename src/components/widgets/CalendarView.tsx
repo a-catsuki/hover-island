@@ -1,23 +1,27 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, ListTodo, Pencil, Plus, Trash2, Upload, X } from 'lucide-solid'
+import { CalendarPlus, ChevronLeft, ChevronRight, Pencil, Plus, Trash2, Upload, MapPin } from 'lucide-solid'
 import { cmd, type CalendarEvent } from '../../lib/ipc'
 import { dateKey, eventsOnDay, monthGrid, moveMonth, parseDateKey } from './calendarDate'
-import './widgets.css'
 import './CalendarView.css'
-import { requestWidgetDetail } from '../../state/panel'
 import { calendarSources, subscribedEvents } from '../../state/calendarSources'
 import { reportError } from '../../state/feedback'
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+const EVENT_COLORS = ['#FF453A', '#FF9F0A', '#30D158', '#0A84FF', '#BF5AF2', '#64D2FF']
 
-function dayLabel(value: number): string {
-  return new Date(value).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
+function eventColor(event: CalendarEvent): string {
+  let hash = 0
+  const key = event.id.startsWith('ics:') ? event.id.split(':')[1] ?? event.id : event.title
+  for (let index = 0; index < key.length; index++) hash = (hash * 31 + key.charCodeAt(index)) >>> 0
+  return EVENT_COLORS[hash % EVENT_COLORS.length]
 }
 
-function timeLabel(event: CalendarEvent): string {
+function timeRange(event: CalendarEvent): string {
   if (event.allDay) return 'All day'
-  return new Date(event.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  const format = (value: number) => new Date(value).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  return `${format(event.start)} – ${format(event.end)}`
 }
+
 
 function localDateTime(value: number): string {
   const date = new Date(value)
@@ -47,7 +51,6 @@ export default function CalendarView() {
   const [saving, setSaving] = createSignal(false)
   const [formError, setFormError] = createSignal('')
   const [pageError, setPageError] = createSignal('')
-  const [agendaPage, setAgendaPage] = createSignal(0)
   let icsInput: HTMLInputElement | undefined
   let request = 0
   let mutationRevision = 0
@@ -57,10 +60,10 @@ export default function CalendarView() {
   const selectedDate = createMemo(() => parseDateKey(selectedKey()))
   const allEvents = createMemo(()=>[...events(),...subscribedEvents()])
   const selectedEvents = createMemo(() => eventsOnDay(allEvents(), selectedDate()))
-  const agendaPages = () => Math.max(1, Math.ceil(selectedEvents().length / 2))
-  const currentAgendaPage = () => Math.min(agendaPage(), agendaPages() - 1)
-  const visibleEvents = () => selectedEvents().slice(currentAgendaPage() * 2, currentAgendaPage() * 2 + 2)
   const monthLabel = createMemo(() => month().toLocaleDateString(undefined, { month: 'long', year: 'numeric' }))
+  const weekdayLabel = () => selectedDate().toLocaleDateString(undefined, { weekday: 'long' })
+  const dayNumber = () => selectedDate().getDate()
+  const dayCaption = () => selectedDate().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
   const calendarConnectionHint = () => {
     const sources = calendarSources()
     if (!sources.length) return 'No calendar subscriptions. Open Settings to connect a read-only ICS calendar.'
@@ -89,7 +92,6 @@ export default function CalendarView() {
   }
 
   const selectDay = (day: Date) => {
-    setAgendaPage(0)
     setSelectedKey(dateKey(day))
     if (day.getMonth() !== month().getMonth() || day.getFullYear() !== month().getFullYear()) {
       setMonth(new Date(day.getFullYear(), day.getMonth(), 1))
@@ -97,7 +99,6 @@ export default function CalendarView() {
   }
 
   const beginCreate = () => {
-    requestWidgetDetail('calendar')
     const selected = selectedDate()
     const selectedToday = selectedKey() === todayKey()
     const selectedStart = selectedToday
@@ -113,7 +114,6 @@ export default function CalendarView() {
   }
 
   const beginEdit = (event: CalendarEvent) => {
-    requestWidgetDetail('calendar')
     setFormOpen(true)
     setEditing(event)
     setTitle(event.title)
@@ -223,25 +223,17 @@ export default function CalendarView() {
   })
 
   return (
-    <section class="cal" aria-label="Local calendar">
-      <header class="cal__head">
-        <div class="cal__month-controls">
-          <h2>{monthLabel()}</h2>
-          <button type="button" class="cal__nav" aria-label="Previous month" title="Previous month" onClick={() => setMonth(moveMonth(month(), -1))}><ChevronLeft size={15} /></button>
-          <button type="button" class="cal__nav" aria-label="Next month" title="Next month" onClick={() => setMonth(moveMonth(month(), 1))}><ChevronRight size={15} /></button>
-          <button type="button" class="cal__today" onClick={() => { setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1)); setSelectedKey(todayKey()) }}>Today</button>
-        </div>
-        <div class="cal__head-actions">
-          <button type="button" class="cal__connect" aria-label={calendarSources().length ? 'Manage calendars' : 'Connect calendar'} title={calendarConnectionHint()} onClick={openCalendarSettings}><CalendarPlus size={14} /><span class="cal__connect-label">{calendarSources().length ? 'Calendars' : 'Connect'}</span></button>
-          <button type="button" class="cal__agenda-open" aria-label="Open calendar agenda" title="Open the calendar agenda" onClick={() => requestWidgetDetail('calendar')}><ListTodo size={14} />Agenda</button>
-          <input ref={icsInput} class="cal__file" type="file" accept=".ics,text/calendar" aria-label="Import calendar file" onChange={(event) => void importIcs(event.currentTarget)} />
-          <button type="button" class="cal__add" aria-label="Import calendar file" title="Import calendar file" onClick={() => icsInput?.click()}><Upload size={13} /></button>
-          <button type="button" class="cal__add" aria-label="Add event" title="Add event on selected day" onClick={beginCreate}><Plus size={14} /></button>
-        </div>
-      </header>
-
+    <section class="cal" classList={{ 'cal--editing': formOpen() }} aria-label="Local calendar">
       <div class="cal__layout">
         <div class="cal__month-pane">
+          <header class="cal__head">
+            <div class="cal__month-controls">
+              <h2>{monthLabel()}</h2>
+              <button type="button" class="cal__today" onClick={() => { setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1)); setSelectedKey(todayKey()) }}>Today</button>
+              <button type="button" class="cal__nav" aria-label="Previous month" title="Previous month" onClick={() => setMonth(moveMonth(month(), -1))}><ChevronLeft size={16} /></button>
+              <button type="button" class="cal__nav" aria-label="Next month" title="Next month" onClick={() => setMonth(moveMonth(month(), 1))}><ChevronRight size={16} /></button>
+            </div>
+          </header>
           <div class="cal__weekdays" aria-hidden="true">
             <For each={WEEKDAYS}>{(weekday) => <span>{weekday}</span>}</For>
           </div>
@@ -257,17 +249,16 @@ export default function CalendarView() {
                         class="cal__cell"
                         classList={{
                           'cal__cell--outside': day.getMonth() !== month().getMonth(),
-                        'cal__cell--today': key === todayKey(),
+                          'cal__cell--today': key === todayKey(),
                           'cal__cell--selected': key === selectedKey(),
+                          'cal__cell--events': eventDays().has(key),
                         }}
                         aria-label={`${day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}${eventDays().has(key) ? ', has events' : ''}`}
                         aria-pressed={key === selectedKey()}
                         onClick={() => selectDay(day)}
                       >
-                        <span class="cal__num">
-                          {day.getDate()}
-                          <span class="cal__dot" classList={{ 'cal__dot--visible': eventDays().has(key) }} aria-hidden="true" />
-                        </span>
+                        <span class="cal__num">{day.getDate()}</span>
+                        <span class="cal__dot" aria-hidden="true" />
                       </button>
                     )
                   }}
@@ -278,51 +269,65 @@ export default function CalendarView() {
         </div>
 
         <div class="cal__agenda-pane">
-          <div class="cal__agenda-head">
-            <h3>{dayLabel(selectedDate().getTime())}</h3>
-            <button type="button" class="cal__agenda-add" onClick={beginCreate}><Plus size={13} /> Add</button>
-          </div>
-          <Show when={failed()}><p class="cal__error" role="status">Calendar is unavailable right now.</p></Show>
-          <Show when={pageError()}><p class="cal__error" role="alert">{pageError()}</p></Show>
-          <Show when={!failed() && selectedEvents().length === 0}>
-            <p class="cal__empty">{allEvents().length ? 'No events on this day.' : 'A little space in your day.'}</p>
+          <Show when={!formOpen()} fallback={
+            <form class="cal__form" onSubmit={save}>
+              <header class="cal__form-head">
+                <strong>{editing() ? 'Edit event' : 'New event'}</strong>
+              </header>
+              <div class="cal__fields">
+                <input aria-label="Event title" placeholder="Event title" maxlength={200} required value={title()} onInput={(e) => setTitle(e.currentTarget.value)} />
+                <label><span>Starts</span><input aria-label="Starts" type="datetime-local" required value={start()} onInput={(e) => setStart(e.currentTarget.value)} /></label>
+                <label><span>Ends</span><input aria-label="Ends" type="datetime-local" required value={end()} onInput={(e) => setEnd(e.currentTarget.value)} /></label>
+                <input aria-label="Location" placeholder="Location (optional)" maxlength={256} value={location()} onInput={(e) => setLocation(e.currentTarget.value)} />
+              </div>
+              <Show when={formError()}><p class="cal__error" role="alert">{formError()}</p></Show>
+              <div class="cal__form-actions">
+                <button type="button" disabled={saving()} onClick={() => { setFormOpen(false); setEditing(null); setFormError('') }}>Cancel</button>
+                <button type="submit" class="cal__save" disabled={saving()}>{saving() ? 'Saving…' : 'Save event'}</button>
+              </div>
+            </form>
+          }>
+            <div class="cal__agenda-head">
+              <div class="cal__date">
+                <span class="cal__weekday">{weekdayLabel()}</span>
+                <span class="cal__bignum">{dayNumber()}</span>
+                <span class="cal__monthcap">{dayCaption()}</span>
+              </div>
+              <div class="cal__head-actions">
+                <input ref={icsInput} class="cal__file" type="file" accept=".ics,text/calendar" aria-label="Import calendar file" onChange={(event) => void importIcs(event.currentTarget)} />
+                <button type="button" class="cal__icon" aria-label={calendarSources().length ? 'Manage calendars' : 'Connect calendar'} title={calendarConnectionHint()} onClick={openCalendarSettings}><CalendarPlus size={15} /></button>
+                <button type="button" class="cal__icon" aria-label="Import calendar file" title="Import calendar file" onClick={() => icsInput?.click()}><Upload size={14} /></button>
+                <button type="button" class="cal__add" aria-label="Add event" title="Add event on selected day" onClick={beginCreate}><Plus size={16} strokeWidth={2.2} /></button>
+              </div>
+            </div>
+            <Show when={failed()}><p class="cal__error" role="status">Calendar is unavailable right now.</p></Show>
+            <Show when={pageError()}><p class="cal__error" role="alert">{pageError()}</p></Show>
+            <Show when={!failed() && selectedEvents().length === 0}>
+              <p class="cal__empty">{allEvents().length ? 'No events' : 'Nothing planned. Enjoy the space.'}</p>
+            </Show>
+            <div class="cal__agenda" aria-label="Events for selected day">
+              <For each={selectedEvents()}>
+                {(event) => (
+                  <div class="cal__event" style={{ '--event-color': eventColor(event) }}>
+                    <span class="cal__event-bar" aria-hidden="true" />
+                    <span class="cal__event-main">
+                      <strong title={event.title}>{event.title}</strong>
+                      <small>{timeRange(event)}</small>
+                      <Show when={event.location}><small class="cal__event-where"><MapPin size={10} />{event.location}</small></Show>
+                    </span>
+                    <Show when={!event.id.startsWith('ics:')}>
+                      <span class="cal__event-actions">
+                        <button type="button" class="cal__action" aria-label={`Edit ${event.title}`} title="Edit" onClick={() => beginEdit(event)}><Pencil size={12} /></button>
+                        <button type="button" class="cal__action cal__action--delete" aria-label={`Delete ${event.title}`} title="Delete" onClick={() => void remove(event)}><Trash2 size={12} /></button>
+                      </span>
+                    </Show>
+                  </div>
+                )}
+              </For>
+            </div>
           </Show>
-          <div class="cal__agenda" aria-label="Events for selected day">
-            <For each={visibleEvents()}>
-              {(event) => (
-                <div class="cal__event">
-                  <span class="cal__event-time">{timeLabel(event)}</span>
-                  <span class="cal__event-main">
-                    <strong title={event.title}>{event.title}</strong>
-                    <Show when={event.location}><small>{event.location}</small></Show>
-                  </span>
-                  <Show when={!event.id.startsWith('ics:')}>
-                    <button type="button" class="cal__action" aria-label={`Edit ${event.title}`} title="Edit" onClick={() => beginEdit(event)}><Pencil size={12} /></button>
-                    <button type="button" class="cal__action cal__action--delete" aria-label={`Delete ${event.title}`} title="Delete" onClick={() => void remove(event)}><Trash2 size={12} /></button>
-                  </Show>
-                </div>
-              )}
-            </For>
-          </div>
-          <Show when={agendaPages() > 1}><nav class="widget-list-pager" aria-label="Calendar events"><button aria-label="Previous calendar events" disabled={currentAgendaPage() === 0} onClick={() => setAgendaPage(currentAgendaPage() - 1)}>‹</button><span>{currentAgendaPage() + 1} / {agendaPages()}</span><button aria-label="Next calendar events" disabled={currentAgendaPage() >= agendaPages() - 1} onClick={() => setAgendaPage(currentAgendaPage() + 1)}>›</button></nav></Show>
         </div>
       </div>
-
-      <Show when={formOpen()}>
-        <form class="cal__form" onSubmit={save}>
-          <input aria-label="Event title" placeholder="Event title" maxlength={200} required value={title()} onInput={(e) => setTitle(e.currentTarget.value)} />
-          <div class="cal__times">
-            <label>Starts<input aria-label="Starts" type="datetime-local" required value={start()} onInput={(e) => setStart(e.currentTarget.value)} /></label>
-            <label>Ends<input aria-label="Ends" type="datetime-local" required value={end()} onInput={(e) => setEnd(e.currentTarget.value)} /></label>
-          </div>
-          <input aria-label="Location" placeholder="Location (optional)" maxlength={256} value={location()} onInput={(e) => setLocation(e.currentTarget.value)} />
-          <Show when={formError()}><p role="alert">{formError()}</p></Show>
-          <div class="cal__form-actions">
-            <button type="button" disabled={saving()} onClick={() => { setFormOpen(false); setEditing(null); setFormError('') }}><X size={13} /> Cancel</button>
-            <button type="submit" disabled={saving()}>{saving() ? 'Saving…' : 'Save event'}</button>
-          </div>
-        </form>
-      </Show>
     </section>
   )
 }

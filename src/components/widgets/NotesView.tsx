@@ -1,6 +1,7 @@
 import { createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { Check, ChevronDown, ChevronUp, GripVertical, ListTodo, Loader, Plus, Trash2 } from 'lucide-solid'
+import { Bell, Check, ChevronDown, ChevronUp, GripVertical, ListTodo, Loader, Plus, Trash2 } from 'lucide-solid'
 import { cmd } from '../../lib/ipc'
+import { reminderForNote, toggleNoteReminder } from '../../state/reminders'
 import {
   createNotesWriter,
   encodeTodoList,
@@ -9,7 +10,6 @@ import {
   parseNotes,
   type TodoItem,
 } from './notesPersistence'
-import './widgets.css'
 import './NotesView.css'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
@@ -58,10 +58,13 @@ export default function NotesView() {
       .catch(() => { setLoadFailed(true); setState('error') })
   }
 
-  onMount(() => load())
+  // Reminders can tick a linked task off; pick the change up without reopening the widget.
+  const reloadFromReminders = () => load()
+  onMount(() => { load(); window.addEventListener('hover-island:notes-changed', reloadFromReminders) })
   onCleanup(() => {
     clearTimeout(flashTimer)
     clearTimeout(settleTimer)
+    window.removeEventListener('hover-island:notes-changed', reloadFromReminders)
     removePagehideFlush()
     void writer.dispose().catch(() => undefined)
   })
@@ -235,41 +238,39 @@ export default function NotesView() {
 
   return (
     <section class="todo" aria-label="Task list">
-      <header class="widget__head todo__head">
-        <span class="widget__title">
-          <ListTodo class="icon icon--sm" strokeWidth={1.7} aria-hidden="true" />
-          Tasks
+      <header class="todo__head">
+        <span class="todo__title-wrap">
+          <span class="todo__glyph" aria-hidden="true"><ListTodo size={14} strokeWidth={2} /></span>
+          <span class="todo__heading">Tasks</span>
         </span>
-        <span class="todo__counts">
-          {activeCount()} active{doneCount() > 0 ? ` · ${doneCount()} done` : ''}
-        </span>
-        <span class="widget__eyebrow todo__status" classList={{ 'todo__status--error': state() === 'error' }} aria-live="polite">
+        <span class="todo__status" classList={{ 'todo__status--error': state() === 'error' }} aria-live="polite">
           {state() === 'saving'
-            ? <><Loader class="icon icon--sm todo__spin" strokeWidth={1.8} aria-hidden="true" />{statusLabel()}</>
+            ? <><Loader size={11} class="todo__spin" strokeWidth={2} aria-hidden="true" />{statusLabel()}</>
             : statusLabel()}
         </span>
         {loadFailed() && <button type="button" class="todo__retry" onClick={load}>Retry</button>}
+        <span class="todo__count" title={doneCount() > 0 ? `${doneCount()} completed` : undefined}>{activeCount()}</span>
       </header>
 
       <form class="todo__add" onSubmit={addItem}>
+        <button class="todo__add-button" type="submit" aria-label="Add task" title="Add task" disabled={!draft().trim() || loadFailed()}>
+          <Plus size={14} strokeWidth={2.4} aria-hidden="true" />
+        </button>
         <input
           class="todo__input"
           type="text"
           aria-label="Add a task"
-          placeholder="Add a task…"
+          placeholder="Add a task"
           maxLength={TITLE_MAX}
           value={draft()}
           disabled={loadFailed()}
           onInput={(event) => setDraft(event.currentTarget.value)}
         />
-        <button class="todo__add-button" type="submit" aria-label="Add task" title="Add task" disabled={!draft().trim() || loadFailed()}>
-          <Plus size={15} aria-hidden="true" />
-        </button>
       </form>
 
       <Show
         when={items().length > 0}
-        fallback={<div class="todo__empty">No tasks yet — add your first one above.</div>}
+        fallback={<div class="todo__empty"><strong>All done</strong><span>Add a task above.</span></div>}
       >
         <ul class="todo__list" aria-label="Tasks">
           <For each={items()}>{(item, index) => {
@@ -312,7 +313,7 @@ export default function NotesView() {
                   title={item.completed ? 'Reopen task' : 'Mark complete'}
                   onClick={() => toggleItem(item.id)}
                 >
-                  <Check size={14} strokeWidth={2.4} aria-hidden="true" />
+                  <Check size={12} strokeWidth={3} aria-hidden="true" />
                 </button>
 
                 <Show
@@ -368,6 +369,16 @@ export default function NotesView() {
                     onClick={() => moveItem(index(), index() + 1)}
                   >
                     <ChevronDown size={13} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    class="todo__action todo__action--bell"
+                    classList={{ 'todo__action--on': !!reminderForNote(item.id) }}
+                    aria-label={reminderForNote(item.id) ? `Remove reminder for ${item.title}` : `Remind me about ${item.title}`}
+                    title={reminderForNote(item.id) ? 'Remove reminder' : 'Remind me'}
+                    onClick={() => void toggleNoteReminder(item)}
+                  >
+                    <Bell size={13} aria-hidden="true" />
                   </button>
                   <button
                     type="button"

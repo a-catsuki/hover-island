@@ -6,6 +6,7 @@ import { reportAge } from '../../lib/usageDisplay'
 import { cmd } from '../../lib/ipc'
 import { reportError } from '../../state/feedback'
 import { resetSnapshot as snapshot, resetPending as pending, resetError as error, refreshResetWatch as load } from '../../state/resetWatch'
+import './widgetKit.css'
 import './ResetWatchView.css'
 
 const SOURCE_URL = 'https://codex-resets.com/'
@@ -48,9 +49,9 @@ export default function ResetWatchView() {
   })
 
   return (
-    <section class="reset-watch-widget" aria-label="Codex reset radar">
-      <header class="reset-watch__head">
-        <span class="reset-watch__brand"><Ticket size={15} aria-hidden="true" />Reset radar</span>
+    <section class="wk reset-watch-widget" aria-label="Codex reset radar">
+      <header class="wk-head reset-watch__head">
+        <span class="wk-title"><span class="wk-glyph" style={{ background: '#BF5AF2' }}><Ticket size={13} strokeWidth={2.2} aria-hidden="true" /></span><span>Reset radar</span></span>
         <a class="reset-watch__source" href={SOURCE_URL} target="_blank" rel="noreferrer">Codex Resets</a>
         <Show when={snapshot()?.stale}>
           <button type="button" class="reset-watch__stale" title={snapshot()?.error || 'Could not refresh the source. Open Codex Resets.'} aria-label="Feed refresh failed. Open source." onClick={() => open(SOURCE_URL)}>Offline</button>
@@ -62,7 +63,7 @@ export default function ResetWatchView() {
 
       <Show when={snapshot()} fallback={
         <div class="reset-watch__loading" role={error() ? 'alert' : 'status'}>
-          <span>{error() || 'Checking announcements…'}</span>
+          <span>{error() || 'Checking announcements'}</span>
         </div>
       }>
         {(value) => <>

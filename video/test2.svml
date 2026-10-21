@@ -1,0 +1,99 @@
+<?svml using="@hypit/markup@1"?>
+<svml>
+  <import as="time" from="@hypit/timeline-author@1"/>
+  <import as="space" from="@hypit/spatial@1"/>
+  <import as="media" from="@hypit/media@1"/>
+  <import as="fontsource" from="@hypit/fontsource@1"/>
+  <import as="typo" from="@hypit/text-fine@1"/>
+  <import as="visual" from="@hypit/visual-track@1"/>
+  <import as="audio" from="@hypit/audio-track@1"/>
+  <import as="mediaop" from="@hypit/media-operations@1"/>
+  <import as="film" from="@hypit/film@1"/>
+  <import as="html" from="@hypit/html-video@1"/>
+  <import as="style" source="./style2.svs"/>
+
+  <time:Clock id="clock" frame-rate="30"/>
+  <time:Timeline id="program" clock={clock} end="5s">
+    <time:Window id="full" from="start" for="5s"/>
+    <time:Window id="w-bg" from="start" for="5s"/>
+    <time:Window id="w-pill" from="start" for="5s"/>
+    <time:Window id="w-vo" from="start" for="5s"/>
+    <time:Window id="w-music" from="start" for="5s"/>
+    <time:Window id="w-sfx" from="start" for="5s"/>
+  </time:Timeline>
+
+  <space:Canvas id="canvas" width="1080" height="1920"/>
+
+  <fontsource:Face id="archivo" package="@fontsource-variable/archivo" weight="800" style="normal"/>
+  <fontsource:Face id="mono" package="@fontsource/space-mono" weight="400" style="normal"/>
+  <typo:Style id="display" recipe={style.text.display} font={archivo}>
+    <typo:Fill color="#f5f2ea"/>
+  </typo:Style>
+  <typo:Style id="eyebrow" recipe={style.text.eyebrow} font={mono}>
+    <typo:Fill color="#9aa0a6"/>
+  </typo:Style>
+
+  <media:Image id="bg" src="./assets/bg/bg-portrait.png"/>
+  <space:Extent id="bg-extent" width="1080" height="1920"/>
+  <media:Image id="pill" src="./assets/cut/rest.png"/>
+  <space:Extent id="pill-extent" width="554" height="64"/>
+  <media:Audio id="vo" src="./assets/vo/master-9x16.wav"/>
+  <media:Audio id="music" src="./assets/audio/music-master-9x16.wav"/>
+  <media:Audio id="sfx" src="./assets/audio/sfx-master-9x16.wav"/>
+  <mediaop:Normalize id="vo-media" source={vo} video="none" audio="default" span-authority="audio" clock={clock}/>
+  <mediaop:Normalize id="music-media" source={music} video="none" audio="default" span-authority="audio" clock={clock}/>
+  <mediaop:Normalize id="sfx-media" source={sfx} video="none" audio="default" span-authority="audio" clock={clock}/>
+
+  <space:Frame id="pill-frame" within={canvas.bounds} left="190px" top="34px" right="890px" bottom="114px"/>
+  <space:Frame id="head-frame" within={canvas.bounds} left="90px" top="420px" right="990px" bottom="760px"/>
+  <space:Frame id="eyebrow-frame" within={canvas.bounds} left="92px" top="330px" right="990px" bottom="366px"/>
+
+  <visual:Motion id="pill-in">
+    <visual:Pose at="start" y="-80" opacity="0" easing="ease-out"/>
+    <visual:Pose at="14f" y="0" opacity="1" easing="ease-out"/>
+    <visual:Pose at="end" y="0" opacity="1"/>
+  </visual:Motion>
+
+  <visual:Motion id="bg-drift">
+    <visual:Pose at="start" scale="1.03"/>
+    <visual:Pose at="end" scale="1"/>
+  </visual:Motion>
+
+  <visual:Motion id="pill-drift">
+    <visual:Pose at="start" scale="1"/>
+    <visual:Pose at="end" scale="1.02"/>
+  </visual:Motion>
+
+  <typo:Motion id="line-up">
+    <typo:ItemKeyframe at="0" y="40" opacity="0" blur="8"/>
+    <typo:ItemKeyframe at="14" y="0" opacity="1" blur="0" easing="ease-out"/>
+  </typo:Motion>
+
+  <typo:Motion id="line-up-late">
+    <typo:ItemKeyframe at="0" y="40" opacity="0" blur="8"/>
+    <typo:ItemKeyframe at="14" y="0" opacity="1" blur="0" easing="ease-out"/>
+  </typo:Motion>
+
+  <visual:Track id="picture" timeline={program.timeline}>
+    <visual:Clip id="bg-clip" image={bg} extent={bg-extent} during={program.w-bg} frame={canvas.bounds} fit="cover" z="0" motion={bg-drift}/>
+    <visual:Clip id="pill-clip" image={pill} extent={pill-extent} during={program.w-pill} frame={pill-frame} fit="contain" z="20" motion={pill-in}/>
+  </visual:Track>
+
+  <typo:Flow id="eyebrow" timeline={program.timeline} within={eyebrow-frame} style={eyebrow} z="40" during={program.full} align="start" block-align="start" motion={line-up}>A WINDOWS FILM</typo:Flow>
+  <typo:Flow id="headline" timeline={program.timeline} within={head-frame} style={display} z="40" during={program.full} align="start" block-align="start" motion={line-up-late}>Your PC has a notch now.</typo:Flow>
+
+  <audio:Track id="mix" timeline={program.timeline}>
+    <audio:Clip id="vo-clip" source={vo-media.media} during={program.w-vo} gain="1"/>
+    <audio:Clip id="music-clip" source={music-media.media} during={program.w-music} gain="0.9"/>
+    <audio:Clip id="sfx-clip" source={sfx-media.media} during={program.w-sfx} gain="0.8"/>
+  </audio:Track>
+
+  <film:Film id="main" canvas={canvas.canvas} timeline={program.timeline} appearance={style.film.main}>
+    <film:Track source={picture.visual}/>
+    <film:Track source={eyebrow.visual}/>
+    <film:Track source={headline.visual}/>
+    <film:Track source={mix.audio}/>
+  </film:Film>
+
+  <html:Video id="final" composition={main.composition} timeline={program.timeline}/>
+</svml>

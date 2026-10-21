@@ -19,7 +19,7 @@ const KIND_LABELS: Record<DetectedProvider['kind'], string> = {
   config: 'Config',
 }
 
-/** Detected providers that already have a native settings switch. */
+/** Providers with a native settings switch. Every other detected provider (gemini, opencode, copilot, aider...) falls back to the local preference in state/usage. */
 const SETTINGS_KEY: Record<string, 'codex' | 'claudeCode' | 'cursor'> = {
   codex: 'codex',
   'claude-code': 'claudeCode',
@@ -31,10 +31,10 @@ function ProviderRow(props: { provider: DetectedProvider }) {
   const key = () => SETTINGS_KEY[provider().id]
   const enabled = () => key() ? settings.usage[key()!] : providerEnabled(provider().id)
   const capability = () => {
-    const active = provider().evidence.some((item) => item.endsWith(' running'))
+    const running = provider().evidence.some((item) => item.endsWith(' running'))
     const capabilities = provider().capabilities.map((item) => CAPABILITY_LABELS[item] ?? item).join(' · ')
-    if (active) return capabilities ? `Active now · ${capabilities}` : 'Active now · Usage data unavailable'
-    return capabilities ? `Recent activity · ${capabilities}` : 'Recently active · Usage data unavailable'
+    const status = running ? 'Active now' : provider().active ? 'Recently active' : 'Installed'
+    return capabilities ? `${status} · ${capabilities}` : `${status} · Usage data unavailable`
   }
   const evidence = () => {
     const items = provider().evidence
@@ -103,10 +103,10 @@ export default function ProvidersPanel() {
 
   return (
     <div class="providers">
-      <Group title="Active and recently used AI tools" description="Based on running apps and recent local session activity. Nothing is uploaded and no secrets are read.">
+      <Group title="AI tools on this PC" description="Based on installed tools, running apps and recent local session activity. Nothing is uploaded and no secrets are read.">
         <div class="providers__toolbar">
           <span class="providers__summary" role="status">
-            {detecting() ? 'Scanning…' : `${detected().length} ${detected().length === 1 ? 'tool' : 'tools'} active or recently used`}
+            {detecting() ? 'Scanning…' : `${detected().length} ${detected().length === 1 ? 'tool' : 'tools'} found`}
           </span>
           <button type="button" class="button button--secondary providers__rescan" disabled={detecting()} onClick={() => void refreshDetected()}>
             <RefreshCw size={13} class={detecting() ? 'providers__spin' : undefined} />
@@ -117,7 +117,7 @@ export default function ProvidersPanel() {
           <p class="providers__error" role="status">{detectError()}</p>
         </Show>
         <Show when={!detecting() && !detectError() && detected().length === 0}>
-          <p class="providers__empty">No active or recently used AI tools found.</p>
+          <p class="providers__empty">No AI tools found on this PC.</p>
         </Show>
         <For each={detected()}>{(provider) => <ProviderRow provider={provider} />}</For>
         <p class="providers__note">
@@ -170,7 +170,7 @@ export default function ProvidersPanel() {
         </Show>
       </Group>
 
-      <Group title="AI activity alerts" description="Task-complete and needs-input can appear in the notch with an animated bot.">
+      <Group title="AI activity alerts" description="Try how a finished task and a question look on the island.">
         <Field label="Preview AI alerts" hint="Fires a task-complete alert, then a needs-input alert a moment later">
           <button type="button" class="button" disabled={settings.dnd || !settings.notifications.enabled} onClick={preview}>
             <Sparkles size={13} /> Preview AI alert
@@ -179,10 +179,6 @@ export default function ProvidersPanel() {
         <Show when={previewNote()}>
           <p class="set-note" role="status">{previewNote()}</p>
         </Show>
-        <p class="providers__note">
-          Live AI events need a provider integration. Today Hover Island raises a task-complete alert when your own Focus
-          session finishes, and the preview above. Providers with no local source stay clearly labelled.
-        </p>
       </Group>
     </div>
   )

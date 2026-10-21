@@ -1,0 +1,356 @@
+/* Docking: where the collapsed pill and the dashboard sit for each edge and mode, the
+   side capsule, and the file drop chooser. The silhouette itself (clip-path) is written
+   by Island.tsx as --island-clip, so there is no per-edge clip-path here. */
+
+/* ------------------------------------------------------------ collapsed pill */
+
+.island--edge-bottom .island__collapsed { top: auto; bottom: 0; }
+.island--edge-left .island__collapsed { top: 50%; left: 0; transform: translateY(-50%); }
+.island--edge-right .island__collapsed { top: 50%; right: 0; left: auto; transform: translateY(-50%); }
+
+/* A top or bottom notch leans toward the cursor with the magnetic offset. */
+.island.island--mode-notch.island--edge-top:not(.island--notch-side) .island__collapsed,
+.island.island--mode-notch.island--edge-bottom:not(.island--notch-side) .island__collapsed {
+  transform: translate(calc(-50% + var(--magnet-x, 0px)), var(--magnet-y, 0px));
+}
+
+.island--mode-bar .island__collapsed { width: 100%; left: 0; transform: none; }
+.island--mode-bar .island__bar { padding-right: 14px; padding-left: 14px; }
+.island--mode-bar .pill { width: min(680px, 100%); margin: 0 auto; }
+
+/* ------------------------------------------------------------- side capsule
+   A notch docked to the left or right edge, and the collapsed sidebar: a vertical
+   capsule with its content centred. The free corners are rounded by the clip (radius
+   comes from Island.tsx); the docked edge stays flush. Icons share one size. */
+
+.island.island--notch-side .island__collapsed {
+  width: var(--pill-w, 56px);
+  height: 144px;
+}
+.island.island--notch-side.island--edge-left .island__collapsed {
+  left: 0;
+  right: auto;
+  transform: translate(var(--magnet-x, 0px), calc(-50% + var(--magnet-y, 0px)));
+}
+.island.island--notch-side.island--edge-right .island__collapsed {
+  right: 0;
+  left: auto;
+  transform: translate(var(--magnet-x, 0px), calc(-50% + var(--magnet-y, 0px)));
+}
+.island--mode-sidebar .island__collapsed {
+  inset: 0 auto 0 0;
+  width: 72px;
+  height: 100%;
+  transform: none;
+}
+.island--mode-sidebar.island--edge-right .island__collapsed { right: 0; left: auto; }
+
+.island--notch-side,
+.island--mode-sidebar {
+  --side-icon: 16px;
+  --side-art: 24px;
+  --side-gap: 8px;
+}
+.island--mode-sidebar { --side-art: 30px; --side-gap: 18px; }
+/* Four items must still fit the 144px capsule. */
+.island--notch-side:has(.pill__compact > :nth-child(4)) { --side-gap: 4px; }
+.island--notch-side:has(.pill__compact > :nth-child(3)) { --side-gap: 6px; }
+
+:is(.island--notch-side, .island--mode-sidebar) .island__bar {
+  justify-content: center;
+  padding: 6px 4px;
+}
+:is(.island--notch-side, .island--mode-sidebar) .pill {
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact {
+  flex: none;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--side-gap);
+  overflow: visible;
+}
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact-item {
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+:is(.island--notch-side, .island--mode-sidebar) :is(.pill__compact-label, .pill__compact-title, .pill__compact-controls, .pill__compact-live) {
+  display: none;
+}
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact-art {
+  width: var(--side-art);
+  height: var(--side-art);
+  border-radius: 8px;
+}
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact-item > svg:not(.pill__ring):not(.pill__analog) {
+  width: var(--side-icon);
+  height: var(--side-icon);
+}
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact-ai .pill__ring {
+  width: var(--side-icon);
+  height: var(--side-icon);
+}
+:is(.island--notch-side, .island--mode-sidebar) :is(.pill__compact-clock, .pill__compact-battery, .pill__compact-weather, .pill__compact-ai) strong {
+  font-size: 11px;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+.island--mode-sidebar :is(.pill__compact-clock, .pill__compact-battery, .pill__compact-weather, .pill__compact-ai) strong { font-size: 12px; }
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact-clock { align-items: center; gap: 0; }
+/* The clock stacks as "6:51" over a small "PM". */
+:is(.island--notch-side, .island--mode-sidebar) .pill__clock-stack {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: center;
+  align-items: baseline;
+  line-height: 1.1;
+}
+:is(.island--notch-side, .island--mode-sidebar) .pill__clock-stack > span:first-child:not(:last-child)::after { content: ":"; }
+:is(.island--notch-side, .island--mode-sidebar) .pill__clock-stack > span:nth-child(3) {
+  grid-column: 1 / -1;
+  text-align: center;
+  margin-top: 1px;
+  color: var(--text-3);
+  font-size: 9px;
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.02em;
+}
+:is(.island--notch-side, .island--mode-sidebar) .pill__alert-badge {
+  width: 24px;
+  min-width: 24px;
+  max-width: 24px;
+  height: 24px;
+  flex: none;
+  justify-content: center;
+  padding: 0;
+}
+:is(.island--notch-side, .island--mode-sidebar) .pill__alert-badge > span:last-child { display: none; }
+:is(.island--notch-side, .island--mode-sidebar) .pill__badges { gap: 4px; }
+
+/* -------------------------------------------------------- expanded dashboard
+   Laid out in the visible rectangle (--island-open-*), not across the larger
+   transparent native window, and pinned to the docked edge. */
+
+.island > .island__expanded {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  translate: -50% 0;
+  width: min(100%, var(--island-open-width, var(--expanded-w)));
+  height: min(100%, var(--island-open-height, var(--expanded-h)));
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: none;
+}
+.island.island--edge-bottom > .island__expanded { top: auto; bottom: 0; }
+.island.island--edge-left > .island__expanded,
+.island.island--edge-right > .island__expanded { top: 50%; bottom: auto; translate: 0 -50%; }
+.island.island--edge-left > .island__expanded { left: 0; right: auto; }
+.island.island--edge-right > .island__expanded { left: auto; right: 0; }
+.island--mode-bar .island__expanded { width: 100%; }
+
+.island--edge-left .panel__foot > span:last-child,
+.island--edge-right .panel__foot > span:last-child { display: none; }
+
+/* ---------------------------------------------------------- file drop chooser
+   A native file drag reshapes the notch into a compact chooser: Recycle Bin on the
+   left, Beam on the right, the item count between them. */
+
+.island.island--file-drop { z-index: 8; background: transparent; box-shadow: none; }
+.island.island--file-drop .island__collapsed,
+.island.island--file-drop .island__expanded {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.file-drop-toast {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  display: grid;
+  width: min(var(--island-target-width, 366px), 100%);
+  height: var(--island-target-height, 92px);
+  grid-template-columns: minmax(0, 1fr) minmax(84px, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px;
+  border: 0;
+  background: #000;
+  color: var(--text-1);
+  transform: translateX(-50%);
+  pointer-events: none;
+  contain: layout style;
+  animation: drop-toast-in 160ms var(--ease-out) both;
+}
+.file-drop-toast--top { top: 0; }
+.file-drop-toast--bottom { bottom: 0; }
+.file-drop-toast--left,
+.file-drop-toast--right { top: 50%; transform: translateY(-50%); }
+.file-drop-toast--left { left: 0; }
+.file-drop-toast--right { left: auto; right: 0; }
+.file-drop-toast--sidebar { width: min(var(--island-target-width, 420px), 100%); }
+
+.file-drop-toast__target {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-radius: 20px;
+  background: var(--platter);
+  color: var(--text-2);
+  transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out), transform 220ms var(--spring-pop);
+}
+.file-drop-toast__target--active {
+  transform: scale(1.02);
+  background: color-mix(in srgb, var(--sys-blue) 26%, transparent);
+  color: #fff;
+}
+.file-drop-toast__target:first-child.file-drop-toast__target--active {
+  background: color-mix(in srgb, var(--sys-red) 24%, transparent);
+  color: #ff8a80;
+}
+.file-drop-toast__icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--platter-strong);
+  color: inherit;
+}
+.file-drop-toast__icon--beam { color: var(--sys-teal); }
+.file-drop-toast__target--active .file-drop-toast__icon--beam { color: #fff; }
+.file-drop-toast__label {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--fs-11);
+  font-weight: var(--fw-semibold);
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-drop-toast__center {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+}
+.file-drop-toast__count {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-title);
+  line-height: 1.1;
+}
+.file-drop-toast__hint {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-11);
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Result state: icon, one line of status, a thin progress bar. */
+.file-drop-toast.file-drop-toast--action {
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 14px 22px;
+}
+.file-drop-action__icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--platter-strong);
+  color: var(--sys-teal);
+}
+.file-drop-action__icon.is-error { color: var(--sys-orange); }
+.file-drop-action__icon.is-working { animation: drop-action-breathe 1.4s ease-in-out infinite; }
+.file-drop-action__content { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.file-drop-action__content strong {
+  overflow: hidden;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-title);
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-drop-action__content > span { color: var(--text-3); font-size: var(--fs-12); }
+.file-drop-action__content progress {
+  display: block;
+  width: 100%;
+  height: 4px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 9px;
+  overflow: hidden;
+  accent-color: var(--sys-blue);
+}
+.file-drop-action__content progress::-webkit-progress-bar { background: rgba(255, 255, 255, 0.08); border-radius: 9px; }
+.file-drop-action__content progress::-webkit-progress-value { background: var(--sys-blue); border-radius: 9px; transition: width 140ms linear; }
+.file-drop-action__content progress:indeterminate {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0%, var(--sys-blue) 45%, rgba(255, 255, 255, 0.08) 70%);
+  background-size: 220% 100%;
+  animation: drop-action-progress 1.15s linear infinite;
+}
+.file-drop-action__content progress:indeterminate::-webkit-progress-bar { background: transparent; }
+@keyframes drop-toast-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes drop-action-breathe { 50% { transform: scale(1.06); } }
+@keyframes drop-action-progress { to { background-position: -220% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .file-drop-toast { animation: none; }
+  .file-drop-toast__target { transition: none; }
+  .file-drop-action__icon.is-working,
+  .file-drop-action__content progress:indeterminate { animation: none; }
+  .file-drop-action__content progress::-webkit-progress-value { transition: none; }
+  .island.island--mode-notch:not(.island--open) { --magnet-x: 0px !important; --magnet-y: 0px !important; }
+}
+
+/* ------------------------------------------------------------ browser preview
+   In the browser the stage stands in for the native host window. */
+
+body:has(.preview-label) .island-stage:has(.island--mode-bar) { left: 0; right: 0; width: 100vw; transform: none; }
+body:has(.preview-label) .island-stage:has(.island--mode-bar.island--edge-bottom),
+body:has(.preview-label) .island-stage:has(.island--mode-notch.island--edge-bottom:not(.island--notch-side)) { top: auto; bottom: 0; }
+body:has(.preview-label) .island-stage:has(.island--mode-sidebar) {
+  left: 0;
+  right: auto;
+  top: 0;
+  width: min(420px, 100vw);
+  height: 100vh;
+  transform: none;
+}
+body:has(.preview-label) .island-stage:has(.island--mode-sidebar.island--edge-right) { left: auto; right: 0; }
+body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-side) {
+  top: 50%;
+  width: min(var(--expanded-w), 100vw);
+  height: min(var(--expanded-h), calc(100vh - 60px));
+  transform: translateY(-50%);
+}
+body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-side.island--edge-left) { left: 0; right: auto; }
+body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-side.island--edge-right) { left: auto; right: 0; }

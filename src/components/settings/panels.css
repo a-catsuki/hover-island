@@ -1,0 +1,55 @@
+/* Shared look for the connection panels in Settings (email codes, website feeds, calendars):
+   rows inside .set-card, plus a padded form block. Uses the Settings window tokens. */
+
+.slist-row { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 16px; box-sizing: border-box; }
+.slist-row__tile { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 8px; color: #fff; background: var(--st-blue, #0a84ff); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18); }
+.slist-row__text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.slist-row__text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; }
+.slist-row__text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 1.35; color: var(--st-t3, rgba(255, 255, 255, 0.38)); }
+.slist-row__text small.is-error { color: #ff6961; white-space: normal; }
+.slist-row__actions { display: flex; flex: none; align-items: center; gap: 4px; }
+.slist-empty { margin: 0; padding: 16px; font-size: 12px; line-height: 1.45; text-align: center; color: var(--st-t3, rgba(255, 255, 255, 0.38)); }
+.slist-icon-btn {
+  display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--st-t2, rgba(255, 255, 255, 0.6)); cursor: pointer;
+}
+.slist-icon-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); color: var(--st-t1, #fff); }
+.slist-icon-btn--danger:hover:not(:disabled) { background: rgba(255, 69, 58, 0.2); color: #ff6961; }
+.slist-icon-btn:disabled { opacity: 0.4; cursor: default; }
+
+.sform { display: grid; gap: 12px; padding: 14px 16px 16px; box-sizing: border-box; }
+.sform__title { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; font-weight: 600; }
+.sform__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.sform__field { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; color: var(--st-t2, rgba(255, 255, 255, 0.6)); }
+.sform__field--wide { grid-column: 1 / -1; }
+.sform__field small { margin-left: 4px; font-size: 11px; color: var(--st-t3, rgba(255, 255, 255, 0.38)); }
+.settings .sform input {
+  box-sizing: border-box; width: 100%; min-width: 0; height: 28px; padding: 0 9px; border: 0 !important; border-radius: 6px !important;
+  background: rgba(255, 255, 255, 0.09); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+  color: var(--st-t1, #fff); font: inherit; font-size: 13px; text-align: left;
+}
+.settings .sform input::placeholder { color: var(--st-t3, rgba(255, 255, 255, 0.38)); }
+.settings .sform input:focus { outline: none; box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.55); background: rgba(255, 255, 255, 0.12); }
+.sform__note { margin: 0; font-size: 11px; line-height: 1.5; color: var(--st-t3, rgba(255, 255, 255, 0.38)); }
+.sform__note a, .sform__link { display: inline-flex; align-items: center; gap: 4px; color: var(--st-blue, #0a84ff); text-decoration: none; }
+.sform__note a:hover { text-decoration: underline; }
+.sform__note code { padding: 0 4px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); font-size: 11px; color: var(--st-t2, rgba(255, 255, 255, 0.6)); }
+.sform__error { margin: 0; font-size: 12px; line-height: 1.4; color: #ff6961; }
+.sform__callout { display: flex; align-items: flex-start; gap: 8px; padding: 9px 11px; border-radius: 8px; background: rgba(10, 132, 255, 0.12); font-size: 11px; line-height: 1.5; color: var(--st-t2, rgba(255, 255, 255, 0.6)); }
+.sform__callout svg { flex: none; margin-top: 1px; color: var(--st-blue, #0a84ff); }
+.sform__setup { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 8px; background: rgba(255, 255, 255, 0.05); font-size: 11px; line-height: 1.5; color: var(--st-t2, rgba(255, 255, 255, 0.6)); }
+.sform__setup strong { font-size: 12px; font-weight: 600; color: var(--st-t1, #fff); }
+.sform__details { border-radius: 8px; background: rgba(255, 255, 255, 0.05); }
+.sform__details > summary { padding: 8px 12px; font-size: 12px; color: var(--st-t2, rgba(255, 255, 255, 0.6)); cursor: pointer; }
+.sform__details[open] > summary { color: var(--st-t1, #fff); }
+.sform__details > div { display: grid; gap: 12px; padding: 2px 12px 12px; }
+.sform__actions { display: flex; align-items: center; justify-content: flex-start; gap: 12px; }
+.sform__spinner { width: 12px; height: 12px; border: 2px solid rgba(255, 255, 255, 0.4); border-right-color: transparent; border-radius: 50%; animation: sform-spin 0.7s linear infinite; }
+.sform .button svg { flex: none; }
+.slist-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; font-size: 11px; color: var(--st-t3, rgba(255, 255, 255, 0.38)); }
+.slist-foot .text-button { display: inline-flex; align-items: center; gap: 5px; }
+.slist-spin { animation: sform-spin 0.9s linear infinite; }
+@keyframes sform-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 560px) { .sform__grid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .sform__spinner, .slist-spin { animation-duration: 1.6s; } }

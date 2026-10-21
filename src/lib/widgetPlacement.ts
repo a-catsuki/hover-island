@@ -1,16 +1,74 @@
 import type { WidgetConfig } from './ipc'
 import { widgetPages, widgetResolvedSize } from './widgetPages'
+import type { WidgetResolvedSize } from './widgetPages'
+import { SHAPE_AREA, SHAPE_SHRINK, widgetShapeLocked } from './widgetShapes'
 
 export interface GridCell {
   row: number
   column: number
 }
 
+export function widgetCanResize(widget: WidgetConfig): boolean {
+  return !['nearby', 'controls', 'calendar'].includes(widget.kind) && !widgetShapeLocked(widget.kind)
+}
+
+/** Where a tile of this size may start: wide and large tiles always start in column 1, tall ones keep the chosen column on row 1. */
+function cellForSize(size: WidgetResolvedSize, cell: GridCell): GridCell {
+  const clamp = (value: number) => Math.min(2, Math.max(1, Math.trunc(value)))
+  return {
+    row: size === 'full' || size === 'tall' ? 1 : clamp(cell.row),
+    column: size === 'compact' || size === 'tall' ? clamp(cell.column) : 1,
+  }
+}
+
+/** A drop owns its rectangle first. Other tiles flow around it and may become
+ * smaller when that lets the complete destination fit on one page. No tile is
+ * removed when even the minimum legal sizes need another page. */
+export function reflowWidgetDrop(
+  widgets: WidgetConfig[], id: string, panel: string, cell: GridCell,
+  requestedSize?: WidgetResolvedSize,
+): WidgetConfig[] {
+  const source = widgets.find(widget => widget.id === id)
+  if (!source) return widgets
+  const members = widgets.filter(widget => widget.enabled && widget.kind !== 'airdrop' && widget.panel === panel && widget.id !== id)
+    .sort((a, b) => a.order - b.order).map(widget => ({ ...widget, size: widgetResolvedSize(widget) }))
+  const size = widgetCanResize(source) ? requestedSize ?? widgetResolvedSize(source) : 'full'
+  const moved: WidgetConfig = { ...source, panel, size, slot: cellForSize(size, cell) }
+  const destination = [moved, ...members]
+  // Shrink the largest flexible sibling first, preserving the dropped size
+  // until the siblings have reached their own minimums.
+  while (widgetPages(destination, 2).length > 1) {
+    const candidate = [...destination.slice(1)].filter(widget => widgetCanResize(widget) && widgetResolvedSize(widget) !== 'compact')
+      .sort((a, b) => SHAPE_AREA[widgetResolvedSize(b)] - SHAPE_AREA[widgetResolvedSize(a)])[0]
+    if (candidate) {
+      candidate.size = SHAPE_SHRINK[widgetResolvedSize(candidate)] ?? 'compact'
+      candidate.slot = undefined
+      continue
+    }
+    // An ordinary drag may fit the moved tile too, after every flexible
+    // sibling reached its minimum. A size-selector request remains explicit.
+    if (requestedSize !== undefined || !widgetCanResize(moved) || widgetResolvedSize(moved) === 'compact') break
+    const fittedSize = SHAPE_SHRINK[widgetResolvedSize(moved)] ?? 'compact'
+    moved.size = fittedSize
+    moved.slot = cellForSize(fittedSize, cell)
+  }
+  // Clear any invalid old pinned cells and save exactly the placement shown.
+  for (const page of widgetPages(destination, 2)) for (const slot of page) {
+    slot.widget.slot = { row: slot.row, column: slot.column }
+  }
+  const updated = new Map(destination.map(widget => [widget.id, widget]))
+  const ordered = [...widgets].sort((a, b) => a.order - b.order).filter(widget => widget.id !== id)
+  const first = ordered.findIndex(widget => widget.panel === panel)
+  ordered.splice(first < 0 ? ordered.length : first, 0, moved)
+  return ordered.map((widget, order) => ({ ...(updated.get(widget.id) ?? widget), order }))
+}
+
 /** Move a widget to `panel` and pin it to the cell the user dropped it on. */
 export function placeWidgetAtCell(widgets: WidgetConfig[], id: string, panel: string, cell: GridCell): WidgetConfig[] {
   const row = Math.min(2, Math.max(1, Math.trunc(cell.row)))
   const column = Math.min(2, Math.max(1, Math.trunc(cell.column)))
-  return widgets.map(widget => widget.id === id ? { ...widget, panel, slot: { row, column } } : widget)
+  // A tall tile always starts on the first row; the other shapes keep the exact cell.
+  return widgets.map(widget => widget.id === id ? { ...widget, panel, slot: { row: widgetResolvedSize(widget) === 'tall' ? 1 : row, column } } : widget)
 }
 
 /** Forget a widget's pinned cell so it flows again from its order. */

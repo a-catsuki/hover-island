@@ -1,0 +1,56 @@
+.viz {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  contain: layout paint;
+}
+
+.viz__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.viz__canvas--field { visibility: hidden; }
+.viz--off .viz__canvas { display: none; }
+
+.viz__mode {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  z-index: 1;
+  color: var(--text-3);
+  font-size: 8px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+  opacity: 0.78;
+  padding: 3px 5px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--surface-0) 54%, transparent);
+  backdrop-filter: blur(5px);
+}
+
+.viz__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viz__mode { backdrop-filter: none; }
+}

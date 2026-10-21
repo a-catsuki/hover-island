@@ -1,405 +1,182 @@
-/* Docking styles restored from the verified 0.1.2 production stylesheet. */
+/* Docking: where the collapsed pill and the dashboard sit for each edge and mode, the
+   side capsule, and the file drop chooser. The silhouette itself (clip-path) is written
+   by Island.tsx as --island-clip, so there is no per-edge clip-path here. */
 
+/* ------------------------------------------------------------ collapsed pill */
 
-.island--edge-bottom {
-  clip-path: inset(max(0px,calc(100% - var(--island-spring-height, var(--collapsed-h)))) max(0px,calc((100% - var(--island-spring-width, var(--collapsed-w))) / 2)) 0 max(0px,calc((100% - var(--island-spring-width, var(--collapsed-w))) / 2)) round var(--island-spring-radius, 22px) var(--island-spring-radius, 22px) 0 0)
+.island--edge-bottom .island__collapsed { top: auto; bottom: 0; }
+.island--edge-left .island__collapsed { top: 50%; left: 0; transform: translateY(-50%); }
+.island--edge-right .island__collapsed { top: 50%; right: 0; left: auto; transform: translateY(-50%); }
+
+/* A top or bottom notch leans toward the cursor with the magnetic offset. */
+.island.island--mode-notch.island--edge-top:not(.island--notch-side) .island__collapsed,
+.island.island--mode-notch.island--edge-bottom:not(.island--notch-side) .island__collapsed {
+  transform: translate(calc(-50% + var(--magnet-x, 0px)), var(--magnet-y, 0px));
 }
 
-.island--edge-left {
-  clip-path: inset(max(0px,calc((100% - var(--island-spring-height, var(--collapsed-h))) / 2)) max(0px,calc(100% - var(--island-spring-width, var(--collapsed-w)))) max(0px,calc((100% - var(--island-spring-height, var(--collapsed-h))) / 2)) 0 round 0 var(--island-spring-radius, 22px) var(--island-spring-radius, 22px) 0)
-}
+.island--mode-bar .island__collapsed { width: 100%; left: 0; transform: none; }
+.island--mode-bar .island__bar { padding-right: 14px; padding-left: 14px; }
+.island--mode-bar .pill { width: min(680px, 100%); margin: 0 auto; }
 
-.island--edge-right {
-  clip-path: inset(max(0px,calc((100% - var(--island-spring-height, var(--collapsed-h))) / 2)) 0 max(0px,calc((100% - var(--island-spring-height, var(--collapsed-h))) / 2)) max(0px,calc(100% - var(--island-spring-width, var(--collapsed-w)))) round var(--island-spring-radius, 22px) 0 0 var(--island-spring-radius, 22px))
-}
+/* ------------------------------------------------------------- side capsule
+   A notch docked to the left or right edge, and the collapsed sidebar: a vertical
+   capsule with its content centred. The free corners are rounded by the clip (radius
+   comes from Island.tsx); the docked edge stays flush. Icons share one size. */
 
-.island--edge-bottom:before {
-  border-radius: 26px 26px 0 0
+.island.island--notch-side .island__collapsed {
+  width: var(--pill-w, 56px);
+  height: 144px;
 }
-
-.island--edge-left:before {
-  border-radius: 0 26px 26px 0
-}
-
-.island--edge-right:before {
-  border-radius: 26px 0 0 26px
-}
-
-.island--edge-bottom:after {
-  border-radius: 26px 26px 0 0
-}
-
-.island--edge-left:after {
-  border-radius: 0 26px 26px 0
-}
-
-.island--edge-right:after {
-  border-radius: 26px 0 0 26px
-}
-
-.island--mode-bar {
-  clip-path: inset(0 0 max(0px,calc(100% - var(--island-spring-height, var(--collapsed-h)))) 0 round 0 0 var(--island-spring-radius, 22px) var(--island-spring-radius, 22px))
-}
-
-.island--mode-bar.island--edge-bottom {
-  clip-path: inset(max(0px,calc(100% - var(--island-spring-height, var(--collapsed-h)))) 0 0 0 round 0 0 var(--island-spring-radius, 22px) var(--island-spring-radius, 22px))
-}
-
-.island--mode-bar .island__collapsed {
-  width: 100%;
+.island.island--notch-side.island--edge-left .island__collapsed {
   left: 0;
-  transform: none
+  right: auto;
+  transform: translate(var(--magnet-x, 0px), calc(-50% + var(--magnet-y, 0px)));
 }
-
-.island--mode-bar .island__bar {
-  padding-right: 14px;
-  padding-left: 14px
+.island.island--notch-side.island--edge-right .island__collapsed {
+  right: 0;
+  left: auto;
+  transform: translate(var(--magnet-x, 0px), calc(-50% + var(--magnet-y, 0px)));
 }
-
-.island--mode-bar .pill {
-  width: min(680px,100%);
-  margin: 0 auto
-}
-
-.island--mode-bar:before,.island--mode-bar:after {
-  border-radius: 0 0 22px 22px
-}
-
-.island--mode-bar.island--edge-bottom .island__collapsed {
-  top: auto;
-  bottom: 0
-}
-
-.island--mode-bar.island--edge-bottom:before,.island--mode-bar.island--edge-bottom:after {
-  border-radius: 22px 22px 0 0
-}
-
-.island--mode-sidebar.island--edge-left .island__expanded,.island--mode-sidebar.island--edge-right .island__expanded {
-  height: 100%
-}
-
-.island--mode-sidebar .island__expanded {
-  width: min(100%,420px)
-}
-
-.island--mode-sidebar:not(.island--open) {
-  clip-path: inset(0 max(0px,calc(100% - var(--island-spring-width, 72px))) 0 0 round 0 20px 20px 0)
-}
-
-.island--mode-sidebar:not(.island--open).island--edge-right {
-  clip-path: inset(0 0 0 max(0px,calc(100% - var(--island-spring-width, 72px))) round 20px 0 0 20px)
-}
-
-.island--mode-sidebar:not(.island--open) .island__collapsed {
+.island--mode-sidebar .island__collapsed {
   inset: 0 auto 0 0;
   width: 72px;
   height: 100%;
-  transform: none
+  transform: none;
 }
+.island--mode-sidebar.island--edge-right .island__collapsed { right: 0; left: auto; }
 
-.island--mode-sidebar:not(.island--open).island--edge-right .island__collapsed {
-  right: 0;
-  left: auto
+.island--notch-side,
+.island--mode-sidebar {
+  --side-icon: 16px;
+  --side-art: 22px;
+  --side-gap: 8px;
 }
+.island--mode-sidebar { --side-art: 30px; --side-gap: 18px; }
+/* Four items must still fit the 144px capsule. */
+.island--notch-side:has(.pill__compact > :nth-child(4)) { --side-gap: 4px; }
+.island--notch-side:has(.pill__compact > :nth-child(3)) { --side-gap: 6px; }
 
-.island--mode-sidebar:not(.island--open) .island__bar {
-  flex-direction: column;
+:is(.island--notch-side, .island--mode-sidebar) .island__bar {
   justify-content: center;
-  padding: 16px 5px
+  padding: 8px 2px;
 }
-
-.island--mode-sidebar:not(.island--open) .pill {
+:is(.island--notch-side, .island--mode-sidebar) .pill {
   height: 100%;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px
+  gap: 6px;
 }
-
-.island--mode-sidebar:not(.island--open) .pill__compact {
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact {
+  flex: none;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--side-gap);
+  overflow: visible;
+}
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact-item {
   flex: none;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  overflow: visible
+  gap: 3px;
+  min-width: 0;
 }
-
-.island--mode-sidebar:not(.island--open) .pill__compact-item {
-  flex: none;
-  justify-content: center
+:is(.island--notch-side, .island--mode-sidebar) :is(.pill__compact-label, .pill__compact-title, .pill__compact-controls) {
+  display: none;
 }
-
-.island--mode-sidebar:not(.island--open) .pill__compact-label,.island--mode-sidebar:not(.island--open) .pill__compact-title,.island--mode-sidebar:not(.island--open) .pill__compact-controls {
-  display: none
+/* The tiny visualiser stays under the art in the side capsule (it hides itself when nothing plays). */
+:is(.island--notch-side, .island--mode-sidebar) .pill .pill__compact-live { display: grid; width: 16px; height: 16px; margin: 0; }
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact-media { flex: none; gap: 6px; }
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact-media--idle { gap: 0; }
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact-empty { width: 4px; height: 20px; }
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact-art {
+  width: var(--side-art);
+  height: var(--side-art);
+  border-radius: 7px;
 }
-
-.island--mode-sidebar:not(.island--open) .pill__compact-clock {
-  align-items: center
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact-item > svg:not(.pill__ring):not(.pill__analog) {
+  width: var(--side-icon);
+  height: var(--side-icon);
 }
-
-.island--mode-sidebar:not(.island--open) .pill__compact-clock strong,.island--mode-sidebar:not(.island--open) .pill__compact-battery strong,.island--mode-sidebar:not(.island--open) .pill__compact-weather strong,.island--mode-sidebar:not(.island--open) .pill__compact-ai strong {
-  font-size: 11px
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact-ai .pill__ring {
+  width: var(--side-icon);
+  height: var(--side-icon);
 }
-
-.island--mode-sidebar:not(.island--open) .pill__alert-badge {
+:is(.island--notch-side, .island--mode-sidebar) :is(.pill__compact-clock, .pill__compact-battery, .pill__compact-weather, .pill__compact-ai) strong {
+  font-size: 10.5px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.island--mode-sidebar :is(.pill__compact-clock, .pill__compact-battery, .pill__compact-weather, .pill__compact-ai) strong { font-size: 12px; }
+:is(.island--notch-side, .island--mode-sidebar) .pill__compact-clock { align-items: center; gap: 0; }
+/* The clock stacks as "6:51" over a small "PM". */
+:is(.island--notch-side, .island--mode-sidebar) .pill__clock-stack {
+  display: grid;
+  grid-template-columns: auto auto;
   justify-content: center;
-  width: 34px;
-  padding: 5px
+  align-items: baseline;
+  line-height: 1.1;
 }
-
-.island--mode-sidebar:not(.island--open) .pill__alert-badge>span:last-child {
-  display: none
+:is(.island--notch-side, .island--mode-sidebar) .pill__clock-stack > span:first-child:not(:last-child)::after { content: ":"; }
+:is(.island--notch-side, .island--mode-sidebar) .pill__clock-stack > span:nth-child(3) {
+  display: none;
+  grid-column: 1 / -1;
+  text-align: center;
+  margin-top: 1px;
+  color: var(--text-3);
+  font-size: 9px;
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.02em;
 }
-
-.island--edge-bottom .island__collapsed {
-  top: auto;
-  bottom: 0;
-  left: 50%;
-  transform: translate(-50%)
-}
-
-.island--edge-left .island__collapsed {
-  top: 50%;
-  left: 0;
-  transform: translateY(-50%)
-}
-
-.island--edge-left .island__expanded,.island--edge-right .island__expanded {
-  width: min(100%,420px);
-  flex: none;
-  transform-origin: center
-}
-
-.island--edge-right .island__expanded {
-  margin-left: auto
-}
-
-.island--edge-left .island__expanded {
-  margin-right: auto
-}
-
-.island--edge-left .panel__head,.island--edge-right .panel__head {
-  gap: 4px;
-  padding-right: 8px;
-  padding-left: 8px
-}
-
-.island--edge-left .panel__tools,.island--edge-right .panel__tools {
-  gap: 2px;
-  flex: none
-}
-
-.island--edge-left .panel__tools .icon-button,.island--edge-right .panel__tools .icon-button {
-  width: 25px;
-  min-width: 25px
-}
-
-.island--edge-left .panel__tools .search-button,.island--edge-right .panel__tools .search-button {
-  width: 27px;
-  min-width: 27px;
-  padding: 0;
-  justify-content: center
-}
-
-.island--edge-left .panel__tools .search-button span,.island--edge-left .panel__tools .search-button kbd,.island--edge-right .panel__tools .search-button span,.island--edge-right .panel__tools .search-button kbd {
-  display: none
-}
-
-.island--edge-left .panel__foot>span:last-child,.island--edge-right .panel__foot>span:last-child {
-  display: none
-}
-
-.island--edge-right .island__collapsed {
-  top: 50%;
-  right: 0;
-  left: auto;
-  transform: translateY(-50%)
-}
-
-.island .island__bar {
-  cursor: grab;
-  touch-action: none;
-  user-select: none
-}
-
-.island.island--dragging .island__bar,
-.island.island--dragging .panel__head {
-  cursor: grabbing
-}
-
-.island.island--open:not(.island--dragging) .panel__head {
-  cursor: grab
-}
-
-.island.island--mode-sidebar:not(.island--open).island--edge-right .island__bar {
-  padding-right: 5px;
-  padding-left: 5px
-}
-
-.island--dragging .island__collapsed {
-  filter: drop-shadow(0 10px 22px rgba(0,0,0,.5))
-}
-
-body:has(.preview-label) .island-stage:has(.island--mode-bar) {
-  left: 0;
-  right: 0;
-  width: 100vw;
-  transform: none
-}
-
-body:has(.preview-label) .island-stage:has(.island--mode-bar.island--edge-bottom) {
-  top: auto;
-  bottom: 0
-}
-
-body:has(.preview-label) .island-stage:has(.island--mode-notch.island--edge-bottom:not(.island--notch-side)) {
-  top: auto;
-  bottom: 0
-}
-
-body:has(.preview-label) .island-stage:has(.island--mode-sidebar) {
-  left: 0;
-  right: auto;
-  top: 0;
-  width: min(420px,100vw);
-  height: 100vh;
-  transform: none
-}
-
-body:has(.preview-label) .island-stage:has(.island--mode-sidebar.island--edge-right) {
-  left: auto;
-  right: 0
-}
-
-body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-side.island--edge-left) {
-  left: 0;
-  right: auto;
-  top: 50%;
-  width: min(var(--expanded-w),100vw);
-  height: min(var(--expanded-h),calc(100vh - 60px));
-  transform: translateY(-50%)
-}
-
-body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-side.island--edge-right) {
-  left: auto;
-  right: 0;
-  top: 50%;
-  width: min(var(--expanded-w),100vw);
-  height: min(var(--expanded-h),calc(100vh - 60px));
-  transform: translateY(-50%)
-}
-
-.island.island--edge-bottom {
-  clip-path: inset(max(0px,calc(100% - var(--island-spring-height, var(--collapsed-h)))) max(0px,calc((100% - var(--island-spring-width, var(--collapsed-w))) / 2)) 0 max(0px,calc((100% - var(--island-spring-width, var(--collapsed-w))) / 2)) round var(--island-spring-radius, 22px) var(--island-spring-radius, 22px) 0 0)
-}
-
-.island.island--edge-left {
-  clip-path: inset(max(0px,calc((100% - var(--island-spring-height, var(--collapsed-h))) / 2)) max(0px,calc(100% - var(--island-spring-width, var(--collapsed-w)))) max(0px,calc((100% - var(--island-spring-height, var(--collapsed-h))) / 2)) 0 round 0 var(--island-spring-radius, 22px) var(--island-spring-radius, 22px) 0)
-}
-
-.island.island--edge-right {
-  clip-path: inset(max(0px,calc((100% - var(--island-spring-height, var(--collapsed-h))) / 2)) 0 max(0px,calc((100% - var(--island-spring-height, var(--collapsed-h))) / 2)) max(0px,calc(100% - var(--island-spring-width, var(--collapsed-w)))) round var(--island-spring-radius, 22px) 0 0 var(--island-spring-radius, 22px))
-}
-
-.island.island--mode-bar {
-  clip-path: inset(0 0 max(0px,calc(100% - var(--island-spring-height, var(--collapsed-h)))) 0 round 0 0 var(--island-spring-radius, 22px) var(--island-spring-radius, 22px))
-}
-
-.island.island--mode-bar.island--edge-bottom {
-  clip-path: inset(max(0px,calc(100% - var(--island-spring-height, var(--collapsed-h)))) 0 0 0 round var(--island-spring-radius, 22px) var(--island-spring-radius, 22px) 0 0)
-}
-
-.island.island--mode-sidebar:not(.island--open).island--edge-left {
-  clip-path: inset(0 max(0px,calc(100% - var(--island-spring-width, 72px))) 0 0 round 0 20px 20px 0)
-}
-
-.island.island--mode-sidebar:not(.island--open).island--edge-right {
-  clip-path: inset(0 0 0 max(0px,calc(100% - var(--island-spring-width, 72px))) round 20px 0 0 20px)
-}
-
-.island.island--notch-side:not(.island--open) .island__collapsed {
-  top: 50%;
-  bottom: auto;
-  width: 56px;
-  height: 144px
-}
-
-.island.island--notch-side.island--edge-left:not(.island--open) .island__collapsed {
-  left: 0;
-  right: auto;
-  transform: translate(var(--magnet-x, 0px),calc(-50% + var(--magnet-y, 0px)))
-}
-
-.island.island--notch-side.island--edge-right:not(.island--open) .island__collapsed {
-  right: 0;
-  left: auto;
-  transform: translate(var(--magnet-x, 0px),calc(-50% + var(--magnet-y, 0px)))
-}
-
-.island.island--notch-side:not(.island--open) .island__bar {
-  justify-content: center;
-  padding: 8px 4px
-}
-
-.island.island--notch-side:not(.island--open) .pill {
-  height: 100%;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px
-}
-
-.island.island--notch-side:not(.island--open) .pill__compact {
-  flex: none;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  overflow: visible
-}
-
-.island.island--notch-side:not(.island--open) .pill__compact-item {
-  flex: none;
-  justify-content: center
-}
-
-.island.island--notch-side:not(.island--open) .pill__compact-label,.island.island--notch-side:not(.island--open) .pill__compact-title,.island.island--notch-side:not(.island--open) .pill__compact-controls {
-  display: none
-}
-
-.island.island--notch-side:not(.island--open) .pill__compact-clock {
-  align-items: center
-}
-
-.island.island--notch-side:not(.island--open) .pill__compact-clock strong,.island.island--notch-side:not(.island--open) .pill__compact-battery strong,.island.island--notch-side:not(.island--open) .pill__compact-weather strong,.island.island--notch-side:not(.island--open) .pill__compact-ai strong {
-  font-size: 10px
-}
-
-.island.island--notch-side:not(.island--open) .pill__alert-badge {
+:is(.island--notch-side, .island--mode-sidebar) .pill__alert-badge {
   width: 22px;
   min-width: 22px;
+  max-width: 22px;
   height: 22px;
+  flex: none;
   justify-content: center;
-  padding: 5px
+  padding: 0;
 }
+:is(.island--notch-side, .island--mode-sidebar) .pill__alert-badge > span:last-child { display: none; }
+:is(.island--notch-side, .island--mode-sidebar) .pill__badges { gap: 4px; }
 
-.island.island--notch-side:not(.island--open) .pill__alert-badge>span:last-child {
-  display: none
+/* -------------------------------------------------------- expanded dashboard
+   Laid out in the visible rectangle (--island-open-*), not across the larger
+   transparent native window, and pinned to the docked edge. */
+
+.island > .island__expanded {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  translate: -50% 0;
+  width: min(100%, var(--island-open-width, var(--expanded-w)));
+  height: min(100%, var(--island-open-height, var(--expanded-h)));
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: none;
 }
+.island.island--edge-bottom > .island__expanded { top: auto; bottom: 0; }
+.island.island--edge-left > .island__expanded,
+.island.island--edge-right > .island__expanded { top: 50%; bottom: auto; translate: 0 -50%; }
+.island.island--edge-left > .island__expanded { left: 0; right: auto; }
+.island.island--edge-right > .island__expanded { left: auto; right: 0; }
+.island--mode-bar .island__expanded { width: 100%; }
 
+.island--edge-left .panel__foot > span:last-child,
+.island--edge-right .panel__foot > span:last-child { display: none; }
 
-.island.island--mode-notch.island--edge-top:not(.island--notch-side) .island__collapsed,.island.island--mode-notch.island--edge-bottom:not(.island--notch-side) .island__collapsed {
-  transform: translate(calc(-50% + var(--magnet-x, 0px)),var(--magnet-y, 0px))
-}
+/* ---------------------------------------------------------- file drop chooser
+   A native file drag reshapes the notch into a compact chooser: Recycle Bin on the
+   left, Beam on the right, the item count between them. */
 
-/* A native file drag temporarily reshapes the notch into a compact chooser. */
-.island.island--file-drop {
-  z-index: 8;
-  background: transparent;
-  box-shadow: 0 12px 42px rgb(0 0 0 / .32);
-}
-
+.island.island--file-drop { z-index: 8; background: transparent; box-shadow: none; }
 .island.island--file-drop .island__collapsed,
 .island.island--file-drop .island__expanded {
   visibility: hidden;
@@ -407,158 +184,179 @@ body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-sid
   pointer-events: none;
 }
 
-.island.island--file-drop.island--edge-top {
-  clip-path: inset(0 max(0px,calc((100% - var(--island-spring-width,366px))/2)) max(0px,calc(100% - var(--island-spring-height,92px))) max(0px,calc((100% - var(--island-spring-width,366px))/2)) round 0 0 var(--island-spring-radius,24px) var(--island-spring-radius,24px));
-}
-
-.island.island--file-drop.island--edge-bottom {
-  clip-path: inset(max(0px,calc(100% - var(--island-spring-height,92px))) max(0px,calc((100% - var(--island-spring-width,366px))/2)) 0 max(0px,calc((100% - var(--island-spring-width,366px))/2)) round var(--island-spring-radius,24px) var(--island-spring-radius,24px) 0 0);
-}
-
-.island.island--file-drop.island--edge-left {
-  clip-path: inset(max(0px,calc((100% - var(--island-spring-height,110px))/2)) max(0px,calc(100% - var(--island-spring-width,420px))) max(0px,calc((100% - var(--island-spring-height,110px))/2)) 0 round 0 var(--island-spring-radius,28px) var(--island-spring-radius,28px) 0);
-}
-
-.island.island--file-drop.island--edge-right {
-  clip-path: inset(max(0px,calc((100% - var(--island-spring-height,110px))/2)) 0 max(0px,calc((100% - var(--island-spring-height,110px))/2)) max(0px,calc(100% - var(--island-spring-width,420px))) round var(--island-spring-radius,28px) 0 0 var(--island-spring-radius,28px));
-}
-
 .file-drop-toast {
   position: absolute;
   z-index: 3;
   left: 50%;
   display: grid;
-  width: min(var(--island-spring-width,366px),100%);
-  height: var(--island-spring-height,92px);
-  grid-template-columns: minmax(0,1fr) minmax(84px,1.05fr) minmax(0,1fr);
-  align-items: center;
-  gap: 6px;
-  padding: 12px 16px;
+  width: min(var(--island-target-width, 366px), 100%);
+  height: var(--island-target-height, 92px);
+  grid-template-columns: minmax(0, 1fr) minmax(84px, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px;
   border: 0;
-  border-radius: 0;
-  background: linear-gradient(155deg,rgb(19 20 23 / .99),rgb(5 6 8 / .99));
-  box-shadow: inset 0 -1px 0 rgb(255 255 255 / .08);
-  color: #f5f5f7;
+  background: #000;
+  color: var(--text-1);
   transform: translateX(-50%);
   pointer-events: none;
-  -webkit-backdrop-filter: blur(22px) saturate(1.35);
-  backdrop-filter: blur(22px) saturate(1.35);
-  opacity: 1;
+  contain: layout style;
+  animation: drop-toast-in 160ms var(--ease-out) both;
 }
-
 .file-drop-toast--top { top: 0; }
 .file-drop-toast--bottom { bottom: 0; }
 .file-drop-toast--left,
-.file-drop-toast--right {
-  top: 50%;
-  transform: translateY(-50%);
-}
+.file-drop-toast--right { top: 50%; transform: translateY(-50%); }
 .file-drop-toast--left { left: 0; }
 .file-drop-toast--right { left: auto; right: 0; }
+.file-drop-toast--sidebar { width: min(var(--island-target-width, 420px), 100%); }
 
 .file-drop-toast__target {
   display: flex;
   min-width: 0;
-  min-height: 52px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  border: 1px solid transparent;
-  border-radius: 13px;
-  color: rgb(245 245 247 / .78);
-  transition: background-color 120ms ease,border-color 120ms ease,color 120ms ease,transform 120ms ease;
+  gap: 5px;
+  border-radius: 20px;
+  background: var(--platter);
+  color: var(--text-2);
+  transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out), transform 220ms var(--spring-pop);
 }
-
 .file-drop-toast__target--active {
-  transform: scale(1.035);
-  background: rgb(255 255 255 / .09);
-  border-color: rgb(255 255 255 / .19);
+  transform: scale(1.02);
+  background: color-mix(in srgb, var(--sys-blue) 26%, transparent);
   color: #fff;
 }
-
 .file-drop-toast__target:first-child.file-drop-toast__target--active {
-  background: rgb(255 88 88 / .15);
-  border-color: rgb(255 112 112 / .32);
-  color: #ff9a9a;
+  background: color-mix(in srgb, var(--sys-red) 24%, transparent);
+  color: #ff8a80;
 }
-
 .file-drop-toast__icon {
   display: grid;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   place-items: center;
-  border-radius: 8px;
-  background: rgb(255 255 255 / .08);
+  border-radius: 50%;
+  background: var(--platter-strong);
   color: inherit;
 }
-
-.file-drop-toast__icon--beam { color: #9caeff; }
-.file-drop-toast__target--active .file-drop-toast__icon--beam { color: #c5ceff; }
-
+.file-drop-toast__icon--beam { color: var(--sys-teal); }
+.file-drop-toast__target--active .file-drop-toast__icon--beam { color: #fff; }
 .file-drop-toast__label {
-  overflow: hidden;
   max-width: 100%;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: .01em;
+  overflow: hidden;
+  font-size: var(--fs-11);
+  font-weight: var(--fw-semibold);
   line-height: 1.1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .file-drop-toast__center {
   display: flex;
   min-width: 0;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   text-align: center;
 }
-
 .file-drop-toast__count {
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: -.015em;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-title);
   line-height: 1.1;
 }
-
 .file-drop-toast__hint {
-  overflow: hidden;
   max-width: 100%;
-  color: rgb(235 236 240 / .59);
-  font-size: 9px;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-11);
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-@media(prefers-reduced-motion:reduce) {
-  .file-drop-toast__target { transition: none; }
+/* Result state: icon, one line of status, a thin progress bar. */
+.file-drop-toast.file-drop-toast--action {
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 14px 22px;
 }
-.file-drop-toast.file-drop-toast--action {grid-template-columns:44px minmax(0,1fr);gap:14px;padding:14px 22px;}
-.file-drop-action__icon {display:grid;place-items:center;width:44px;height:44px;border-radius:15px;background:#ffffff0a;color:#a8c5ff;}
-.file-drop-action__icon.is-error {color:#ffd08a;}
-.file-drop-action__icon.is-working {animation:drop-action-breathe 1.4s ease-in-out infinite;}
-.file-drop-action__content {display:flex;flex-direction:column;gap:5px;min-width:0;}
-.file-drop-action__content strong {font-size:13px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.file-drop-action__content>span {font-size:10px;color:#a2a3ac;}
-.file-drop-action__content progress {display:block;width:100%;height:4px;margin-top:4px;border:0;border-radius:9px;overflow:hidden;accent-color:#b2c9ff;}
-.file-drop-action__content progress::-webkit-progress-bar {background:#ffffff12;border-radius:9px;}
-.file-drop-action__content progress::-webkit-progress-value {background:#b2c9ff;border-radius:9px;transition:width 140ms linear;}
-.file-drop-action__content progress:indeterminate {background:linear-gradient(90deg,#ffffff12 0%,#b2c9ff 45%,#ffffff12 70%);background-size:220% 100%;animation:drop-action-progress 1.15s linear infinite;}
-.file-drop-action__content progress:indeterminate::-webkit-progress-bar {background:transparent;}
-@keyframes drop-action-breathe {50% {transform:scale(1.08);background:#adc5ff1b;}}
+.file-drop-action__icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--platter-strong);
+  color: var(--sys-teal);
+}
+.file-drop-action__icon.is-error { color: var(--sys-orange); }
+.file-drop-action__icon.is-working { animation: drop-action-breathe 1.4s ease-in-out infinite; }
+.file-drop-action__content { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.file-drop-action__content strong {
+  overflow: hidden;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-title);
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-drop-action__content > span { color: var(--text-3); font-size: var(--fs-12); }
+.file-drop-action__content progress {
+  display: block;
+  width: 100%;
+  height: 4px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 9px;
+  overflow: hidden;
+  accent-color: var(--sys-blue);
+}
+.file-drop-action__content progress::-webkit-progress-bar { background: rgba(255, 255, 255, 0.08); border-radius: 9px; }
+.file-drop-action__content progress::-webkit-progress-value { background: var(--sys-blue); border-radius: 9px; transition: width 140ms linear; }
+.file-drop-action__content progress:indeterminate {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0%, var(--sys-blue) 45%, rgba(255, 255, 255, 0.08) 70%);
+  background-size: 220% 100%;
+  animation: drop-action-progress 1.15s linear infinite;
+}
+.file-drop-action__content progress:indeterminate::-webkit-progress-bar { background: transparent; }
+@keyframes drop-toast-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes drop-action-breathe { 50% { transform: scale(1.06); } }
+@keyframes drop-action-progress { to { background-position: -220% 0; } }
 
-/* The same spring deforms the entire material, including its edge and backdrop. */
-.island.island--mode-notch:not(.island--file-drop):not(.island--dragging) {
-  clip-path: var(--magnetic-clip);
+@media (prefers-reduced-motion: reduce) {
+  .file-drop-toast { animation: none; }
+  .file-drop-toast__target { transition: none; }
+  .file-drop-action__icon.is-working,
+  .file-drop-action__content progress:indeterminate { animation: none; }
+  .file-drop-action__content progress::-webkit-progress-value { transition: none; }
+  .island.island--mode-notch:not(.island--open) { --magnet-x: 0px !important; --magnet-y: 0px !important; }
 }
-.island.island--mode-notch:not(.island--open)::before {background:#000;opacity:1;backdrop-filter:none;}
-.island.island--mode-notch:not(.island--open)::after {box-shadow:none;}
-.island.island--mode-notch:not(.island--open)>.ambient {opacity:0;}
-@media(prefers-reduced-motion:reduce) {
-  .island.island--mode-notch:not(.island--open) { --magnet-x:0px!important;--magnet-y:0px!important; }
+
+/* ------------------------------------------------------------ browser preview
+   In the browser the stage stands in for the native host window. */
+
+body:has(.preview-label) .island-stage:has(.island--mode-bar) { left: 0; right: 0; width: 100vw; transform: none; }
+body:has(.preview-label) .island-stage:has(.island--mode-bar.island--edge-bottom),
+body:has(.preview-label) .island-stage:has(.island--mode-notch.island--edge-bottom:not(.island--notch-side)) { top: auto; bottom: 0; }
+body:has(.preview-label) .island-stage:has(.island--mode-sidebar) {
+  left: 0;
+  right: auto;
+  top: 0;
+  width: min(420px, 100vw);
+  height: 100vh;
+  transform: none;
 }
-@keyframes drop-action-progress {to {background-position:-220% 0;}}
-@media(prefers-reduced-motion:reduce) {.file-drop-action__icon.is-working,.file-drop-action__content progress:indeterminate {animation:none;}.file-drop-action__content progress::-webkit-progress-value {transition:none;}}
+body:has(.preview-label) .island-stage:has(.island--mode-sidebar.island--edge-right) { left: auto; right: 0; }
+body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-side) {
+  top: 50%;
+  width: min(var(--expanded-w), 100vw);
+  height: min(var(--expanded-h), calc(100vh - 60px));
+  transform: translateY(-50%);
+}
+body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-side.island--edge-left) { left: 0; right: auto; }
+body:has(.preview-label) .island-stage:has(.island--mode-notch.island--notch-side.island--edge-right) { left: auto; right: 0; }

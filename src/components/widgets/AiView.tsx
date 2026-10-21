@@ -1,104 +1,125 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { Sparkles } from 'lucide-solid'
+import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-solid'
 import { settings } from '../../state/settings'
-import { usage } from '../../state/usage'
-import type { UsageProviderKind, UsageSnapshot } from '../../lib/ipc'
-import { isReportStale, remainingPercent, reportAge, resetCountdown, usedRatio, windowLabel } from '../../lib/usageDisplay'
-import BrandIcon from '../BrandIcon'
-import './widgets.css'
+import { providerShown, usage } from '../../state/usage'
+import { liveSessions } from '../../state/aiActivity'
+import type { UsageSnapshot } from '../../lib/ipc'
+import { agoLabel, compactTokens, formatDuration, groupProviders, isReportStale, providerMeta, remainingPercent, resetCountdown, windowLabel } from '../../lib/usageDisplay'
+import AiActivityMark from '../shell/AiActivityMark'
+import Ring from './Ring'
+import './widgetKit.css'
+import './AiView.css'
 
-interface ProviderMeta { label: string; brand: string }
-const PROVIDERS: Record<UsageProviderKind, ProviderMeta> = {
-  codex: { label: 'Codex', brand: 'codex' },
-  'claude-code': { label: 'Claude Code', brand: 'claude' },
-  cursor: { label: 'Cursor', brand: 'cursor' },
-  manual: { label: 'Custom', brand: 'custom' },
+interface Tile {
+  id: string
+  title: string
+  center: string
+  caption: string
+  ring: number | null
+  tone: 'ok' | 'low' | 'idle' | 'warn'
+  active: boolean
+  hint: string
 }
-function ProviderIcon(props: { kind: UsageProviderKind }) {
-  return <BrandIcon name={PROVIDERS[props.kind].brand} size={17} class="prov-icon__brand" />
-}
-type DisplayRow = { kind: UsageProviderKind; label: string; snapshot?: UsageSnapshot }
+
+const COLOR = { ok: '#BF5AF2', low: '#FF9F0A', idle: '#8E8E93', warn: '#FF453A' } as const
 
 export default function AiView() {
   const [now, setNow] = createSignal(Date.now())
   const [page, setPage] = createSignal(0)
-  onMount(() => { const timer = setInterval(() => setNow(Date.now()), 30000); onCleanup(() => clearInterval(timer)) })
-  const enabled = createMemo(() => {
-    const flags = settings.usage
-    return (Object.keys(PROVIDERS) as UsageProviderKind[]).filter((kind) => {
-      if (kind === 'claude-code') return flags.claudeCode
-      if (kind === 'manual') return flags.manual
-      return flags[kind as 'codex' | 'cursor']
-    })
+  const [box, setBox] = createSignal({ width: 342, height: 201 })
+  let root: HTMLElement | undefined
+  onMount(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000)
+    const resize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(([entry]) => setBox({ width: entry.contentRect.width, height: entry.contentRect.height }))
+    if (resize && root) resize.observe(root)
+    onCleanup(() => { clearInterval(timer); resize?.disconnect() })
   })
 
-  const rows = createMemo(() => {
-    const all = usage()
-    const result: DisplayRow[] = []
-    for (const kind of enabled()) {
-      const candidates = all.filter((item) => item.provider === kind)
-      if (kind === 'codex') {
-        const quota = candidates.filter((item) => item.source === 'official-rate-limit')
-        if (quota.length) {
-          const ordered = [...quota].sort((a, b) => (windowLabel(a.window) === '5-hour' ? -1 : 1) - (windowLabel(b.window) === '5-hour' ? -1 : 1))
-          for (const snapshot of ordered.slice(0, 2)) result.push({ kind, label: windowLabel(snapshot.window), snapshot })
-          continue
+  const groups = createMemo(() => groupProviders(usage()))
+  const shown = createMemo(() => groups().filter((group) => providerShown(group.id)))
+
+  const tiles = createMemo<Tile[]>(() => {
+    const live = liveSessions(now())
+    const out: Tile[] = []
+    for (const group of shown()) {
+      const meta = providerMeta(group.id)
+      const info = group.activity
+      const working = live.some((session) => session.provider === group.id) || !!info?.activeNow
+      const extra = [info?.avgResponseMs != null ? `${formatDuration(info.avgResponseMs)} reply` : null].filter(Boolean).join(' · ')
+      if (group.quota.length) {
+        for (const snapshot of group.quota.slice(0, 2)) {
+          const left = remainingPercent(snapshot)
+          out.push({
+            id: `${group.id}:${snapshot.window ?? snapshot.label}`,
+            title: `${meta.label} ${windowLabel(snapshot.window)}`,
+            center: left == null ? '?' : `${left}%`,
+            caption: [resetCountdown(snapshot.resetAt), isReportStale(snapshot.updatedAt) ? 'stale' : null].filter(Boolean).join(' · '),
+            ring: left == null ? null : left / 100,
+            tone: left != null && left <= 15 ? 'low' : 'ok',
+            active: working,
+            hint: `${snapshot.label}: ${left ?? 'unknown'}% left${extra ? ` · ${extra}` : ''}`,
+          })
         }
+        continue
       }
-      const snapshot = candidates.find((item) => item.source === 'local-logs')
-        ?? candidates.find((item) => item.status === 'ok')
-        ?? candidates[0]
-      if (snapshot) result.push({ kind, label: PROVIDERS[kind].label, snapshot })
+      const sessions24h = info?.sessions24h ?? 0
+      const local = group.local
+      const hasTokens = local?.status === 'ok' && local.used != null && local.used > 0
+      const idle = sessions24h === 0 && !working
+      out.push({
+        id: group.id,
+        title: meta.label,
+        center: hasTokens ? compactTokens(local!.used) : String(sessions24h),
+        caption: working ? 'Working now' : idle ? (info?.lastActiveAt ? `Idle · ${agoLabel(info.lastActiveAt, now())}` : 'No sessions yet') : extra || (hasTokens ? 'tokens, 24h' : sessions24h === 1 ? '1 session today' : `${sessions24h} sessions today`),
+        ring: idle ? 0 : 1,
+        tone: idle ? 'idle' : 'ok',
+        active: working,
+        hint: [local?.detail, extra].filter(Boolean).join(' · ') || meta.label,
+      })
     }
-    return result
+    return out
   })
+
+  const columns = () => Math.max(1, Math.min(4, Math.floor(box().width / 104)))
+  const gridRows = () => Math.max(1, Math.floor((box().height - 34) / 128))
+  const capacity = () => columns() * gridRows()
+  const pageCount = () => Math.max(1, Math.ceil(tiles().length / capacity()))
+  const current = () => Math.min(page(), pageCount() - 1)
+  const visible = () => tiles().slice(current() * capacity(), (current() + 1) * capacity())
+  const hiddenCount = () => groups().length - shown().length
 
   return (
-    <>
-      <header class="widget__head">
-        <span class="widget__title"><Sparkles class="icon icon--sm" strokeWidth={1.7} aria-hidden="true" />AI activity</span>
+    <section class="wk ai" aria-label="AI activity" ref={root}>
+      <header class="wk-head">
+        <span class="wk-title"><span class="wk-glyph" style={{ background: '#BF5AF2' }}><Sparkles size={13} strokeWidth={2.2} aria-hidden="true" /></span><span>AI activity</span></span>
+        <Show when={pageCount() > 1}>
+          <span class="wk-tools">
+            <button class="wk-icon-btn" aria-label="Previous AI reports" disabled={current() === 0} onClick={() => setPage(current() - 1)}><ChevronLeft size={15} /></button>
+            <span class="wk-sub">{current() + 1}/{pageCount()}</span>
+            <button class="wk-icon-btn" aria-label="Next AI reports" disabled={current() >= pageCount() - 1} onClick={() => setPage(current() + 1)}><ChevronRight size={15} /></button>
+          </span>
+        </Show>
       </header>
-      <Show when={rows().length > 0} fallback={<div class="widget__empty">Enable providers in Settings to track activity.</div>}>
-        <div class="ai">
-          <For each={rows().slice(Math.min(page(),Math.max(0,Math.ceil(rows().length/2)-1))*2,Math.min(page(),Math.max(0,Math.ceil(rows().length/2)-1))*2+2)}>{(row) => {
-            const snapshot = () => row.snapshot
-            const isLocal = () => snapshot()?.source === 'local-logs'
-            const left = () => snapshot() ? remainingPercent(snapshot()!) : null
-            const used = () => snapshot() ? usedRatio(snapshot()!) : null
-            const tone = () => snapshot()?.status === 'error' ? 'var(--danger)' : 'var(--accent)'
-            const main = () => {
-              const s = snapshot()
-              if (!s || s.status !== 'ok') return 'Unavailable'
-              if (isLocal()) return `${s.used == null || !Number.isFinite(s.used) ? '—' : `${(s.used / 1000).toFixed(1)}k`} tokens`
-              return left() == null ? 'Remaining unknown' : `${left()}% left`
-            }
-            const sub = () => {
-              const s = snapshot()
-              if (!s || s.status !== 'ok') return s?.detail ?? 'Waiting for provider report'
-              if (isLocal()) return `Local activity · ${windowLabel(s.window)} · ${reportAge(s.updatedAt)}`
-              const details = [used() == null ? null : `${Math.round(used()! * 100)}% used`, windowLabel(s.window)]
-              if (s.source === 'official-rate-limit') {
-                details.push(resetCountdown(s.resetAt))
-                if (isReportStale(s.updatedAt)) details.push('stale')
-              }
-              return details.filter(Boolean).join(' · ')
-            }
-            const bar = () => isLocal() ? used() : left() == null ? null : left()! / 100
-            return (
-              <div class="ai__row">
-                <ProviderIcon kind={row.kind} />
-                <div class="ai__meta">
-                  <span class="ai__label">{PROVIDERS[row.kind].label}{row.kind === 'codex' ? ` · ${row.label}` : ''}</span>
-                  <span class="ai__bar"><Show when={bar() != null}><span class="ai__fill" style={{ width: `${Math.round(bar()! * 100)}%`, background: tone() }} /></Show></span>
-                  <span class="ai__sub" title={`${sub()} · ${snapshot()?.updatedAt ? reportAge(snapshot()?.updatedAt, now()) : ''}`}>{sub()}</span>
-                </div>
-                <span class="ai__val" style={{ color: tone() }}>{main()}</span>
-              </div>
-            )
-          }}</For>
+      <Show when={tiles().length > 0} fallback={
+        <div class="wk-empty">
+          <Show when={groups().length === 0} fallback={<><strong>All tools hidden</strong><p>Turn one back on in Settings, AI.</p></>}>
+            <strong>No AI tools found</strong><p>Codex, Claude Code, Gemini CLI and others show up once installed.</p>
+          </Show>
         </div>
-        <Show when={rows().length>2}><div class="widget-list-pager"><button class="text-button" disabled={page()===0} aria-label="Previous AI reports" onClick={()=>setPage(Math.max(0,page()-1))}>‹</button><span>{Math.min(page()+1,Math.ceil(rows().length/2))} / {Math.ceil(rows().length/2)}</span><button class="text-button" disabled={(page()+1)*2>=rows().length} aria-label="Next AI reports" onClick={()=>setPage(page()+1)}>›</button></div></Show>
+      }>
+        <div class="ai__grid" style={{ '--ai-cols': Math.min(columns(), visible().length) }}>
+          <For each={visible()}>{(tile) => (
+            <div class="ai__gauge" classList={{ 'ai__gauge--live': tile.active }} title={`${tile.hint}`}>
+              <Ring value={tile.ring} color={COLOR[tile.tone]} stroke={8} label={`${tile.title}: ${tile.center}, ${tile.caption}`}>
+                <span class="ai__center"><strong>{tile.center}</strong><AiActivityMark provider={tile.id.split(':')[0]} size={16} /></span>
+              </Ring>
+              <span class="ai__label">{tile.title}</span>
+              <span class="ai__sub">{tile.caption}</span>
+            </div>
+          )}</For>
+        </div>
+        <Show when={hiddenCount() > 0}><span class="ai__hidden">{hiddenCount()} hidden in Settings</span></Show>
       </Show>
-    </>
+    </section>
   )
 }

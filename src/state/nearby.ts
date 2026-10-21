@@ -1,6 +1,7 @@
 import { createSignal } from 'solid-js'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { cmd, type NearbyStatus } from '../lib/ipc'
+import { open as islandOpen } from './ui'
 
 const EMPTY: NearbyStatus = {
   running: false,
@@ -75,7 +76,8 @@ export async function subscribeNearby(): Promise<() => void> {
     } catch {
       unlisten = null
     }
-    timer = window.setInterval(() => void refreshNearby(), 2000)
+    // The island can sit collapsed with Beam mounted; only poll while someone can see it. Events still arrive either way.
+    timer = window.setInterval(() => { if (islandOpen()) void refreshNearby() }, 2000)
   }
 
   return () => {

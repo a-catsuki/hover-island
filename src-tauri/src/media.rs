@@ -1,17 +1,30 @@
 use std::cell::RefCell;
 use std::sync::Mutex;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use windows::Graphics::Imaging::{BitmapDecoder, BitmapEncoder};
 use windows::Media::Control::{
     GlobalSystemMediaTransportControlsSession, GlobalSystemMediaTransportControlsSessionManager,
     GlobalSystemMediaTransportControlsSessionMediaProperties,
     GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus,
 };
-use windows::Storage::Streams::DataReader;
+use windows::Storage::Streams::{DataReader, InMemoryRandomAccessStream};
 
 use crate::types::NowPlaying;
 
 /// (title|artist, data-url or "" for a known miss). Avoids re-reading art every second.
-static THUMB_CACHE: Mutex<Option<(String, String)>> = Mutex::new(None);
+/// Misses are retried after a few seconds: players often publish the title before the artwork.
+static THUMB_CACHE: Mutex<Option<(String, String, Instant)>> = Mutex::new(None);
+
+/// Position last reported to the frontend for the current track. While playback advances
+/// normally the same value is reported again, so the poller does not re-emit (and re-send
+/// the artwork) every second; the frontend interpolates from when it received the value.
+struct PositionAnchor {
+    key: String,
+    reported: f64,
+    at: Instant,
+}
+static POSITION_ANCHOR: Mutex<Option<PositionAnchor>> = Mutex::new(None);
 
 // WinRT requires the calling thread to have a COM apartment. Tauri worker threads and our
 // own background thread do NOT have one by default, which made every media call fail silently.
@@ -88,6 +101,20 @@ pub fn get_checked() -> Result<Option<NowPlaying>, String> {
         .unwrap_or(false);
 
     let timeline = timeline(&session, controls.as_ref());
+    let position = timeline.position.map(|raw| {
+        if status != "playing" {
+            clear_position_anchor();
+            return raw;
+        }
+        // Windows only publishes the position as of `LastUpdatedTime`, so bring it up to now.
+        let now_position = advance_position(
+            raw,
+            timeline.duration,
+            timeline.last_updated_ticks,
+            now_filetime_ticks(),
+        );
+        anchored_position(&format!("{title}\u{1}{artist}"), now_position)
+    });
     let thumbnail = thumb_cached(&props, &title, &artist);
 
     Ok(Some(NowPlaying {
@@ -96,7 +123,7 @@ pub fn get_checked() -> Result<Option<NowPlaying>, String> {
         album,
         thumbnail,
         status,
-        position: timeline.position,
+        position,
         duration: timeline.duration,
         can_play,
         can_pause,
@@ -116,15 +143,20 @@ fn thumb_cached(
 ) -> Option<String> {
     let key = format!("{title}\u{1}{artist}");
     if let Ok(cache) = THUMB_CACHE.lock() {
-        if let Some((k, v)) = cache.as_ref() {
+        if let Some((k, v, at)) = cache.as_ref() {
             if *k == key {
-                return if v.is_empty() { None } else { Some(v.clone()) };
+                if !v.is_empty() {
+                    return Some(v.clone());
+                }
+                if at.elapsed() < Duration::from_secs(4) {
+                    return None;
+                }
             }
         }
     }
     let data = read_thumbnail(props);
     if let Ok(mut cache) = THUMB_CACHE.lock() {
-        *cache = Some((key, data.clone().unwrap_or_default()));
+        *cache = Some((key, data.clone().unwrap_or_default(), Instant::now()));
     }
     data
 }
@@ -134,11 +166,31 @@ fn read_thumbnail(
 ) -> Option<String> {
     let reference = props.Thumbnail().ok()?;
     let stream = reference.OpenReadAsync().ok()?.get().ok()?;
-    let size = stream.Size().ok()? as usize;
-    if size == 0 || size > 8_000_000 {
+    let encoded_size = stream.Size().ok()?;
+    if encoded_size == 0 || encoded_size > 2_000_000 {
         return None;
     }
-    let input = stream.GetInputStreamAt(0).ok()?;
+    // Validate dimensions before asking the Windows decoder to materialize
+    // pixels. Publish a bounded image to every webview, rather than allowing
+    // a full-resolution cover to become several independent GPU textures.
+    let decoder = BitmapDecoder::CreateAsync(&stream).ok()?.get().ok()?;
+    let (width, height) =
+        bounded_thumbnail_dimensions(decoder.PixelWidth().ok()?, decoder.PixelHeight().ok()?)?;
+    let output = InMemoryRandomAccessStream::new().ok()?;
+    let encoder = BitmapEncoder::CreateForTranscodingAsync(&output, &decoder)
+        .ok()?
+        .get()
+        .ok()?;
+    let transform = encoder.BitmapTransform().ok()?;
+    transform.SetScaledWidth(width).ok()?;
+    transform.SetScaledHeight(height).ok()?;
+    encoder.SetIsThumbnailGenerated(false).ok()?;
+    encoder.FlushAsync().ok()?.get().ok()?;
+    let size = output.Size().ok()? as usize;
+    if size == 0 || size > 2_000_000 {
+        return None;
+    }
+    let input = output.GetInputStreamAt(0).ok()?;
     let reader = DataReader::CreateDataReader(&input).ok()?;
 
     let mut buf: Vec<u8> = Vec::with_capacity(size);
@@ -163,6 +215,39 @@ fn read_thumbnail(
         sniff_mime(&buf),
         base64::engine::general_purpose::STANDARD.encode(&buf)
     ))
+}
+
+fn bounded_thumbnail_dimensions(width: u32, height: u32) -> Option<(u32, u32)> {
+    if width == 0
+        || height == 0
+        || width > 8192
+        || height > 8192
+        || u64::from(width) * u64::from(height) > 16_777_216
+    {
+        return None;
+    }
+    let longest = width.max(height);
+    if longest <= 512 {
+        return Some((width, height));
+    }
+    Some((
+        ((u64::from(width) * 512 / u64::from(longest)) as u32).max(1),
+        ((u64::from(height) * 512 / u64::from(longest)) as u32).max(1),
+    ))
+}
+
+#[cfg(test)]
+mod thumbnail_size_tests {
+    use super::bounded_thumbnail_dimensions;
+    #[test]
+    fn artwork_is_bounded_before_it_reaches_webview_decoders() {
+        assert_eq!(bounded_thumbnail_dimensions(4000, 3000), Some((512, 384)));
+        assert_eq!(bounded_thumbnail_dimensions(256, 128), Some((256, 128)));
+        assert_eq!(bounded_thumbnail_dimensions(1, 8192), Some((1, 512)));
+        assert_eq!(bounded_thumbnail_dimensions(0, 400), None);
+        assert_eq!(bounded_thumbnail_dimensions(8192, 8192), None);
+        assert_eq!(bounded_thumbnail_dimensions(u32::MAX, 2), None);
+    }
 }
 
 fn sniff_mime(buf: &[u8]) -> &'static str {
@@ -197,6 +282,74 @@ struct Timeline {
     seek_min: Option<f64>,
     seek_max: Option<f64>,
     can_seek: bool,
+    /// `LastUpdatedTime` of the timeline as Windows FILETIME ticks (100 ns since 1601), 0 if unknown.
+    last_updated_ticks: i64,
+}
+
+/// Seconds between the FILETIME epoch (1601) and the Unix epoch (1970).
+const UNIX_TO_FILETIME_SECS: i64 = 11_644_473_600;
+
+fn now_filetime_ticks() -> i64 {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    (now.as_secs() as i64 + UNIX_TO_FILETIME_SECS) * 10_000_000 + i64::from(now.subsec_nanos() / 100)
+}
+
+/// Position (seconds) advanced from the timeline's last update to `now_ticks`.
+fn advance_position(position: f64, duration: Option<f64>, last_updated: i64, now_ticks: i64) -> f64 {
+    if last_updated <= 0 || now_ticks <= last_updated {
+        return position;
+    }
+    let elapsed = ticks_to_seconds(now_ticks - last_updated);
+    // A multi-hour gap means the session stopped updating; do not run past it.
+    if elapsed > 6.0 * 3600.0 {
+        return position;
+    }
+    let advanced = position + elapsed;
+    match duration {
+        Some(total) if total > 0.0 => advanced.min(total),
+        _ => advanced,
+    }
+}
+
+/// Keep reporting the anchored value while real playback agrees with it within `tolerance`.
+/// Returns the position to report and whether the existing anchor is still valid.
+fn stable_position(anchor: Option<(f64, f64)>, now_position: f64, tolerance: f64) -> (f64, bool) {
+    match anchor {
+        Some((reported, elapsed)) if (now_position - (reported + elapsed)).abs() <= tolerance => {
+            (reported, true)
+        }
+        _ => (now_position, false),
+    }
+}
+
+fn anchored_position(key: &str, now_position: f64) -> f64 {
+    let Ok(mut slot) = POSITION_ANCHOR.lock() else {
+        return now_position;
+    };
+    let (position, keep) = match slot.as_ref() {
+        Some(anchor) if anchor.key == key => stable_position(
+            Some((anchor.reported, anchor.at.elapsed().as_secs_f64())),
+            now_position,
+            2.0,
+        ),
+        _ => (now_position, false),
+    };
+    if !keep {
+        *slot = Some(PositionAnchor {
+            key: key.to_string(),
+            reported: position,
+            at: Instant::now(),
+        });
+    }
+    position
+}
+
+fn clear_position_anchor() {
+    if let Ok(mut slot) = POSITION_ANCHOR.lock() {
+        *slot = None;
+    }
 }
 
 fn ticks_to_seconds(ticks: i64) -> f64 {
@@ -224,14 +377,19 @@ fn timeline(
     let playback_position_enabled = controls
         .and_then(|c| c.IsPlaybackPositionEnabled().ok())
         .unwrap_or(false);
-    timeline_from_ticks(
+    let mut result = timeline_from_ticks(
         start.Duration,
         end.Duration,
         position.Duration,
         min_seek.Duration,
         max_seek.Duration,
         playback_position_enabled,
-    )
+    );
+    result.last_updated_ticks = t
+        .LastUpdatedTime()
+        .map(|time| time.UniversalTime)
+        .unwrap_or(0);
+    result
 }
 
 fn timeline_from_ticks(
@@ -261,6 +419,7 @@ fn timeline_from_ticks(
         seek_min: can_seek.then(|| ticks_to_seconds(range_start - start)),
         seek_max: can_seek.then(|| ticks_to_seconds(range_end - start)),
         can_seek,
+        last_updated_ticks: 0,
     }
 }
 
@@ -431,6 +590,22 @@ mod tests {
         assert_eq!(disabled.duration, Some(10.0));
         assert_eq!(disabled.seek_min, None);
         assert_eq!(disabled.seek_max, None);
+    }
+
+    #[test]
+    fn position_advances_from_the_last_timeline_update() {
+        let updated = 130_000_000_000_000_000i64;
+        assert_eq!(advance_position(10.0, Some(200.0), updated, updated + 30_000_000), 13.0);
+        assert_eq!(advance_position(198.5, Some(200.0), updated, updated + 30_000_000), 200.0);
+        assert_eq!(advance_position(10.0, Some(200.0), 0, updated), 10.0);
+        assert_eq!(advance_position(10.0, Some(200.0), updated, updated - 1), 10.0);
+    }
+
+    #[test]
+    fn steady_playback_keeps_the_reported_anchor_and_a_seek_replaces_it() {
+        assert_eq!(stable_position(Some((10.0, 5.0)), 15.4, 2.0), (10.0, true));
+        assert_eq!(stable_position(Some((10.0, 5.0)), 60.0, 2.0), (60.0, false));
+        assert_eq!(stable_position(None, 3.0, 2.0), (3.0, false));
     }
 
     #[test]

@@ -2,7 +2,8 @@ import { createSignal, For, onMount, Show } from 'solid-js'
 import { ExternalLink, Link2, Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-solid'
 import { addWebsiteConnection, refreshWebsiteAlerts, refreshWebsiteConnections, removeWebsiteConnection, websiteAlertSites, websiteAlertsBusy, websiteAlertsError, websiteAlertsLastChecked, websiteConnections } from '../../state/erp'
 import { cmd } from '../../lib/ipc'
-import './WebsiteConnectionsPanel.css'
+import { Group } from '../../settings/controls'
+import './panels.css'
 
 function checkedLabel(timestamp: number | undefined): string {
   if (!timestamp) return 'Waiting for first check'
@@ -44,69 +45,62 @@ export default function WebsiteConnectionsPanel() {
     try { void cmd.appsOpenUrl(new URL('/settings/notifications', url).toString()) } catch { /* Invalid saved addresses are rejected by native pairing. */ }
   }
 
-  return <section class="website-connections" aria-labelledby="website-connections-title">
-    <header class="website-connections__header">
-      <div>
-        <h2 id="website-connections-title">Website alert feeds</h2>
-        <p>Connect a site that publishes a read-only alert feed. Hover Island checks it in the background and shows new items in the notch.</p>
-      </div>
-      <span class="website-connections__capacity">{websiteConnections().length}/12</span>
-    </header>
+  return <Group
+    title="Website alert feeds"
+    description={`Connect a site that publishes a read-only alert feed. Hover Island checks it in the background and shows new items in the island. ${websiteConnections().length} of 12 connected.`}
+  >
+    <Show when={websiteConnections().length} fallback={<p class="slist-empty">No alert feeds connected. Add a website below to start checking for new alerts.</p>}>
+      <For each={websiteConnections()}>{connection => {
+        const site = () => websiteAlertSites().find(item => item.connection.id === connection.id)
+        const feedStatus = () => site()?.error
+          ? `Needs attention · ${site()?.error}`
+          : site()
+            ? `Feed responding · ${site()?.events.length ?? 0} recent alerts`
+            : websiteAlertsLastChecked()
+              ? 'Waiting for this feed to respond'
+              : 'Waiting for first check'
+        return <div class="slist-row">
+          <span class="slist-row__tile" aria-hidden="true"><ShieldCheck size={15} strokeWidth={1.9} /></span>
+          <span class="slist-row__text">
+            <strong>{connection.displayName}</strong>
+            <small classList={{ 'is-error': !!site()?.error }}>{feedStatus()}</small>
+            <small>{connection.serverUrl}</small>
+          </span>
+          <span class="slist-row__actions">
+            <Show when={connection.adapter === 'erp'}><button type="button" class="text-button" onClick={() => openErpSettings(connection.serverUrl)}><ExternalLink size={12} /> Feed settings</button></Show>
+            <button type="button" class="slist-icon-btn slist-icon-btn--danger" disabled={websiteAlertsBusy()} aria-label={`Remove ${connection.displayName}`} title="Remove" onClick={() => void remove(connection.id)}><Trash2 size={14} /></button>
+          </span>
+        </div>
+      }}</For>
+    </Show>
 
-    <div class="website-connections__statusbar" aria-live="polite">
-      <span>{checkedLabel(websiteAlertsLastChecked())}</span>
-      <button type="button" class="website-connections__text-link" disabled={websiteAlertsBusy()} onClick={() => void refresh()}>
-        <RefreshCw size={12} classList={{ 'website-connections__spin': websiteAlertsBusy() }} />
+    <div class="slist-foot">
+      <span aria-live="polite">{checkedLabel(websiteAlertsLastChecked())}</span>
+      <button type="button" class="text-button" disabled={websiteAlertsBusy()} onClick={() => void refresh()}>
+        <RefreshCw size={12} classList={{ 'slist-spin': websiteAlertsBusy() }} />
         {websiteAlertsError() ? 'Retry feed checks' : websiteAlertsBusy() ? 'Checking feeds…' : 'Check feeds now'}
       </button>
     </div>
-    <Show when={websiteAlertsError()}><p class="website-connections__error" role="alert">Could not check website feeds: {websiteAlertsError()}</p></Show>
-
-    <div class="website-connections__list" aria-label="Connected website alert feeds">
-      <Show when={websiteConnections().length} fallback={<p class="website-connections__empty">No alert feeds connected. Add a website below to start checking for new alerts.</p>}>
-        <For each={websiteConnections()}>{connection => {
-          const site = () => websiteAlertSites().find(item => item.connection.id === connection.id)
-          const feedStatus = () => site()?.error
-            ? `Needs attention · ${site()?.error}`
-            : site()
-              ? `Feed responding · ${site()?.events.length ?? 0} recent alerts`
-              : websiteAlertsLastChecked()
-                ? 'Waiting for this feed to respond'
-                : 'Waiting for first check'
-          return <article class="website-connection">
-            <div class="website-connection__identity">
-              <span class="website-connection__icon"><ShieldCheck size={15} /></span>
-              <span>
-                <strong>{connection.displayName}</strong>
-                <small classList={{ 'website-connection__status--error': !!site()?.error }}>{feedStatus()}</small>
-                <small class="website-connection__url">{connection.serverUrl}</small>
-              </span>
-            </div>
-            <div class="website-connection__actions">
-              <Show when={connection.adapter === 'erp'}><button type="button" class="text-button" onClick={() => openErpSettings(connection.serverUrl)}><ExternalLink size={12} />Feed settings</button></Show>
-              <button type="button" class="text-button website-connection__remove" disabled={websiteAlertsBusy()} aria-label={`Remove ${connection.displayName}`} onClick={() => void remove(connection.id)}><Trash2 size={13} />Remove</button>
-            </div>
-          </article>
-        }}</For>
-      </Show>
-    </div>
+    <Show when={websiteAlertsError()}><p class="sform__error" style={{ padding: '0 16px 12px' }} role="alert">Could not check website feeds: {websiteAlertsError()}</p></Show>
 
     <Show when={websiteConnections().length < 12}>
-      <form class="website-connections__form" onSubmit={submit}>
-        <h3><Plus size={15} />Add a website feed</h3>
-        <label>Website name<input required maxlength="80" autocomplete="organization" placeholder="My website" value={name()} onInput={event => setName(event.currentTarget.value)} /></label>
-        <label>Website address<input type="url" required autocomplete="url" placeholder="https://example.com" value={serverUrl()} onInput={event => setServerUrl(event.currentTarget.value)} /></label>
-        <details class="website-connections__advanced">
+      <form class="sform" onSubmit={submit}>
+        <h3 class="sform__title"><Plus size={14} strokeWidth={2} />Add a website feed</h3>
+        <div class="sform__grid">
+          <label class="sform__field"><span>Website name</span><input required maxlength="80" autocomplete="organization" placeholder="My website" value={name()} onInput={event => setName(event.currentTarget.value)} /></label>
+          <label class="sform__field"><span>Website address</span><input type="url" required autocomplete="url" placeholder="https://example.com" value={serverUrl()} onInput={event => setServerUrl(event.currentTarget.value)} /></label>
+        </div>
+        <details class="sform__details">
           <summary>Advanced feed settings</summary>
           <div>
-            <label>Alert feed path <span class="website-connections__optional">optional when the site publishes discovery metadata</span><input autocomplete="off" placeholder="Found automatically, or enter /api/alerts" value={feedPath()} onInput={event => setFeedPath(event.currentTarget.value)} /></label>
-            <label>Bearer key <span class="website-connections__optional">optional</span><input type="password" autocomplete="off" maxlength="8192" value={authToken()} onInput={event => setAuthToken(event.currentTarget.value)} /></label>
+            <label class="sform__field"><span>Alert feed path<small>optional when the site publishes discovery metadata</small></span><input autocomplete="off" placeholder="Found automatically, or enter /api/alerts" value={feedPath()} onInput={event => setFeedPath(event.currentTarget.value)} /></label>
+            <label class="sform__field"><span>Bearer key<small>optional</small></span><input type="password" autocomplete="off" maxlength="8192" value={authToken()} onInput={event => setAuthToken(event.currentTarget.value)} /></label>
           </div>
         </details>
-        <p class="website-connections__hint"><ShieldCheck size={13} />Pairing validates the feed before saving it. Keys stay encrypted on this PC. Remote feeds must use HTTPS; only the feed URL on this site is contacted, without browser cookies or sign-in sessions.</p>
-        <Show when={formError()}><p class="website-connections__error" role="alert">{formError()}</p></Show>
-        <button class="button" type="submit" disabled={websiteAlertsBusy()}><Link2 size={14} />{websiteAlertsBusy() ? 'Checking website…' : 'Validate and connect'}</button>
+        <p class="sform__callout"><ShieldCheck size={13} />Pairing checks the feed before saving it. Keys stay encrypted on this PC. Remote feeds must use HTTPS, and only the feed address is contacted, without browser cookies or sign-in sessions.</p>
+        <Show when={formError()}><p class="sform__error" role="alert">{formError()}</p></Show>
+        <div class="sform__actions"><button class="button button--primary" type="submit" disabled={websiteAlertsBusy()}><Link2 size={13} />{websiteAlertsBusy() ? 'Checking website…' : 'Validate and connect'}</button></div>
       </form>
     </Show>
-  </section>
+  </Group>
 }

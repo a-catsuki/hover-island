@@ -1,0 +1,324 @@
+/* Weather: Apple-style widget. The sky is painted on the platter via [data-sky]. */
+
+.wx {
+  --wx-ink: rgba(255, 255, 255, 0.96);
+  --wx-ink-2: rgba(255, 255, 255, 0.72);
+  --wx-ink-3: rgba(255, 255, 255, 0.52);
+  --wx-hair: rgba(255, 255, 255, 0.16);
+  --wx-tile: rgba(255, 255, 255, 0.10);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  color: var(--wx-ink);
+  font-variant-numeric: tabular-nums;
+}
+:where(.wx) button { font: inherit; color: inherit; }
+
+/* ---- sky ----------------------------------------------------------------- */
+.island .widget-grid > .widget--weather[data-sky] {
+  --sky-a: #2b6fcf;
+  --sky-b: #123f8f;
+  background: linear-gradient(180deg, var(--sky-a) 0%, var(--sky-b) 100%);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.10);
+  transition: background-color 400ms;
+}
+.island .widget-grid > .widget--weather[data-sky="clear-day"] { --sky-a: #3a86e0; --sky-b: #1448a0; }
+.island .widget-grid > .widget--weather[data-sky="partly-day"] { --sky-a: #3d7fcf; --sky-b: #1d4688; }
+.island .widget-grid > .widget--weather[data-sky="cloud-day"] { --sky-a: #6b7889; --sky-b: #394453; }
+.island .widget-grid > .widget--weather[data-sky="fog-day"] { --sky-a: #7b858f; --sky-b: #444c55; }
+.island .widget-grid > .widget--weather[data-sky="drizzle-day"],
+.island .widget-grid > .widget--weather[data-sky="rain-day"] { --sky-a: #4f6a86; --sky-b: #26354a; }
+.island .widget-grid > .widget--weather[data-sky="snow-day"] { --sky-a: #7d90a6; --sky-b: #46566a; }
+.island .widget-grid > .widget--weather[data-sky="thunder-day"] { --sky-a: #4a4766; --sky-b: #211e33; }
+.island .widget-grid > .widget--weather[data-sky="clear-night"] { --sky-a: #101f45; --sky-b: #03060f; }
+.island .widget-grid > .widget--weather[data-sky="partly-night"] { --sky-a: #16203c; --sky-b: #05070f; }
+.island .widget-grid > .widget--weather[data-sky="cloud-night"],
+.island .widget-grid > .widget--weather[data-sky="fog-night"] { --sky-a: #232a35; --sky-b: #0a0c11; }
+.island .widget-grid > .widget--weather[data-sky="drizzle-night"],
+.island .widget-grid > .widget--weather[data-sky="rain-night"] { --sky-a: #1a2634; --sky-b: #07090d; }
+.island .widget-grid > .widget--weather[data-sky="snow-night"] { --sky-a: #2b3441; --sky-b: #0b0d12; }
+.island .widget-grid > .widget--weather[data-sky="thunder-night"] { --sky-a: #211f35; --sky-b: #07060c; }
+
+.wglyph { display: block; width: 24px; height: 24px; flex: none; overflow: visible; }
+
+/* ---- top bar ------------------------------------------------------------- */
+.wx__top {
+  position: relative;
+  z-index: 3;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+.wx__city {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: calc(100% - 36px);
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  color: var(--wx-ink);
+}
+.wx__city > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wx__city > svg { flex: none; opacity: 0.85; }
+.wx__city em { font-style: normal; font-size: 11px; font-weight: 500; color: var(--wx-ink-3); }
+.wx__more {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -2px -4px -2px 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--wx-ink-2);
+  cursor: pointer;
+  transition: background 140ms, transform 140ms;
+}
+.wx__more:hover, .wx__more[aria-expanded="true"] { background: rgba(255, 255, 255, 0.16); color: var(--wx-ink); }
+.wx__more:active { transform: scale(0.94); }
+.wx__menu {
+  position: absolute;
+  top: 30px;
+  right: 0;
+  width: 196px;
+  padding: 5px;
+  border-radius: 14px;
+  background: rgba(28, 28, 32, 0.94);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5), inset 0 0 0 0.5px rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(24px) saturate(160%);
+  animation: wx-pop 160ms var(--ease-out, ease-out);
+  transform-origin: top right;
+}
+.wx__menu > button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+.wx__menu > button:hover { background: rgba(255, 255, 255, 0.09); }
+.wx__menu > button:disabled { opacity: 0.5; cursor: default; }
+.wx__menu small { margin-left: auto; font-size: 11px; color: var(--wx-ink-3); }
+.wx__units {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: 3px 4px;
+  padding: 2px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.wx__units button {
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wx-ink-3);
+  cursor: pointer;
+  transition: background 160ms, color 160ms;
+}
+.wx__units button[aria-pressed="true"] { background: rgba(255, 255, 255, 0.92); color: #000; }
+@keyframes wx-pop { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+.wx__spin { animation: wx-rot 900ms linear infinite; }
+@keyframes wx-rot { to { transform: rotate(360deg); } }
+
+/* ---- hero ---------------------------------------------------------------- */
+.wx__body { flex: 1; min-height: 0; display: flex; gap: 22px; }
+.wx__main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; }
+.wx__hero { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.wx__now { display: flex; flex-direction: column; min-width: 0; }
+.wx__temp {
+  font-size: 52px;
+  line-height: 1;
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  margin-left: -2px;
+}
+.wx__cond { margin-top: 3px; font-size: 13px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wx__hl { font-size: 12px; font-weight: 500; color: var(--wx-ink-2); }
+.wx .wx__glyph { width: 56px; height: 56px; margin-right: 2px; }
+
+/* ---- hourly -------------------------------------------------------------- */
+.wx__hours, .wx__daystrip, .wx__days { list-style: none; margin: 0; padding: 0; }
+.wx__hours {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(var(--wx-n, 6), minmax(0, 1fr));
+  padding-top: 9px;
+  border-top: 0.5px solid var(--wx-hair);
+}
+.wx__hour { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
+.wx__hour-time { font-size: 11px; font-weight: 500; color: var(--wx-ink-2); white-space: nowrap; }
+.wx__hour-temp { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.wx__hour-glyph { position: relative; display: grid; justify-items: center; height: 30px; align-content: center; }
+.wx__hour-glyph small { position: absolute; bottom: -9px; font-size: 9.5px; font-weight: 600; color: #6ec1ff; }
+.wx__hour-glyph .wglyph { width: 26px; height: 26px; }
+
+/* ---- wide: aside --------------------------------------------------------- */
+.wx--wide .wx__main { flex: none; width: 214px; justify-content: flex-start; gap: 10px; }
+.wx--wide .wx__hero { align-items: flex-start; }
+.wx__aside { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 14px; padding-left: 22px; border-left: 0.5px solid var(--wx-hair); }
+.wx--wide .wx__hours { border-top: 0; padding-top: 0; }
+.wx__daystrip {
+  display: grid;
+  grid-template-columns: repeat(var(--wx-n, 5), minmax(0, 1fr));
+  padding-top: 12px;
+  border-top: 0.5px solid var(--wx-hair);
+}
+.wx__daystrip li { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.wx__daystrip .wglyph { width: 24px; height: 24px; }
+.wx__daystrip-range { display: flex; gap: 6px; font-size: 13px; font-weight: 600; }
+.wx__daystrip-range span { font-weight: 500; color: var(--wx-ink-3); }
+.wx__daystrip-range b { font-weight: 600; }
+
+/* ---- 7-day list ---------------------------------------------------------- */
+.wx__caption { font-size: 11px; font-weight: 600; color: var(--wx-ink-3); }
+.wx__days { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-between; border-top: 0.5px solid var(--wx-hair); }
+.wx__day {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 44px 50px 28px minmax(40px, 1fr) 28px;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 25px;
+  max-height: 44px;
+  font-size: 14px;
+}
+.wx__day + .wx__day { border-top: 0.5px solid var(--wx-hair); }
+.wx__day-name { font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+.wx__day-glyph { display: flex; align-items: center; gap: 4px; }
+.wx__day-glyph .wglyph { width: 22px; height: 22px; }
+.wx__day-glyph small { font-size: 10px; font-weight: 600; color: #6ec1ff; line-height: 1; }
+.wx__day-low { text-align: right; color: var(--wx-ink-3); font-weight: 500; }
+.wx__day-high { text-align: right; font-weight: 600; }
+.wx__day-bar { position: relative; height: 4px; border-radius: 2px; background: rgba(0, 0, 0, 0.28); }
+.wx__day-bar i { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+.wx__day-bar b { position: absolute; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.35); }
+
+/* ---- detail tiles -------------------------------------------------------- */
+.wx__tiles { flex: none; display: grid; grid-template-columns: repeat(var(--wx-cols, 4), minmax(0, 1fr)); gap: 8px; }
+.wx__tiles[data-count="1"] > :nth-child(n+2), .wx__tiles[data-count="2"] > :nth-child(n+3), .wx__tiles[data-count="3"] > :nth-child(n+4) { display: none; }
+.wx--split .wx__tiles > * { display: flex !important; }
+.wx__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 8px 10px 9px;
+  border-radius: 14px;
+  background: var(--wx-tile);
+}
+.wx__tile-label { display: flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 600; color: var(--wx-ink-2); white-space: nowrap; }
+.wx__tile strong { font-size: 19px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.25; white-space: nowrap; }
+.wx__tile strong em { margin-left: 2px; font-style: normal; font-size: 10px; font-weight: 500; color: var(--wx-ink-2); }
+.wx:not(.wx--split) .wx__tile small:not(.wx__tile-aqi) { display: none; }
+.wx__tile small { min-height: 13px; font-size: 11px; color: var(--wx-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wx--split .wx__tile { padding: 10px 12px 11px; }
+.wx--split .wx__tiles { gap: 8px; }
+
+.wx--split .wx__body { gap: 24px; }
+.wx--split .wx__main { flex: none; width: calc(50% - 12px); justify-content: flex-start; gap: 14px; }
+.wx--split .wx__aside { flex: 1; padding-left: 24px; gap: 8px; justify-content: flex-start; }
+.wx--split .wx__hours { margin-top: auto; }
+.wx--split .wx__tiles { margin-top: 0; }
+.wx--split .wx__days { max-height: none; }
+.wx--split .wx__day { max-height: none; }
+.wx--split .wx__temp { font-size: 64px; }
+.wx--split .wx__glyph { width: 68px; height: 68px; }
+
+/* ---- empty --------------------------------------------------------------- */
+.wx__empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  color: var(--text-3);
+}
+.wx__empty strong { margin-top: 6px; font-size: 14px; font-weight: 600; color: var(--text-1); }
+.wx__empty p { margin: 0; font-size: 12px; }
+.wx__empty button {
+  margin-top: 10px;
+  height: 30px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #0A84FF;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wx__empty button:active { transform: scale(0.96); }
+
+/* ---- location sheet ------------------------------------------------------ */
+.wx__sheet { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.wx__sheet-head { flex: none; display: flex; align-items: center; justify-content: space-between; min-height: 24px; }
+.wx__sheet-head strong { font-size: 15px; font-weight: 600; letter-spacing: -0.014em; }
+.wx__link { border: 0; background: none; padding: 4px 0 4px 10px; font-size: 13px; font-weight: 600; color: #0A84FF; cursor: pointer; }
+.wx__search {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 4px 0 11px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-3);
+}
+.wx__search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; color: var(--text-1); font: inherit; font-size: 13px; }
+.wx__search:focus-within { box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.7); }
+.wx__search button { height: 26px; padding: 0 11px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, 0.12); font-size: 12px; font-weight: 600; cursor: pointer; }
+.wx__search button:disabled { opacity: 0.5; }
+.wx__results { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.wx__results button {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  min-height: 34px; padding: 4px 6px; border: 0; border-radius: 9px; background: none; text-align: left; font-size: 13px; cursor: pointer;
+}
+.wx__results button:hover { background: rgba(255, 255, 255, 0.07); }
+.wx__results small { color: var(--text-3); font-size: 11px; }
+.wx__error { margin: 0; padding: 2px 6px; font-size: 12px; color: #FF6961; }
+.wx__sheet-actions { flex: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.wx__sheet-actions button {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px;
+  border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.10); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.wx__sheet-actions button:first-child { background: rgba(10, 132, 255, 0.22); color: #5eb0ff; }
+.wx__sheet-actions button:disabled { opacity: 0.5; cursor: default; }
+.wx__privacy { flex: none; margin: 0; font-size: 10.5px; line-height: 1.35; color: var(--text-3); }
+
+.wx button:focus-visible { outline: 2px solid #0A84FF; outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) {
+  .wx__menu { animation: none; }
+  .wx__spin { animation-duration: 2s; }
+}
+
+/* Arrange mode lays a size bar over the top of the tile; keep content clear of it. */
+.widget-grid--arranging .wx { padding-top: 30px; box-sizing: border-box; }

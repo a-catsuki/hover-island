@@ -14,30 +14,43 @@ import {
   collapseIsland,
   pinned,
   closing,
+  beginSurfaceInteraction,
+  endSurfaceInteraction,
+  noteSurfaceInteraction,
 } from '../../state/ui'
 import { spotlightOpen } from '../../state/spotlight'
+import { onboardingOpen, tourActive } from '../../state/onboarding'
 import { flushSettings, settings } from '../../state/settings'
 import { nearby } from '../../state/nearby'
-import { peek, transientPeek, promotePeek } from '../../state/peek'
+import { peek, transientPeek, promotePeek, dismissPeek } from '../../state/peek'
 import { maximizedForeground } from '../../state/window'
-import { browserPreview, cmd, listen, onIslandHover } from '../../lib/ipc'
+import { browserPreview, cmd, listen, onIslandHover, onIslandReveal } from '../../lib/ipc'
 import { reportError } from '../../state/feedback'
 import { createIslandSpring, createMagneticSpring, type SpringFrame } from '../../state/motion'
 import { refreshTransfer, uploads } from '../../state/transfer'
 import { filesFromDrop } from '../../lib/droppedFiles'
-import { canExpandOnHover, fileDropActionAtRelease, fileDropDestinationAt, physicalDragPositionToCss, updateFileDropPreview, type FileDropPreviewState } from '../../lib/fileDropTargets'
+import { canExpandOnHover, fileDropActionAtRelease, fileDropDestinationAt, physicalDragPositionToCss, pointNearAnchoredSurface, updateFileDropPreview, type FileDropPreviewState } from '../../lib/fileDropTargets'
 import { shouldExpandAfterSustainedHover } from '../../state/hover'
-import { beginIslandPlacementDrag, cancelIslandPlacementDrag, consumePlacementClick, finishIslandPlacementDrag, isPlacementDragging, isPlacementGesturePending, moveIslandPlacementDrag } from '../../state/placement'
-import { canStartIslandPlacementDrag } from '../../lib/placementPointerDrag'
-import { magneticNotchPath } from '../../lib/magneticShape'
+import { appearanceKey } from '../../lib/appearance'
+import { applyTemplate } from '../../lib/themes'
+import { applyAccent } from '../../state/ui'
+import { earNotchPath, edgeInsetClip, magneticNotchPath } from '../../lib/magneticShape'
 import './IslandPlacement.css'
+
+const NOTCH_EAR = 10
+const NOTCH_RADIUS = 9
+const SIDE_CAPSULE_W = 40
+const SIDE_CAPSULE_H = 128
 
 export default function Island() {
   let enterTimer: ReturnType<typeof setTimeout> | undefined
   let leaveTimer: ReturnType<typeof setTimeout> | undefined
   let disposed = false
   let unsubscribe: (() => void) | undefined
+  let revealUnlisten: (() => void) | undefined
   let islandElement: HTMLDivElement | undefined
+  let collapsedElement: HTMLDivElement | undefined
+  const viewSize = { width: window.innerWidth, height: window.innerHeight }
   let shapeSpring: ReturnType<typeof createIslandSpring> | undefined
   let magneticSpring: ReturnType<typeof createMagneticSpring> | undefined
   let magneticOffset = { x: 0, y: 0 }
@@ -48,6 +61,10 @@ export default function Island() {
   let unsubscribeProximity: (() => void) | undefined
   let fileDropBoundsActive = false
   let fileDragActive = false
+  let suppressHoverUntil = 0
+  let dragOwnsInteraction = false
+  const [proximity, setProximity] = createSignal(0)
+  const fileHoverBlocked = () => fileDragActive || !!fileDrop() || performance.now() < suppressHoverUntil
   let dropRevision = 0
   let dropFeedbackTimer: ReturnType<typeof setTimeout> | undefined
   const [pointerInside, setPointerInside] = createSignal(false)
@@ -56,9 +73,22 @@ export default function Island() {
   const beginFileDrag = () => {
     if (!fileDragActive) { dropRevision++; clearTimeout(dropFeedbackTimer) }
     fileDragActive = true
+    suppressHoverUntil = performance.now() + 700
+    clearTimeout(enterTimer)
+    clearTimeout(leaveTimer)
+    leavePending = false
+    setPointerInside(false)
+    setHovering(false)
+    setProximity(0)
+    if (!dragOwnsInteraction) { dragOwnsInteraction = true; beginSurfaceInteraction() }
+  }
+  const finishFileInteraction = () => {
+    suppressHoverUntil = performance.now() + 700
+    if (dragOwnsInteraction) { dragOwnsInteraction = false; endSurfaceInteraction() }
   }
   const cancelFileDrag = () => {
     fileDragActive = false
+    finishFileInteraction()
     dropRevision++
     clearTimeout(dropFeedbackTimer)
     setFileDrop(null)
@@ -81,6 +111,7 @@ export default function Island() {
   const devicePeek = () => compactPeek() && ['Bluetooth', 'Battery', 'Do Not Disturb', 'Volume', 'Brightness'].includes(peek()?.app ?? '')
   const transferPeek = () => compactPeek() && (peek()?.category === 'transfer' || peek()?.app === 'Phone bucket')
   const authPeek = () => compactPeek() && peek()?.category === 'auth'
+  const toastPeek = () => compactPeek() && peek()?.category === 'feedback'
   const targetAt = (x: number, y: number): FileDropTarget => {
     const rect = (destination: 'recycle' | 'beam') => {
       const bounds = document.querySelector<HTMLElement>(`[data-drop-target="${destination}"]`)?.getBoundingClientRect()
@@ -88,11 +119,20 @@ export default function Island() {
     }
     return fileDropDestinationAt({ x, y }, { recycle: rect('recycle'), beam: rect('beam') })
   }
+  const dragNearSurface = (x: number, y: number) => {
+    const host = islandElement?.getBoundingClientRect()
+    if (!host) return false
+    const frame = shapeFrame ?? targetFrame()
+    return pointNearAnchoredSurface({ x, y }, host, frame.width, frame.height, settings.placement.edge)
+  }
 
-  // Hide behind a maximized window until the pointer enters the notch region.
+  // Hide behind a maximized window until the pointer gets near the notch.
+  const [revealNear, setRevealNear] = createSignal(false)
+  void onIslandReveal(setRevealNear).then(fn => disposed ? fn() : revealUnlisten = fn).catch(() => {})
   const veiled = () =>
     settings.hideBehindWindows &&
     maximizedForeground() &&
+    !revealNear() &&
     !hovering() &&
     !expanded() &&
     !pinned() &&
@@ -101,11 +141,11 @@ export default function Island() {
 
   const canClose = () =>
     !pinned() &&
-    !isPlacementDragging() &&
-    !isPlacementGesturePending() &&
+    !onboardingOpen() &&
+    !tourActive() &&
     !fileDrop() &&
     !spotlightOpen() &&
-    (!peek() || !transientPeek()) &&
+    !peek() &&
     !uploads().some((upload) => !upload.error) &&
     !nearby().transfers.some((transfer) => transfer.status === 'pending') &&
     !document.activeElement?.matches('input, textarea, select, [role="slider"]')
@@ -119,12 +159,13 @@ export default function Island() {
 
   const scheduleHoverOpen = () => {
     clearTimeout(enterTimer)
-    if (!canExpandOnHover({ enabled: settings.interaction.hoverOpen, alreadyOpen: open(), placementDragging: isPlacementDragging() || isPlacementGesturePending(), fileDragging: !!fileDrop() })) return
+    if (tourActive()) return
+    if (!canExpandOnHover({ enabled: settings.interaction.hoverOpen, alreadyOpen: open(), placementDragging: false, fileDragging: fileHoverBlocked() })) return
     const enteredAt = performance.now()
     const delay = settings.interaction.openDelayMs
     enterTimer = setTimeout(() => {
       enterTimer = undefined
-      if (shouldExpandAfterSustainedHover(enteredAt, performance.now(), delay, pointerInside() && canExpandOnHover({ enabled: true, alreadyOpen: open(), placementDragging: isPlacementDragging() || isPlacementGesturePending(), fileDragging: !!fileDrop() }) && !document.querySelector('.pill__compact-controls:hover, .pill__alert-badge:hover'))) {
+      if (shouldExpandAfterSustainedHover(enteredAt, performance.now(), delay, pointerInside() && canExpandOnHover({ enabled: true, alreadyOpen: open(), placementDragging: false, fileDragging: fileHoverBlocked() }) && !document.querySelector('.pill__compact-controls:hover, .pill__alert-badge:hover'))) {
         expandIsland()
       }
     }, delay)
@@ -134,6 +175,11 @@ export default function Island() {
     canClose()
     if (leavePending) attemptClose()
   })
+  // A peek is never left on screen over a collapsed shape: if the island is closed from
+  // elsewhere (hotkey, tray, Escape) while one is showing, the peek ends with it.
+  createEffect(() => {
+    if (peek() && !open() && !fileDrop()) dismissPeek()
+  })
 
   const leave = () => {
     if (!pointerInside()) return
@@ -142,6 +188,9 @@ export default function Island() {
     clearTimeout(leaveTimer)
     leaveTimer = setTimeout(() => {
       if (pointerInside()) return
+      // A focused slider or field would otherwise keep the island open after the pointer left.
+      const focused = document.activeElement
+      if (focused instanceof HTMLElement && !spotlightOpen() && focused.matches('input, textarea, select, [role="slider"]')) focused.blur()
       leavePending = true
       setHovering(false)
       attemptClose()
@@ -150,8 +199,7 @@ export default function Island() {
 
   const enter = () => {
     if (peek()) { clearTimeout(enterTimer); return }
-    if (fileDrop()) return
-    if (isPlacementGesturePending()) { clearTimeout(enterTimer); enterTimer = undefined; return }
+    if (fileHoverBlocked()) { clearTimeout(enterTimer); return }
     clearTimeout(leaveTimer)
     leavePending = false
     const newlyEntered = !pointerInside()
@@ -162,33 +210,72 @@ export default function Island() {
     if (newlyEntered || (!open() && enterTimer===undefined)) scheduleHoverOpen()
   }
   void onIslandHover(value => value ? enter() : leave()).then(fn => disposed ? fn() : unsubscribe = fn).catch(error => reportError('Hover tracking failed',error))
-  const targetFrame = (): SpringFrame => {
+  // The resting shape for the current dock, with no peek or drop on top.
+  const collapsedFrame = (): SpringFrame => barDock()
+    ? { width: viewport().width, height: settings.collapsed.h, radius: 17 }
+    : settings.placement.mode === 'sidebar'
+      ? { width: 72, height: viewport().height, radius: 24 }
+      : sideNotch()
+        // Native hover tracking assumes this 56 x 144 capsule, so keep it in step with placement.rs.
+        ? { width: SIDE_CAPSULE_W + proximity() * 6, height: SIDE_CAPSULE_H, radius: 22 }
+        : { width: settings.collapsed.w + (settings.placement.mode === 'notch' && settings.placement.edge === 'top' ? NOTCH_EAR * 2 : 0) + proximity() * 18, height: settings.collapsed.h, radius: settings.placement.mode === 'notch' && settings.placement.edge === 'top' ? NOTCH_RADIUS : Math.round(settings.collapsed.h / 2) }
+  // The dashboard itself. Left and right anchors expand into a narrow, edge-attached
+  // panel; the transparent host just lets the spring clip reveal it.
+  const expandedFrame = (): SpringFrame => {
+    if (barDock()) return { width: viewport().width, height: settings.expanded.h, radius: 32 }
+    if (settings.placement.mode === 'sidebar') return { width: Math.min(settings.expanded.w, 420), height: viewport().height, radius: 32 }
+    return { width: sideDock() ? Math.min(settings.expanded.w, 420) : settings.expanded.w, height: settings.expanded.h, radius: 32 }
+  }
+  const desiredFrame = (): SpringFrame => {
     // A shelf owns the whole horizontal monitor edge; a sidebar owns the whole
     // vertical edge. The window is resized natively to these same viewport bounds.
     if (fileDrop()) return sideEdge()
       ? { width: Math.min(420, settings.expanded.w), height: 110, radius: 28 }
       : { width: Math.min(366, settings.expanded.w), height: 92, radius: 24 }
-    if (!open() || closing()) return barDock()
-      ? { width: viewport().width, height: settings.collapsed.h, radius: 17 }
-      : settings.placement.mode === 'sidebar'
-        ? { width: 72, height: viewport().height, radius: 0 }
-        : sideNotch()
-          ? { width: 56, height: 144, radius: 14 }
-        : { width: settings.collapsed.w, height: settings.collapsed.h, radius: Math.min(14, settings.collapsed.h * .28) }
+    if (!open() || closing()) return collapsedFrame()
     if (transferPeek()) {
       return { width: Math.min(440, settings.expanded.w), height: 148, radius: 24 }
     }
+    if (toastPeek()) return { width: Math.min(220, settings.expanded.w), height: 46, radius: 23 }
     if (authPeek()) return { width: Math.min(420, settings.expanded.w), height: 112, radius: 22 }
     if (compactPeek()) {
       return devicePeek()
         ? { width: Math.min(340, settings.expanded.w), height: 84, radius: 20 }
-        : { width: Math.min(420, settings.expanded.w), height: 112, radius: 22 }
+        : { width: Math.min(420, settings.expanded.w), height: peek()?.actions?.length ? 132 : 112, radius: 22 }
     }
-    // Left and right anchors expand into a narrow, edge-attached sidebar. Keep
-    // the host window transparent and let the spring clip to this visible width.
-    if (barDock()) return { width: viewport().width, height: settings.expanded.h, radius: 26 }
-    if (settings.placement.mode === 'sidebar') return { width: Math.min(settings.expanded.w, 420), height: viewport().height, radius: 26 }
-    return { width: sideDock() ? Math.min(settings.expanded.w, 420) : settings.expanded.w, height: settings.expanded.h, radius: 26 }
+    return expandedFrame()
+  }
+
+  const clampToViewport = (frame: SpringFrame): SpringFrame => {
+    const available = viewport()
+    return {
+      ...frame,
+      width: Math.max(1, Math.min(frame.width, available.width)),
+      height: Math.max(1, Math.min(frame.height, available.height)),
+    }
+  }
+  const targetFrame = (): SpringFrame => clampToViewport(desiredFrame())
+
+  // Only the clip-path moves per frame. The dashboard is laid out once at its final
+  // size (see --island-open-* in shell.css) and the clip reveals it, so a spring frame
+  // never triggers layout of the widgets.
+  const publishClip = () => {
+    const node = islandElement
+    if (!node) return
+    const frame = shapeFrame ?? targetFrame()
+    const resting = Math.abs(magneticOffset.x) < 0.02 && Math.abs(magneticOffset.y) < 0.02
+    const tilted = settings.placement.mode === 'notch' && !fileDrop() && !resting
+    // Resting top notch: flared ears, fading out as the island grows taller.
+    const ear = settings.placement.mode === 'notch' && settings.placement.edge === 'top' && !fileDrop()
+      ? NOTCH_EAR * Math.max(0, Math.min(1, 1 - (frame.height - settings.collapsed.h) / 36))
+      : 0
+    if (ear > 0.5) {
+      node.style.setProperty('--island-clip', earNotchPath(viewSize.width, frame.width, frame.height, ear, Math.min(frame.radius, NOTCH_RADIUS)))
+      return
+    }
+    node.style.setProperty('--island-clip', tilted
+      ? magneticNotchPath(viewSize.width, viewSize.height, frame.width, frame.height, settings.placement.edge, magneticOffset.x, magneticOffset.y, frame.radius)
+      : edgeInsetClip(viewSize.width, viewSize.height, frame.width, frame.height, settings.placement.edge, frame.radius))
   }
 
   const publishShape = (frame: SpringFrame) => {
@@ -198,23 +285,42 @@ export default function Island() {
     node.style.setProperty('--island-spring-width', `${frame.width.toFixed(2)}px`)
     node.style.setProperty('--island-spring-height', `${frame.height.toFixed(2)}px`)
     node.style.setProperty('--island-spring-radius', `${frame.radius.toFixed(2)}px`)
-    publishMagnet(magneticOffset)
+    publishClip()
   }
 
   const publishMagnet = (offset: { x: number; y: number }) => {
     magneticOffset = offset
-    islandElement?.style.setProperty('--magnet-x', `${offset.x.toFixed(2)}px`)
-    islandElement?.style.setProperty('--magnet-y', `${offset.y.toFixed(2)}px`)
+    // Only the collapsed pill uses the offset, so scope the variable to it instead of
+    // invalidating styles for the whole dashboard on every cursor move.
+    collapsedElement?.style.setProperty('--magnet-x', `${offset.x.toFixed(2)}px`)
+    collapsedElement?.style.setProperty('--magnet-y', `${offset.y.toFixed(2)}px`)
+    publishClip()
+  }
+
+  // Layout inputs that change on a retarget, not per frame.
+  let publishedLayout = ''
+  const publishLayout = (target: SpringFrame) => {
     const node = islandElement
-    const frame = shapeFrame ?? targetFrame()
-    if (node) node.style.setProperty('--magnetic-clip', magneticNotchPath(node.clientWidth, node.clientHeight, frame.width, frame.height, settings.placement.edge, offset.x, offset.y, frame.radius))
+    if (!node) return
+    const dash = clampToViewport(expandedFrame())
+    const pill = clampToViewport(collapsedFrame())
+    const key = [target.width, target.height, dash.width, dash.height, pill.width].map(value => Math.round(value * 2) / 2).join('|')
+    if (key === publishedLayout) return
+    publishedLayout = key
+    node.style.setProperty('--island-target-width', `${target.width.toFixed(1)}px`)
+    node.style.setProperty('--island-target-height', `${target.height.toFixed(1)}px`)
+    node.style.setProperty('--island-open-width', `${dash.width.toFixed(1)}px`)
+    node.style.setProperty('--island-open-height', `${dash.height.toFixed(1)}px`)
+    collapsedElement?.style.setProperty('--pill-w', `${pill.width.toFixed(1)}px`)
   }
 
   createEffect(() => {
     // Read all target inputs here so a new event or user gesture retargets the
     // existing spring rather than starting a second animation from stale CSS.
     const frame = targetFrame()
-    publishMagnet(magneticOffset)
+    if (open() || closing()) setProximity(0)
+    publishLayout(frame)
+    publishClip()
     const spring = shapeSpring
     if (spring) spring.retarget(frame)
     if (expanded() || closing() || fileDrop() || fileDropBoundsActive) {
@@ -222,25 +328,103 @@ export default function Island() {
       void cmd.setInteractionBounds(frame.width, frame.height)
         .catch(error => reportError('Could not update interaction area', error))
     }
-    if (magneticSpring && (open() || closing() || isPlacementDragging() || isPlacementGesturePending() || fileDrop() || settings.placement.mode !== 'notch' || reduceMotion)) {
+    if (magneticSpring && (open() || closing() || fileDrop() || settings.placement.mode !== 'notch' || reduceMotion)) {
       magneticSpring.retarget({ x: 0, y: 0 })
     }
   })
 
+  // Appearance edits made in the Settings window apply to the open island straight away.
+  // The spring runs on animation frames, which a webview pauses while it is occluded or
+  // hidden (the Settings window can sit over the notch), so a retarget alone can stay
+  // stale until the next open. Snap and republish synchronously in that case, and again
+  // when the island becomes visible.
+  let appearanceSeen: string | undefined
+  const refreshAppearance = (snap: boolean) => {
+    applyTemplate(settings.theme)
+    applyAccent(settings.accent)
+    publishedLayout = ''
+    const frame = targetFrame()
+    publishLayout(frame)
+    if (snap) shapeSpring?.snap(frame)
+    else shapeSpring?.retarget(frame)
+    publishClip()
+  }
+  createEffect(() => {
+    const key = appearanceKey(settings)
+    if (appearanceSeen === undefined) { appearanceSeen = key; return }
+    if (key === appearanceSeen) return
+    appearanceSeen = key
+    refreshAppearance(document.visibilityState !== 'visible' || reduceMotion)
+  })
   onMount(() => {
-    const updateViewport = () => setViewport({ width: window.innerWidth, height: window.innerHeight })
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshAppearance(true) }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    onCleanup(() => { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', onVisible) })
+  })
+
+  let previouslyExpanded = expanded()
+  createEffect(() => {
+    const next = expanded()
+    if (previouslyExpanded && !next && !reduceMotion && settings.placement.mode === 'notch') {
+      magneticSpring?.impulse(sideEdge() ? { x: 0, y: 4 } : { x: 4, y: 0 })
+    }
+    previouslyExpanded = next
+  })
+
+  onMount(() => {
+    let heldPointer: number | undefined
+    const isControl = (target: EventTarget | null) => target instanceof Element && !!target.closest('.island input, .island textarea, .island select, .island [role="slider"], .island button, .island [contenteditable="true"]')
+    const controlDown = (event: PointerEvent) => {
+      if (!isControl(event.target) || heldPointer !== undefined) return
+      noteSurfaceInteraction()
+      if (!(event.target instanceof Element) || !event.target.closest('input[type="range"], [role="slider"]')) return
+      heldPointer = event.pointerId
+      try { event.target.setPointerCapture(event.pointerId) } catch { /* A platform control may already own capture. */ }
+      beginSurfaceInteraction()
+    }
+    const controlUp = (event: PointerEvent) => {
+      if (heldPointer !== event.pointerId) return
+      heldPointer = undefined
+      endSurfaceInteraction()
+    }
+    const controlInput = (event: Event) => { if (isControl(event.target)) noteSurfaceInteraction() }
+    const controlMove = (event: PointerEvent) => {
+      // Chromium may suppress pointerup if native readback disables a slider.
+      // The next pointer sample still reports that its button was released.
+      if (event.pointerId === heldPointer && event.buttons === 0) controlUp(event)
+    }
+    const releaseInteraction = () => {
+      if (heldPointer === undefined) return
+      heldPointer = undefined
+      endSurfaceInteraction()
+    }
+    document.addEventListener('pointerdown', controlDown, true)
+    document.addEventListener('pointerup', controlUp, true)
+    document.addEventListener('pointercancel', controlUp, true)
+    document.addEventListener('pointermove', controlMove, true)
+    document.addEventListener('input', controlInput, true)
+    document.addEventListener('keydown', controlInput, true)
+    window.addEventListener('blur', releaseInteraction)
+    const updateViewport = () => {
+      viewSize.width = islandElement?.clientWidth ?? window.innerWidth
+      viewSize.height = islandElement?.clientHeight ?? window.innerHeight
+      setViewport({ width: viewSize.width, height: viewSize.height })
+    }
     const viewportObserver = new ResizeObserver(updateViewport)
-    viewportObserver.observe(document.documentElement)
+    viewportObserver.observe(islandElement ?? document.documentElement)
+    updateViewport()
     window.addEventListener('resize', updateViewport)
     motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
     reduceMotion = motionPreference.matches
-    const collapsed = { width: settings.collapsed.w, height: settings.collapsed.h, radius: Math.min(14, settings.collapsed.h * .28) }
-    shapeSpring = createIslandSpring(collapsed, publishShape, () => reduceMotion)
+    const collapsed = { width: settings.collapsed.w, height: settings.collapsed.h, radius: NOTCH_RADIUS }
+    shapeSpring = createIslandSpring(collapsed, publishShape, () => reduceMotion, active => islandElement?.classList.toggle('island--moving', active))
     shapeSpring.snap(targetFrame())
     magneticSpring = createMagneticSpring(publishMagnet, () => reduceMotion)
     publishMagnet({ x: 0, y: 0 })
-    void listen<{ x: number; y: number }>('island://proximity', event => {
-      const active = !reduceMotion && settings.placement.mode === 'notch' && !open() && !closing() && !isPlacementDragging() && !isPlacementGesturePending()
+    void listen<{ x: number; y: number; approach?: number }>('island://proximity', event => {
+      const active = !reduceMotion && settings.interaction.hoverOpen && settings.placement.mode === 'notch' && !open() && !closing() && !fileHoverBlocked()
+      setProximity(active ? Math.max(0, Math.min(1, event.payload.approach ?? Math.hypot(event.payload.x, event.payload.y) / 6)) : 0)
       magneticSpring?.retarget(active ? event.payload : { x: 0, y: 0 })
     }).then(fn => disposed ? fn() : unsubscribeProximity = fn).catch(error => reportError('Could not track cursor proximity', error))
     const onMotionChange = (event: MediaQueryListEvent) => {
@@ -263,6 +447,9 @@ export default function Island() {
           beginFileDrag()
           const position = payload.position
           const cssPoint = physicalDragPositionToCss(position, window.devicePixelRatio)
+          // The transparent native host is much larger than its visible notch.
+          // A shell drag entering that empty area must not reveal a chooser.
+          if (!current && !dragNearSurface(cssPoint.x, cssPoint.y)) return
           clearTimeout(enterTimer)
           clearTimeout(leaveTimer)
           setPointerInside(false)
@@ -279,6 +466,7 @@ export default function Island() {
         }
         if (payload.type === 'drop') {
           fileDragActive = false
+          finishFileInteraction()
           const revision = ++dropRevision
           const position = payload.position
           const paths = payload.paths ?? current?.paths ?? []
@@ -315,6 +503,15 @@ export default function Island() {
       }).catch((error) => reportError('Could not track file drops', error))
     }
     onCleanup(() => {
+      document.removeEventListener('pointerdown', controlDown, true)
+      document.removeEventListener('pointerup', controlUp, true)
+      document.removeEventListener('pointercancel', controlUp, true)
+      document.removeEventListener('pointermove', controlMove, true)
+      document.removeEventListener('input', controlInput, true)
+      document.removeEventListener('keydown', controlInput, true)
+      window.removeEventListener('blur', releaseInteraction)
+      releaseInteraction()
+      finishFileInteraction()
       viewportObserver.disconnect()
       window.removeEventListener('resize', updateViewport)
       motionPreference?.removeEventListener('change', onMotionChange)
@@ -339,10 +536,11 @@ export default function Island() {
     beginFileDrag()
     event.preventDefault()
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+    if (!fileDrop() && !dragNearSurface(event.clientX, event.clientY)) return
     setFileDrop(updateFileDropPreview(fileDrop(), { type: 'over', count: event.dataTransfer?.files.length }, targetAt(event.clientX, event.clientY)))
   }
   const handleFileDragLeave = (event: DragEvent) => {
-    if (!browserPreview || !fileDrop() || !hasFileDrag(event)) return
+    if (!browserPreview || !fileDragActive || !hasFileDrag(event)) return
     const next = event.relatedTarget
     if (next instanceof Node && event.currentTarget instanceof Node && event.currentTarget.contains(next)) return
     cancelFileDrag()
@@ -354,6 +552,7 @@ export default function Island() {
     event.preventDefault()
     if (!event.dataTransfer) return
     fileDragActive = false
+    finishFileInteraction()
     const revision = ++dropRevision
     const target = targetAt(event.clientX, event.clientY)
     if (target !== 'beam') { setFileDrop(null); return }
@@ -366,10 +565,31 @@ export default function Island() {
   onCleanup(() => {
     disposed = true
     unsubscribe?.()
+    revealUnlisten?.()
     clearTimeout(enterTimer)
     clearTimeout(leaveTimer)
     clearTimeout(dropFeedbackTimer)
   })
+
+  // Ambient scenes drift a little with the cursor. The offset is scoped to the ambient
+  // layer and coalesced to one write per frame; the default (plain) scene skips it.
+  let pointerFrame = 0
+  let pointerPoint = { x: 0, y: 0 }
+  const trackPointer = (event: PointerEvent) => {
+    if (!open() || settings.background === 'plain') return
+    pointerPoint = { x: event.clientX, y: event.clientY }
+    if (pointerFrame) return
+    pointerFrame = requestAnimationFrame(() => {
+      pointerFrame = 0
+      const node = islandElement
+      const ambient = node?.querySelector<HTMLElement>('.ambient')
+      if (!node || !ambient) return
+      const rect = node.getBoundingClientRect()
+      ambient.style.setProperty('--pointer-x', `${((pointerPoint.x - rect.left) / rect.width - .5) * 30}px`)
+      ambient.style.setProperty('--pointer-y', `${((pointerPoint.y - rect.top) / rect.height - .5) * 20}px`)
+    })
+  }
+  onCleanup(() => cancelAnimationFrame(pointerFrame))
 
   return (
     <div
@@ -378,37 +598,12 @@ export default function Island() {
       onDragOver={handleFileDragOver}
       onDragLeave={handleFileDragLeave}
       onDrop={handleFileDrop}
-      onPointerDown={event => {
-        if (!(event.target instanceof Element) || fileDrop() || compactPeek()) return
-        const target = event.target
-        const interactive = target.closest('button,a,input,textarea,select,[role="button"],[role="tab"],[role="slider"],[data-no-drag],[contenteditable],.pill__compact-controls,.pill__alert-badge,.panel__tools')
-        const collapsedSurface = !open() ? target.closest<HTMLElement>('.island__bar') : null
-        const expandedSurface = open() ? target.closest<HTMLElement>('.panel__head') : null
-        const captureTarget = collapsedSurface ?? expandedSurface
-        if (!canStartIslandPlacementDrag({
-          button: event.button,
-          isPrimary: event.isPrimary,
-          insideDraggableSurface: !!captureTarget,
-          onInteractiveControl: !!interactive,
-        })) return
-        if (captureTarget && beginIslandPlacementDrag(event, captureTarget)) {
-          clearTimeout(enterTimer)
-          enterTimer = undefined
-        }
-      }}
-      onPointerMove={moveIslandPlacementDrag}
-      onPointerUp={event => {
-        void finishIslandPlacementDrag(event)
-      }}
-      onPointerCancel={event => { void cancelIslandPlacementDrag(event.pointerId) }}
-      onLostPointerCapture={event => { void cancelIslandPlacementDrag(event.pointerId) }}
       onPointerEnter={(event) => {
         if (browserPreview && event.pointerType !== 'touch') enter()
       }}
       onPointerLeave={() => { if (browserPreview) leave() }}
       onPointerOver={event => {
         if (open()) return
-        if (isPlacementGesturePending()) {clearTimeout(enterTimer);enterTimer=undefined;return}
         if (event.target instanceof Element && event.target.closest('.pill__compact-controls, .pill__alert-badge')) {clearTimeout(enterTimer);enterTimer=undefined;return}
         enter()
       }}
@@ -419,14 +614,9 @@ export default function Island() {
         if (!pointerInside()) leave()
       }}
     >
-      <div ref={islandElement} class="island" onPointerMove={event => {
-        if (!open()) return
-        const rect = event.currentTarget.getBoundingClientRect()
-        event.currentTarget.style.setProperty('--pointer-x', `${((event.clientX - rect.left) / rect.width - .5) * 30}px`)
-        event.currentTarget.style.setProperty('--pointer-y', `${((event.clientY - rect.top) / rect.height - .5) * 20}px`)
-      }} classList={{ 'island--open': open(), 'island--hover': hovering(), 'island--peek': compactPeek(), 'island--live-activity': compactPeek(), 'island--device-peek': devicePeek(), 'island--transfer-peek': transferPeek(), 'island--auth-peek':authPeek(), 'island--dragging': isPlacementDragging(), 'island--file-drop': !!fileDrop(), 'island--notch-side': sideNotch(), [`island--edge-${settings.placement.edge}`]: true, [`island--mode-${settings.placement.mode}`]: true }}>
+      <div ref={islandElement} class="island" onPointerMove={trackPointer} classList={{ 'island--open': open(), 'island--hover': hovering(), 'island--peek': compactPeek(), 'island--live-activity': compactPeek(), 'island--device-peek': devicePeek(), 'island--transfer-peek': transferPeek(), 'island--auth-peek':authPeek(), 'island--file-drop': !!fileDrop(), 'island--notch-side': sideNotch(), [`island--edge-${settings.placement.edge}`]: true, [`island--mode-${settings.placement.mode}`]: true }}>
         <AmbientBackground/>
-        <div class="island__collapsed" inert={open() || !!fileDrop() || compactPeek()} aria-hidden={open() || !!fileDrop() || compactPeek()}>
+        <div ref={collapsedElement} class="island__collapsed" inert={open() || !!fileDrop() || compactPeek()} aria-hidden={open() || !!fileDrop() || compactPeek()}>
             <div
               class="island__bar"
               role="group"
@@ -434,7 +624,6 @@ export default function Island() {
               title="Open Hover Island"
               tabIndex={0}
               onClick={event => {
-                if (consumePlacementClick()) { event.preventDefault(); event.stopPropagation(); return }
                 if (event.target instanceof Element && event.target.closest('button')) return
                 promotePeek()
                 expandIsland()

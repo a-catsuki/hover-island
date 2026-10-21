@@ -1,35 +1,78 @@
-import { createSignal, onCleanup, onMount } from 'solid-js'
+import { createSignal, onCleanup, onMount, Show } from 'solid-js'
+import { Bell } from 'lucide-solid'
 import { cmd } from '../lib/ipc'
-import { flushSettings, patchSettings, settings } from '../state/settings'
+import { settings } from '../state/settings'
+import { requestNotificationAccess } from '../state/notifications'
+import './NotificationsSettings.css'
+
+type Access = 'checking' | 'allowed' | 'denied' | 'not-requested' | 'unpackaged' | 'error'
 
 export default function NotificationAccessPanel() {
-  const [status, setStatus] = createSignal('Checking Windows permission…')
-  const [allowed, setAllowed] = createSignal(false)
+  const [access, setAccess] = createSignal<Access>('checking')
   const [busy, setBusy] = createSignal(false)
+  const [message, setMessage] = createSignal('')
+  const captureEnabled = () => settings.modules.notifications && settings.notifications.enabled && settings.notifications.systemListener
   let disposed = false
   let reading = false
+
   async function refresh() {
     if (reading || disposed) return
     reading = true
     try {
       const state = await cmd.notificationsAccessStatus()
-      if (disposed) return
-      setAllowed(state.status === 'allowed')
-      setStatus(state.status === 'allowed' ? 'Windows permission granted' : state.status === 'denied' ? 'Access is off in Windows. Enable Hover Island in Notification access, then retry.' : state.status === 'unpackaged' ? 'Install the packaged build to receive Windows alerts.' : 'Windows permission has not been granted yet.')
-    } catch { if (!disposed) setStatus('Could not check Windows permission. Try again.') }
+      if (!disposed) setAccess(state.status)
+    } catch { if (!disposed) setAccess('error') }
     finally { reading = false }
   }
-  onMount(() => { void refresh(); const timer = setInterval(refresh, 15000); window.addEventListener('focus', refresh); onCleanup(() => { disposed = true; clearInterval(timer); window.removeEventListener('focus', refresh) }) })
-  async function allow() {
+  onMount(() => {
+    void refresh()
+    window.addEventListener('focus', refresh)
+    onCleanup(() => { disposed = true; window.removeEventListener('focus', refresh) })
+  })
+
+  const openWindowsSettings = () => cmd.openWindowsSettings('notification-access').catch(error => setMessage(String(error)))
+  async function act() {
     setBusy(true)
+    setMessage('')
     try {
-      if (await cmd.notificationsAccess()) {
-        patchSettings({ modules: { ...settings.modules, notifications: true }, notifications: { ...settings.notifications, enabled: true, systemListener: true } })
-        await flushSettings()
-      }
-      await refresh()
-    } catch (error) { setStatus(String(error)) }
+      if (access() === 'denied') await openWindowsSettings()
+      else if (access() === 'error') await refresh()
+      else await requestNotificationAccess()
+      if (access() !== 'denied') await refresh()
+    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
     finally { setBusy(false) }
   }
-  return <div class="notification-access"><div><strong>Windows notification access</strong><p role="status">{status()}</p><small>{allowed() ? 'Choose notification sources in Connections. Alerts arrive while those apps run in the background.' : 'Windows asks for this permission separately from the app’s own alert switch.'}</small></div><button class="button button--secondary" disabled={busy()} onClick={() => void (allowed() ? refresh() : allow())}>{busy() ? 'Waiting for Windows…' : allowed() ? 'Check access' : 'Allow Windows alerts'}</button></div>
+
+  const allowed = () => access() === 'allowed'
+  const label = () => allowed() ? 'Allowed' : access() === 'checking' ? 'Checking…' : access() === 'unpackaged' ? 'Not available' : access() === 'error' ? 'Could not check' : 'Not allowed'
+  const detail = () => {
+    switch (access()) {
+      case 'allowed': return captureEnabled() ? 'Alerts from your apps appear in the notch.' : 'Allowed in Windows, but app alerts are turned off here.'
+      case 'denied': return 'Turn on notification access for Hover Island in Windows settings.'
+      case 'not-requested': return 'Allow Hover Island to read your Windows notifications.'
+      case 'unpackaged': return 'Windows only shares notifications with the installed Hover Island app.'
+      case 'error': return 'Windows did not answer. Try again.'
+      default: return 'Asking Windows…'
+    }
+  }
+  const primary = () => {
+    if (allowed()) return captureEnabled() ? '' : 'Turn on'
+    switch (access()) {
+      case 'denied': return 'Open Windows settings'
+      case 'not-requested': return 'Allow'
+      case 'error': return 'Try again'
+      default: return ''
+    }
+  }
+
+  return <div class="nacc" role="group" aria-label="Windows notification access">
+    <span class="nacc__icon" classList={{ 'nacc__icon--ok': allowed() }} aria-hidden="true"><Bell size={18} strokeWidth={1.75} /></span>
+    <div class="nacc__copy">
+      <strong class="nacc__state" role="status"><span class="nacc__dot" classList={{ 'nacc__dot--ok': allowed(), 'nacc__dot--off': !allowed() && access() !== 'checking' }} />{label()}</strong>
+      <p>{message() || detail()}</p>
+    </div>
+    <Show when={primary()} fallback={<Show when={allowed()}><button type="button" class="text-button" onClick={() => void openWindowsSettings()}>Open Windows settings</button></Show>}>
+      <button type="button" class="button" disabled={busy()} onClick={() => void act()}>{busy() ? 'Waiting…' : primary()}</button>
+    </Show>
+  </div>
 }

@@ -1,0 +1,242 @@
+/* Keep the ambient layer calm when there is no real WASAPI spectrum to react to. */
+.ambient .ambient__light {
+  will-change: auto;
+}
+
+.ambient.ambient--awake .ambient__light {
+  transition: transform 300ms ease-out, opacity 500ms ease;
+}
+
+/* Ambient breathing is explicitly separate from audio reactive motion. */
+.ambient.ambient--awake:not(.ambient--audio) .ambient__light--a {
+  animation: ambient-breathe-a 8s ease-in-out infinite alternate;
+}
+
+.ambient.ambient--awake:not(.ambient--audio) .ambient__light--b {
+  animation: ambient-breathe-b 11s ease-in-out infinite alternate;
+}
+
+.ambient.ambient--awake.ambient--audio .ambient__light {
+  animation: none;
+}
+
+@keyframes ambient-breathe-a {
+  from { opacity: .26; transform: translate3d(var(--pointer-x,0px),var(--pointer-y,0px),0) scale(.97); }
+  to { opacity: .43; transform: translate3d(var(--pointer-x,0px),var(--pointer-y,0px),0) scale(1.07); }
+}
+
+@keyframes ambient-breathe-b {
+  from { opacity: .12; transform: translate3d(var(--pointer-x,0px),var(--pointer-y,0px),0) scale(1.03); }
+  to { opacity: .28; transform: translate3d(var(--pointer-x,0px),var(--pointer-y,0px),0) scale(.95); }
+}
+
+.ambient.ambient--audio .ambient__light--a {
+  opacity: calc(0.18 + var(--audio-energy, 0) * 0.18);
+}
+
+.ambient.ambient--audio .ambient__light--b {
+  opacity: calc(0.12 + var(--audio-energy, 0) * 0.14);
+}
+
+.ambient.ambient--artwork .ambient__art {
+  filter: blur(48px) saturate(1.32);
+  opacity: 0.24;
+  transform: scale(1.08);
+}
+
+/* Album Ambient: the thumbnail supplies the hue while live bands move each light field. */
+.ambient--artwork .ambient__light--a {
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--album-a, var(--accent)) 72%, transparent), transparent 68%);
+}
+.ambient--artwork .ambient__light--b {
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--album-b, var(--accent-2)) 74%, transparent), transparent 68%);
+}
+.ambient--artwork .ambient__pulse {
+  background:
+    radial-gradient(ellipse at 42% 56%, color-mix(in srgb, var(--album-c, var(--accent-2)) 56%, transparent), transparent 48%),
+    radial-gradient(ellipse at 64% 42%, color-mix(in srgb, var(--album-a, var(--accent)) 62%, transparent), transparent 67%);
+}
+
+.ambient.ambient--ember .ambient__grain {
+  opacity: 0.15;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient.ambient--awake .ambient__light,
+  .ambient.ambient--artwork .ambient__art {
+    animation: none;
+    transition: none;
+    transform: none;
+  }
+  .ambient.ambient--audio .ambient__light--a { opacity: .24; }
+  .ambient.ambient--audio .ambient__light--b { opacity: .17; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .ambient.ambient--awake .ambient__art {
+    opacity: 0.12;
+  }
+}
+
+/* ------------------------------------------------ procedural pattern scenes */
+
+.ambient__pattern {
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+  opacity: 0;
+  transition: opacity 400ms var(--ease-out, ease);
+  pointer-events: none;
+}
+.ambient.ambient--awake.ambient--pattern .ambient__pattern {
+  opacity: 0.6;
+}
+.ambient--contours .ambient__pattern { background-image: url('/patterns/contours.svg'); background-size: 300px 300px; }
+.ambient--dots .ambient__pattern { background-image: url('/patterns/dots.svg'); background-size: 22px 22px; }
+.ambient--grid .ambient__pattern { background-image: url('/patterns/grid.svg'); background-size: 34px 34px; }
+.ambient--waves .ambient__pattern { background-image: url('/patterns/waves.svg'); background-size: 200px 100px; }
+
+/* A soft accent wash under the pattern so it never reads as flat wallpaper. */
+.ambient--pattern::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 28% -10%, var(--accent-soft, rgba(110, 139, 255, 0.18)), transparent 68%);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.ambient--plain .ambient__pattern,
+.ambient--plain .ambient__pulse {
+  display: none;
+}
+
+/* ------------------------------------- reactive ambient lighting (audio) */
+
+.ambient__pulse {
+  position: absolute;
+  inset: -10%;
+  background: radial-gradient(circle at 50% 52%, color-mix(in srgb, var(--accent) 46%, transparent), transparent 62%);
+  opacity: 0;
+  transform: scale(calc(0.9 + var(--audio-energy, 0) * 0.35));
+  pointer-events: none;
+}
+.ambient--reactive.ambient--awake .ambient__pulse {
+  opacity: calc(0.14 + var(--audio-energy, 0) * 0.55);
+  transition: opacity 90ms linear, transform 90ms linear;
+}
+.ambient--reactive .ambient__light--a {
+  opacity: calc(0.2 + var(--audio-energy, 0) * 0.5);
+  transition: opacity 90ms linear;
+}
+.ambient--reactive .ambient__light--b {
+  opacity: calc(0.13 + var(--audio-energy, 0) * 0.42);
+  transition: opacity 90ms linear;
+}
+.ambient--reactive.ambient--awake:not(.ambient--audio) .ambient__light--a {
+  animation: ambient-breathe-a 7s ease-in-out infinite alternate;
+}
+.ambient--reactive.ambient--awake:not(.ambient--audio) .ambient__light--b {
+  animation: ambient-breathe-b 9s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient__pattern { transition: none; }
+  .ambient--reactive .ambient__pulse,
+  .ambient--reactive .ambient__light { transition: none; }
+  .ambient--reactive .ambient__pulse { transform: none; opacity: 0.18; }
+}
+
+/* The reactive scene is deliberately full-canvas: RMS and bass drive broad,
+   low-frequency light so the change reads across the island, not as a tiny dot. */
+.ambient.ambient--audio.ambient--awake .ambient__pulse,
+.ambient.ambient--preview.ambient--awake .ambient__pulse {
+  opacity: calc(0.12 + var(--audio-energy, 0) * 0.68);
+  transform: scale(calc(0.94 + var(--audio-energy, 0) * 0.34));
+  background:
+    radial-gradient(ellipse at 46% 54%, color-mix(in srgb, var(--accent-2) 62%, transparent), transparent 50%),
+    radial-gradient(ellipse at 64% 46%, color-mix(in srgb, var(--accent) 72%, transparent), transparent 66%);
+  transition: opacity 75ms linear, transform 75ms linear;
+}
+.ambient.ambient--audio.ambient--awake .ambient__light--a,
+.ambient.ambient--preview.ambient--awake .ambient__light--a {
+  opacity: calc(0.22 + var(--audio-energy, 0) * 0.62);
+  transform: translate3d(var(--pointer-x,0px),var(--pointer-y,0px),0) scale(calc(1 + var(--audio-energy, 0) * 0.42));
+  transition: opacity 75ms linear, transform 75ms linear;
+}
+.ambient.ambient--audio.ambient--awake .ambient__light--b,
+.ambient.ambient--preview.ambient--awake .ambient__light--b {
+  opacity: calc(0.16 + var(--audio-bass, 0) * 0.58);
+  transform: translate3d(var(--pointer-x,0px),var(--pointer-y,0px),0) scale(calc(1 + var(--audio-bass, 0) * 0.5));
+  transition: opacity 75ms linear, transform 75ms linear;
+}
+.ambient.ambient--audio.ambient--awake.ambient--artwork .ambient__light--a,
+.ambient.ambient--preview.ambient--awake.ambient--artwork .ambient__light--a {
+  opacity: calc(0.12 + var(--audio-mid, 0) * 0.58 + var(--audio-punch, 0) * 0.12);
+  transform: translate3d(var(--pointer-x,0px),var(--pointer-y,0px),0) scale(calc(0.96 + var(--audio-mid, 0) * 0.3 + var(--audio-punch, 0) * 0.12));
+}
+.ambient.ambient--audio.ambient--awake.ambient--artwork .ambient__light--b,
+.ambient.ambient--preview.ambient--awake.ambient--artwork .ambient__light--b {
+  opacity: calc(0.1 + var(--audio-treble, 0) * 0.48 + var(--audio-bass, 0) * 0.12);
+  transform: translate3d(var(--pointer-x,0px),var(--pointer-y,0px),0) scale(calc(0.94 + var(--audio-treble, 0) * 0.28 + var(--audio-punch, 0) * 0.1));
+}
+.ambient.ambient--audio.ambient--awake.ambient--artwork .ambient__pulse,
+.ambient.ambient--preview.ambient--awake.ambient--artwork .ambient__pulse {
+  opacity: calc(0.08 + var(--audio-energy, 0) * 0.42 + var(--audio-punch, 0) * 0.24);
+  transform: scale(calc(0.94 + var(--audio-energy, 0) * 0.22 + var(--audio-punch, 0) * 0.12));
+}
+.ambient.ambient--audio.ambient--awake .ambient__pulse,
+.ambient.ambient--audio.ambient--awake .ambient__light,
+.ambient.ambient--preview.ambient--awake .ambient__pulse,
+.ambient.ambient--preview.ambient--awake .ambient__light {
+  animation: none;
+}
+.ambient--awake:not(.ambient--audio):not(.ambient--preview) .ambient__pulse {
+  opacity: 0.12;
+  animation: ambient-pulse-breathe 9s ease-in-out infinite alternate;
+}
+@keyframes ambient-pulse-breathe {
+  from { transform: scale(.94); opacity: .08; }
+  to { transform: scale(1.06); opacity: .18; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient--awake:not(.ambient--audio):not(.ambient--preview) .ambient__pulse { animation: none; opacity: .12; transform: none; }
+  .ambient--audio.ambient--awake .ambient__pulse,
+  .ambient--audio.ambient--awake .ambient__light,
+  .ambient--preview.ambient--awake .ambient__pulse,
+  .ambient--preview.ambient--awake .ambient__light { transition: none; }
+}
+
+
+/* ---- base layer (opt-in scenes only; the default scene renders nothing) ---- */
+.ambient {
+  opacity: 0;
+  transition: opacity 400ms var(--ease-out);
+}
+.ambient--awake { opacity: 1; }
+.ambient__light {
+  position: absolute;
+  width: 75%;
+  height: 110%;
+  top: -35%;
+  left: -20%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--accent) 48%, transparent), transparent 67%);
+  opacity: 0.2;
+  transform: translate3d(var(--pointer-x, 0px), var(--pointer-y, 0px), 0) scale(calc(1 + var(--audio-energy, 0) * 0.28));
+}
+.ambient__light--b {
+  left: 50%;
+  top: 5%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--accent-2) 42%, transparent), transparent 67%);
+  opacity: 0.13;
+}
+.ambient--ember .ambient__light--a { background: radial-gradient(ellipse, #a947287a, transparent 67%); }
+.ambient--ember .ambient__light--b { background: radial-gradient(ellipse, #e3a04166, transparent 67%); }
+.ambient--plain .ambient__light,
+.ambient--plain .ambient__grain { display: none; }
+.ambient__art { width: 100%; height: 100%; object-fit: cover; filter: blur(65px) saturate(1.4); opacity: 0.26; transform: scale(1.2); }
+.ambient__grain { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .ambient__light { transform: none !important; animation: none !important; }
+  .ambient__art { transform: none; }
+}

@@ -1638,7 +1638,7 @@ dependencies = [
 
 [[package]]
 name = "hover-island"
-version = "0.1.4"
+version = "0.1.6"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -1662,7 +1662,9 @@ dependencies = [
  "tauri-plugin-store",
  "tokio",
  "uuid",
+ "webview2-com",
  "windows 0.52.0",
+ "windows-core 0.62.2",
 ]
 
 [[package]]

@@ -64,7 +64,8 @@
   (function webgl() {
     var canvas = document.getElementById('gl');
     if (!canvas || !hero) return;
-    var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    var contextOptions = { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false };
+    var gl = canvas.getContext('webgl', contextOptions) || canvas.getContext('experimental-webgl', contextOptions);
     if (!gl) { hero.classList.add('no-webgl'); return; }
 
     var vertSrc = 'attribute vec2 a_pos; varying vec2 v_uv; void main(){ v_uv = a_pos*0.5+0.5; gl_Position = vec4(a_pos,0.0,1.0); }';
@@ -134,11 +135,12 @@
     var uTime = gl.getUniformLocation(prog, 'u_time');
     var uMouse = gl.getUniformLocation(prog, 'u_mouse');
 
-    var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    var dpr = Math.min(window.devicePixelRatio || 1, 1.25);
     var mouse = { x: 0.5, y: 0.5 };
     var target = { x: 0.5, y: 0.5 };
 
     function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 1.25);
       var w = Math.max(1, Math.floor(hero.clientWidth * dpr));
       var h = Math.max(1, Math.floor(hero.clientHeight * dpr));
       if (canvas.width !== w || canvas.height !== h) {
@@ -148,7 +150,32 @@
       }
     }
     resize();
-    window.addEventListener('resize', resize);
+    var frameId = 0;
+    var visible = !('IntersectionObserver' in window);
+    function drawStatic() {
+      resize();
+      gl.uniform2f(uRes, canvas.width, canvas.height);
+      gl.uniform1f(uTime, 12.0);
+      gl.uniform2f(uMouse, 0.5, 0.5);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+    function pause() {
+      if (!frameId) return;
+      cancelAnimationFrame(frameId);
+      frameId = 0;
+    }
+    function schedule() {
+      if (reduceMotion || document.hidden || !visible || frameId) return;
+      frameId = requestAnimationFrame(frame);
+    }
+    window.addEventListener('resize', function () {
+      if (reduceMotion) {
+        if (visible && !document.hidden) drawStatic();
+      } else {
+        resize();
+        schedule();
+      }
+    });
 
     hero.addEventListener('mousemove', function (e) {
       var r = hero.getBoundingClientRect();
@@ -157,72 +184,371 @@
     });
 
     var start = performance.now();
+    var lastDraw = 0;
+    var frameInterval = 1000 / 30;
     var running = true;
-    var visible = true;
     if ('IntersectionObserver' in window) {
       new IntersectionObserver(function (entries) {
         visible = entries[0].isIntersecting;
+        if (!visible) pause();
+        else if (reduceMotion) { if (!document.hidden) drawStatic(); }
+        else { resize(); schedule(); }
       }, { threshold: 0 }).observe(canvas);
     }
 
     function frame(now) {
-      if (running) requestAnimationFrame(frame);
-      if (!visible) return;
-      resize();
+      frameId = 0;
+      if (!running || reduceMotion || document.hidden || !visible) return;
+      if (now - lastDraw < frameInterval) { schedule(); return; }
+      lastDraw = now;
       mouse.x += (target.x - mouse.x) * 0.06;
       mouse.y += (target.y - mouse.y) * 0.06;
       gl.uniform2f(uRes, canvas.width, canvas.height);
       gl.uniform1f(uTime, (now - start) / 1000);
       gl.uniform2f(uMouse, mouse.x, mouse.y);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
+      schedule();
     }
 
     if (reduceMotion) {
-      gl.uniform2f(uRes, canvas.width, canvas.height);
-      gl.uniform1f(uTime, 12.0);
-      gl.uniform2f(uMouse, 0.5, 0.5);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      if (visible && !document.hidden) drawStatic();
     } else {
-      requestAnimationFrame(frame);
+      schedule();
     }
     document.addEventListener('visibilitychange', function () {
-      if (document.hidden) { running = false; }
-      else if (!running && !reduceMotion) { running = true; start = performance.now() - 1000; requestAnimationFrame(frame); }
+      if (document.hidden) { running = false; pause(); }
+      else {
+        running = true;
+        start = performance.now() - 1000;
+        if (reduceMotion) { if (visible) drawStatic(); }
+        else { resize(); schedule(); }
+      }
     });
   })();
 
-  /* ─────────────── Island state cycle ─────────────── */
-  /* The notch cycles through the collapsed state, the transfer peek and the
-     three panel views, dwelling longer on the panels. Reduced motion keeps
-     the static collapsed notch. Hover, focus or a click pauses the cycle;
-     activating the notch advances one state. */
+  /* ─────────────── Island product preview ─────────────── */
+  /* The preview mirrors the app's normal interaction: a short activity peek,
+     a delayed hover-open, user-selected panel tabs, and a delayed close after
+     the pointer leaves. The sample notification is presented once and never
+     implies that a real transfer is running. */
   var island = document.getElementById('island');
   if (island) {
-    var states = ['idle', 'peek', 'today', 'desk', 'activity'];
-    var dwell = { idle: 2600, peek: 1900, today: 4600, desk: 4600, activity: 4600 };
-    var idx = 0;
-    var timer = null;
+    var panel = island.querySelector('.island__panel');
+    var tabs = Array.prototype.slice.call(island.querySelectorAll('.ptab[data-tab]'));
+    var peekAction = island.querySelector('.peekx-action');
+    var state = 'idle';
+    var pointerInside = false;
+    var userInteracted = false;
+    var autoTimer = 0;
+    var autoStartedAt = 0;
+    var autoRemaining = 0;
+    var autoCallback = null;
+    var autoPhase = '';
+    var openTimer = 0;
+    var closeTimer = 0;
+    var visible = !('IntersectionObserver' in window);
 
-    function render() { island.setAttribute('data-state', states[idx]); }
-    function next() { idx = (idx + 1) % states.length; render(); }
-    function start() {
-      if (reduceMotion) return;
-      stop();
-      timer = window.setTimeout(function () { next(); start(); }, dwell[states[idx]]);
+    island.setAttribute('role', 'button');
+    island.setAttribute('tabindex', '0');
+    if (panel) panel.id = 'preview-island-panel';
+
+    var stateNames = { today: 'Today', desk: 'Desk', activity: 'Activity' };
+    var gridByState = {
+      today: island.querySelector('.widget-grid--today'),
+      desk: island.querySelector('.widget-grid--desk'),
+      activity: island.querySelector('.widget-grid--activity'),
+    };
+
+    /* The sample transfer uses the same source name and action as the app. */
+    var peekApp = island.querySelector('.peekx-app');
+    if (peekApp) peekApp.textContent = 'Phone bucket';
+    if (peekAction) {
+      peekAction.setAttribute('role', 'button');
+      peekAction.setAttribute('tabindex', '0');
+      peekAction.setAttribute('aria-label', 'Open the File bucket in the Desk panel');
     }
-    function stop() { if (timer) { window.clearTimeout(timer); timer = null; } }
 
-    render();
-    start();
-    island.addEventListener('mouseenter', stop);
-    island.addEventListener('mouseleave', start);
-    island.addEventListener('focus', stop);
-    island.addEventListener('blur', start);
-    island.addEventListener('click', function () { stop(); next(); start(); });
-    island.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); stop(); next(); start(); }
+    /* The shipped panel footer is status-only; the mock count and pager were
+       not part of the real ExpandedPanel. */
+    var footer = island.querySelector('.panel__foot');
+    if (footer) {
+      var footerStatus = footer.firstElementChild;
+      if (footerStatus) footerStatus.textContent = '';
+      var mockPager = footer.querySelector('.panel-pager');
+      if (mockPager) mockPager.remove();
+      footer.setAttribute('aria-hidden', 'true');
+    }
+
+    var tabList = island.querySelector('.panel-tabs');
+    if (tabList) tabList.setAttribute('role', 'tablist');
+    tabs.forEach(function (tab) {
+      var name = tab.getAttribute('data-tab');
+      var grid = gridByState[name];
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('id', 'preview-tab-' + name);
+      tab.setAttribute('aria-controls', 'preview-panel-' + name);
+      if (grid) {
+        grid.setAttribute('id', 'preview-panel-' + name);
+        grid.setAttribute('role', 'tabpanel');
+        grid.setAttribute('aria-labelledby', 'preview-tab-' + name);
+      }
     });
+
+    if (panel && 'inert' in panel) panel.inert = true;
+
+    function setState(next) {
+      if (['idle', 'peek', 'today', 'desk', 'activity'].indexOf(next) < 0) return;
+      state = next;
+      island.setAttribute('data-state', state);
+      var panelOpen = !!stateNames[state];
+      island.setAttribute('role', state === 'idle' ? 'button' : 'group');
+      if (state === 'idle') {
+        island.setAttribute('aria-expanded', 'false');
+        if (panel) island.setAttribute('aria-controls', panel.id);
+      } else {
+        island.removeAttribute('aria-expanded');
+        island.removeAttribute('aria-controls');
+      }
+      island.setAttribute('aria-label', state === 'idle'
+        ? 'Hover Island compact preview. Hover or activate to open the Today panel.'
+        : state === 'peek'
+          ? 'Example Phone bucket transfer notification. 64 percent of presentation.pdf is sending. Open Files opens the Desk panel.'
+          : 'Hover Island ' + stateNames[state] + ' panel preview. Use the panel tabs to choose Today, Desk, or Activity.');
+      var idleFace = island.querySelector('.face-idle');
+      var peekFace = island.querySelector('.face-peek');
+      if (idleFace) idleFace.setAttribute('aria-hidden', state !== 'idle' ? 'true' : 'false');
+      if (peekFace) peekFace.setAttribute('aria-hidden', state !== 'peek' ? 'true' : 'false');
+      if (peekAction) peekAction.setAttribute('tabindex', state === 'peek' ? '0' : '-1');
+      if (panel) {
+        panel.setAttribute('aria-hidden', panelOpen ? 'false' : 'true');
+        if ('inert' in panel) panel.inert = !panelOpen;
+      }
+      tabs.forEach(function (tab) {
+        var selected = tab.getAttribute('data-tab') === state;
+        tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+        tab.setAttribute('tabindex', selected ? '0' : '-1');
+      });
+      Object.keys(gridByState).forEach(function (key) {
+        var grid = gridByState[key];
+        if (grid) grid.setAttribute('aria-hidden', state === key ? 'false' : 'true');
+      });
+      syncIslandViz();
+    }
+
+    function cancelAuto() {
+      if (autoTimer) window.clearTimeout(autoTimer);
+      autoTimer = 0;
+      autoCallback = null;
+      autoPhase = '';
+      autoRemaining = 0;
+    }
+    function pauseAuto() {
+      if (!autoTimer) return;
+      window.clearTimeout(autoTimer);
+      autoTimer = 0;
+      autoRemaining = Math.max(0, autoRemaining - (performance.now() - autoStartedAt));
+    }
+    function autoIsActive() { return visible && !document.hidden && !reduceMotion && (!userInteracted || autoPhase === 'expire-peek'); }
+    function resumeAuto() {
+      if (autoTimer || !autoCallback || !autoIsActive()) return;
+      autoStartedAt = performance.now();
+      autoTimer = window.setTimeout(function () {
+        autoTimer = 0;
+        autoRemaining = 0;
+        var callback = autoCallback;
+        autoCallback = null;
+        autoPhase = '';
+        if (callback) callback();
+      }, autoRemaining);
+    }
+    function scheduleAuto(delay, phase, callback) {
+      cancelAuto();
+      autoRemaining = delay;
+      autoPhase = phase;
+      autoCallback = callback;
+      resumeAuto();
+    }
+    function claimInteraction() {
+      userInteracted = true;
+      /* Let an already visible event expire naturally, but don't show a new
+         one after the visitor has started exploring the preview. */
+      if (autoPhase === 'start-peek') cancelAuto();
+    }
+    function showSamplePeek() {
+      if (userInteracted || state !== 'idle') return;
+      setState('peek');
+      scheduleAuto(3600, 'expire-peek', function () {
+        if (state === 'peek') setState('idle');
+      });
+    }
+    function selectTab(name, focusTab) {
+      if (!stateNames[name]) return;
+      claimInteraction();
+      cancelAuto();
+      setState(name);
+      if (focusTab) {
+        var selectedTab = tabs.find(function (tab) { return tab.getAttribute('data-tab') === name; });
+        if (selectedTab) selectedTab.focus();
+      }
+    }
+    function scheduleClose() {
+      window.clearTimeout(openTimer);
+      window.clearTimeout(closeTimer);
+      if (!stateNames[state]) return;
+      closeTimer = window.setTimeout(function () {
+        if (!pointerInside) setState('idle');
+      }, 450);
+    }
+
+    function syncIslandViz() {
+      var bars = island.querySelector('.media__viz--bars');
+      if (bars) setBarsPlaying(bars, state === 'today' && visible && !document.hidden && !reduceMotion);
+    }
+
+    function setBarsPlaying(root, playing) {
+      Array.prototype.slice.call(root.children).forEach(function (bar) {
+        bar.style.animationPlayState = playing ? 'running' : 'paused';
+      });
+    }
+
+    setState('idle');
+    island.addEventListener('mouseenter', function () {
+      pointerInside = true;
+      claimInteraction();
+      window.clearTimeout(closeTimer);
+      if (state === 'idle') {
+        window.clearTimeout(openTimer);
+        openTimer = window.setTimeout(function () {
+          if (pointerInside && state === 'idle') setState('today');
+        }, 140);
+      }
+    });
+    island.addEventListener('mouseleave', function () {
+      pointerInside = false;
+      scheduleClose();
+    });
+    island.addEventListener('focusin', function () {
+      claimInteraction();
+      window.clearTimeout(closeTimer);
+    });
+    island.addEventListener('focusout', function (event) {
+      var next = event.relatedTarget;
+      if (!(next instanceof Node) || !island.contains(next)) scheduleClose();
+    });
+    island.addEventListener('click', function (event) {
+      var target = event.target;
+      if (!(target instanceof Element)) return;
+      var tab = target.closest('.ptab[data-tab]');
+      if (tab) {
+        selectTab(tab.getAttribute('data-tab'), false);
+        return;
+      }
+      if (target.closest('.peekx-action')) {
+        selectTab('desk', true);
+        return;
+      }
+      if (target.closest('.face-peek')) {
+        claimInteraction();
+        cancelAuto();
+        setState('idle');
+        return;
+      }
+      if (state === 'idle' && (target === island || target.closest('.face-idle, .notch-cam'))) {
+        claimInteraction();
+        cancelAuto();
+        setState('today');
+      }
+    });
+    island.addEventListener('keydown', function (event) {
+      var target = event.target;
+      if (target instanceof Element) {
+        var currentTab = target.closest('.ptab[data-tab]');
+        if (currentTab) {
+          var currentIndex = tabs.indexOf(currentTab);
+          var nextIndex = currentIndex;
+          if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+          else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+          else if (event.key === 'Home') nextIndex = 0;
+          else if (event.key === 'End') nextIndex = tabs.length - 1;
+          if (nextIndex !== currentIndex) {
+            event.preventDefault();
+            selectTab(tabs[nextIndex].getAttribute('data-tab'), true);
+            return;
+          }
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            selectTab(currentTab.getAttribute('data-tab'), true);
+            return;
+          }
+        }
+        if (target.closest('.peekx-action') && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          selectTab('desk', true);
+          return;
+        }
+      }
+      if (event.key === 'Escape' && state !== 'idle') {
+        event.preventDefault();
+        event.stopPropagation();
+        claimInteraction();
+        cancelAuto();
+        setState('idle');
+        island.focus();
+        return;
+      }
+      if (target === island && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        claimInteraction();
+        cancelAuto();
+        setState(state === 'peek' ? 'idle' : state === 'idle' ? 'today' : state);
+      }
+    });
+
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (entries) {
+        visible = entries[0].isIntersecting;
+        if (autoIsActive()) resumeAuto();
+        else pauseAuto();
+        syncIslandViz();
+      }, { threshold: 0 }).observe(island);
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (autoIsActive()) resumeAuto();
+      else pauseAuto();
+      syncIslandViz();
+    });
+    if (!reduceMotion) scheduleAuto(1200, 'start-peek', showSamplePeek);
   }
+
+  /* The feature-card equalizer is illustrative. Keep its CSS bars still until
+     that card is on screen, and while the tab is hidden or motion is reduced. */
+  (function visibleEqualizers() {
+    var roots = Array.prototype.slice.call(document.querySelectorAll('.vm-bars'));
+    if (!roots.length) return;
+    var visibleRoots = new Set();
+    function sync(root) {
+      var running = visibleRoots.has(root) && !document.hidden && !reduceMotion;
+      Array.prototype.slice.call(root.children).forEach(function (bar) {
+        bar.style.animationPlayState = running ? 'running' : 'paused';
+      });
+    }
+    roots.forEach(function (root) { sync(root); });
+    if ('IntersectionObserver' in window) {
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) visibleRoots.add(entry.target);
+          else visibleRoots.delete(entry.target);
+          sync(entry.target);
+        });
+      }, { rootMargin: '80px 0px' });
+      roots.forEach(function (root) { observer.observe(root); });
+    } else {
+      roots.forEach(function (root) { visibleRoots.add(root); sync(root); });
+    }
+    document.addEventListener('visibilitychange', function () {
+      roots.forEach(sync);
+    });
+  })();
 
   /* ─────────────── Reveal on scroll ─────────────── */
   var reveals = Array.prototype.slice.call(document.querySelectorAll('.reveal, [data-reveal]'));
@@ -343,43 +669,74 @@
   /* ─────────────── Parallax and the chapter drift ─────────────── */
   var parallaxEls = Array.prototype.slice.call(document.querySelectorAll('[data-parallax]'));
   var tiltEls = Array.prototype.slice.call(document.querySelectorAll('.chapter-media'));
+  var scrollMotionEls = Array.from(new Set(parallaxEls.concat(tiltEls)));
+  var activeMotionEls = new Set();
+  /* Keep compositor layer promotion scoped to elements near the viewport. */
+  scrollMotionEls.forEach(function (el) { el.style.willChange = 'auto'; });
 
   function updateScrollMotion() {
+    if (document.hidden) return;
     var vh = window.innerHeight;
-
-    parallaxEls.forEach(function (el) {
-      var speed = parseFloat(el.getAttribute('data-parallax')) || 0;
+    var canTilt = !reduceMotion && window.innerWidth > 900;
+    activeMotionEls.forEach(function (el) {
       var r = el.getBoundingClientRect();
-      var delta = (r.top + r.height / 2 - vh / 2) / vh;
-      el.style.transform = 'translate3d(0,' + (delta * speed * 100).toFixed(2) + 'px,0)';
-    });
-
-    /* each chapter card drifts against the scroll and leans a couple of
-       degrees into it, mirrored left and right down the page */
-    if (reduceMotion || window.innerWidth <= 900) {
-      tiltEls.forEach(function (el) { el.style.transform = ''; });
-      return;
-    }
-    tiltEls.forEach(function (el) {
-      var r = el.getBoundingClientRect();
-      if (r.bottom < -120 || r.top > vh + 120) return;
       var p = (r.top + r.height / 2 - vh / 2) / vh;
-      var dir = el.parentNode && el.parentNode.classList.contains('rev') ? -1 : 1;
-      el.style.transform = 'translate3d(0,' + (p * -26).toFixed(2) + 'px,0) rotateZ(' +
-        (p * 3.4 * dir).toFixed(2) + 'deg)';
+      if (r.bottom < -120 || r.top > vh + 120) {
+        activeMotionEls.delete(el);
+        el.style.transform = '';
+        el.style.willChange = 'auto';
+        return;
+      }
+      var transforms = [];
+      if (el.hasAttribute('data-parallax')) {
+        var speed = parseFloat(el.getAttribute('data-parallax')) || 0;
+        var delta = (r.top + r.height / 2 - vh / 2) / vh;
+        transforms.push('translate3d(0,' + (delta * speed * 100).toFixed(2) + 'px,0)');
+      }
+      if (canTilt && el.classList.contains('chapter-media')) {
+        /* each chapter card drifts against the scroll and leans a couple of
+           degrees into it, mirrored left and right down the page */
+        var dir = el.parentNode && el.parentNode.classList.contains('rev') ? -1 : 1;
+        transforms.push('translate3d(0,' + (p * -26).toFixed(2) + 'px,0)');
+        transforms.push('rotateZ(' + (p * 3.4 * dir).toFixed(2) + 'deg)');
+      }
+      el.style.transform = transforms.join(' ');
+      el.style.willChange = transforms.length ? 'transform' : 'auto';
     });
   }
 
-  if (!reduceMotion && (parallaxEls.length || tiltEls.length)) {
+  if (!reduceMotion && scrollMotionEls.length) {
     var motionTicking = false;
     var onMotion = function () {
-      if (motionTicking) return;
+      if (document.hidden || motionTicking) return;
       motionTicking = true;
-      requestAnimationFrame(function () { updateScrollMotion(); motionTicking = false; });
+      requestAnimationFrame(function () {
+        if (!document.hidden) updateScrollMotion();
+        motionTicking = false;
+      });
     };
+    if ('IntersectionObserver' in window) {
+      var motionObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            activeMotionEls.add(entry.target);
+            entry.target.style.willChange = 'transform';
+          } else {
+            activeMotionEls.delete(entry.target);
+            entry.target.style.transform = '';
+            entry.target.style.willChange = 'auto';
+          }
+        });
+        onMotion();
+      }, { rootMargin: '120px 0px' });
+      scrollMotionEls.forEach(function (el) { motionObserver.observe(el); });
+    } else {
+      scrollMotionEls.forEach(function (el) { activeMotionEls.add(el); });
+    }
     window.addEventListener('scroll', onMotion, { passive: true });
     window.addEventListener('resize', onMotion);
-    updateScrollMotion();
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) onMotion(); });
+    if (activeMotionEls.size) updateScrollMotion();
   }
 
   /* ─────────────── Page beam: the relay runs the length of the page ─────────────── */

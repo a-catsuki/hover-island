@@ -1,0 +1,122 @@
+/* Keep me awake. Layout follows the tile (container queries): compact is one tight form, wide and large
+   add the options column, tall stacks. Colour warms from teal to red as the end (or an unanswered alarm) nears. */
+.aw { --c: #64D2FF; --pulse: 4s; --spin: 16s; --confirm: 40s; container-type: size; position: relative; gap: 6px; }
+.aw__head { gap: 10px; }
+.aw__badge { background: color-mix(in srgb, var(--c) 30%, #1c1c1e); color: var(--c); transition: background 400ms, color 400ms; }
+.aw__sub { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.aw__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.aw button:disabled { opacity: 0.5; cursor: default; }
+
+/* ---- setup */
+.aw__setup { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 8px; }
+.aw__main { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.aw__row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.aw__time { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.07); }
+.aw__time-label { font-size: 12px; font-weight: 500; color: var(--text-3); }
+.aw__time-input { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--text-1); font: inherit; font-size: 21px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color-scheme: dark; outline: none; }
+.aw__time-input::-webkit-calendar-picker-indicator { opacity: 0.45; cursor: pointer; }
+.aw__go { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 16px; border: 0; border-radius: 999px; background: #0A84FF; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: transform 140ms cubic-bezier(0.32, 1.4, 0.5, 1), filter 140ms; }
+.aw__go:hover:not(:disabled) { filter: brightness(1.12); }
+.aw__go:active:not(:disabled) { transform: scale(0.95); }
+.aw__chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 26px; overflow: hidden; }
+.aw__chip { flex: none; height: 26px; padding: 0 11px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.08); color: var(--text-2); font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: background 160ms, color 160ms, transform 120ms; }
+.aw__chip:hover { background: rgba(255, 255, 255, 0.14); }
+.aw__chip:active { transform: scale(0.95); }
+.aw__chip.on { background: #fff; color: #000; }
+.aw__hint { margin: 0; font-size: 11.5px; font-weight: 500; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aw__hint:has(+ .wk-error) { display: none; }
+.aw__opts { display: none; flex-direction: column; gap: 8px; min-width: 0; }
+.aw-seg { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); padding: 2px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); }
+.aw-seg__thumb { position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc((100% - 4px) / 3); border-radius: 8px; background: rgba(255, 255, 255, 0.2); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); transform: translateX(calc(var(--i, 0) * 100%)); transition: transform 300ms cubic-bezier(0.32, 1.25, 0.5, 1); }
+.aw-seg button { position: relative; z-index: 1; height: 26px; border: 0; border-radius: 8px; background: transparent; color: var(--text-3); font-size: 12px; font-weight: 600; cursor: pointer; transition: color 160ms; }
+.aw-seg button.on { color: var(--text-1); }
+.aw-vol { position: relative; display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px; border-radius: 999px; background: linear-gradient(90deg, rgba(255, 255, 255, 0.22) var(--v), rgba(255, 255, 255, 0.08) var(--v)); color: var(--text-1); font-size: 11.5px; font-weight: 600; overflow: hidden; }
+.aw-vol svg { flex: none; }
+.aw-vol input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.aw-vol span { margin-left: auto; color: var(--text-2); }
+
+@container (min-height: 232px) and (max-width: 479px) { .aw__opts { display: flex; } }
+@container (min-width: 480px) { .aw__setup { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; } .aw__opts { display: flex; } }
+@container (min-width: 480px) and (max-height: 190px) { .aw__sounds { display: none; } .aw__hint { display: none; } .aw__setup { gap: 12px; } }
+@container (max-height: 175px) { .aw__hint { display: none; } }
+@container (min-height: 300px) { .aw__time-input { font-size: 26px; } .aw__time, .aw__go { height: 44px; } }
+
+/* ---- active hero */
+.aw__active { flex: 1; min-height: 0; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 14px; }
+.aw__hero { position: relative; flex: none; height: min(100%, 150px); aspect-ratio: 1; display: grid; place-items: center; }
+.aw__aura { position: absolute; inset: -6%; border-radius: 50%; background: conic-gradient(from 0deg, var(--c), transparent 28%, color-mix(in srgb, var(--c) 55%, #BF5AF2) 52%, transparent 78%, var(--c)); filter: blur(11px); opacity: 0.5; -webkit-mask: radial-gradient(closest-side, transparent 66%, #000 76%, #000 90%, transparent 100%); mask: radial-gradient(closest-side, transparent 66%, #000 76%, #000 90%, transparent 100%); animation: aw-spin var(--spin) linear infinite; transition: opacity 400ms; }
+.aw__arc { position: absolute; inset: 0; width: 100%; height: 100%; animation: aw-breathe var(--pulse) ease-in-out infinite; }
+.aw__arc-track { fill: none; stroke: rgba(255, 255, 255, 0.1); stroke-width: 4.5; }
+.aw__arc-fill { fill: none; stroke: var(--c); stroke-width: 4.5; stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke 600ms; }
+.aw__center { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.aw__clock { font-size: clamp(15px, 14cqmin, 28px); font-weight: 300; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text-1); }
+.aw__glyph { position: relative; width: 18px; height: 18px; color: var(--c); transition: color 600ms; }
+.aw__glyph svg { position: absolute; inset: 0; margin: auto; opacity: 0; transform: scale(0.4) rotate(-40deg); transition: opacity 420ms, transform 520ms cubic-bezier(0.32, 1.5, 0.5, 1); }
+.aw__glyph[data-glyph='coffee'] .g-coffee, .aw__glyph[data-glyph='zap'] .g-zap, .aw__glyph[data-glyph='sun'] .g-sun { opacity: 1; transform: none; }
+.aw__ripple { position: absolute; inset: 4%; border-radius: 50%; border: 2px solid var(--c); opacity: 0; animation: aw-ripple 1.7s cubic-bezier(0.2, 0.6, 0.3, 1) infinite; pointer-events: none; }
+.aw__ripple--2 { animation-delay: 0.55s; }
+.aw__hero--shake { animation: aw-shake 460ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+
+.aw__side { flex: 1 1 0; min-width: 0; max-width: 260px; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.aw__until { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: var(--text-3); font-weight: 500; }
+.aw__until strong { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; color: var(--text-1); }
+.aw__facts { margin: 0; font-size: 11.5px; font-weight: 500; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aw__actions { display: flex; flex-wrap: wrap; gap: 6px; max-height: 60px; overflow: hidden; }
+.aw__btn { height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.1); color: var(--text-1); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; transition: background 160ms, transform 140ms cubic-bezier(0.32, 1.4, 0.5, 1); }
+.aw__btn:hover { background: rgba(255, 255, 255, 0.17); }
+.aw__btn:active { transform: scale(0.95); }
+.aw__btn--primary { background: #fff; color: #000; }
+.aw__btn--primary:hover { background: #fff; filter: brightness(0.92); }
+.aw__btn--primary.calm { background: rgba(255, 255, 255, 0.12); color: var(--text-1); }
+.aw__btn--stop { color: #FF6961; }
+.aw__btn--stop.armed { background: #FF453A; color: #fff; }
+
+/* an unanswered alarm: full-width toast in place of the header */
+.aw__toast { position: relative; flex: none; width: 100%; min-height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border: 0; border-radius: 14px; background: #FF9F0A; color: #1a1100; text-align: left; overflow: hidden; cursor: pointer; animation: aw-toast-in 420ms cubic-bezier(0.2, 1.3, 0.4, 1) both; }
+.aw__toast-text { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 13px; }
+.aw__toast-text strong { font-weight: 700; letter-spacing: -0.01em; }
+.aw__toast-text span { font-weight: 600; opacity: 0.7; }
+.aw__toast-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: rgba(26, 17, 0, 0.45); transform-origin: left; animation: aw-drain var(--confirm) linear forwards; }
+.aw[data-state='pending'] .aw__aura { opacity: 0.85; }
+
+/* ---- celebration */
+.aw__done { flex: 1; display: flex; align-items: center; justify-content: center; gap: 14px; cursor: pointer; animation: aw-fade-up 480ms cubic-bezier(0.2, 1, 0.4, 1) both; }
+.aw__check { width: clamp(44px, 30cqmin, 84px); height: auto; flex: none; }
+.aw__check-ring { fill: rgba(48, 209, 88, 0.12); stroke: #30D158; stroke-width: 2.5; stroke-dasharray: 145; stroke-dashoffset: 145; animation: aw-draw 700ms 80ms cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.aw__check-tick { fill: none; stroke: #30D158; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 36; stroke-dashoffset: 36; animation: aw-draw 450ms 560ms cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.aw__done-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.aw__done-text strong { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.aw__done-text span { font-size: 12px; font-weight: 500; color: var(--text-3); }
+
+/* tall: ring above the text */
+@container (min-height: 280px) and (max-width: 479px) {
+  .aw__active { flex-direction: column; gap: 10px; }
+  .aw__hero { height: min(46%, 160px); }
+  .aw__side { align-items: center; text-align: center; max-width: none; width: 100%; }
+  .aw__until { justify-content: center; }
+  .aw__actions { justify-content: center; }
+  .aw__done { flex-direction: column; text-align: center; }
+}
+/* large */
+@container (min-width: 480px) and (min-height: 280px) { .aw__hero { height: min(88%, 230px); } .aw__active { gap: 28px; } .aw__clock { font-size: clamp(22px, 15cqmin, 38px); } }
+/* short and narrow (compact) */
+@container (max-height: 175px) { .aw__hero { height: min(100%, 112px); } .aw__facts { display: none; } .aw__until strong { font-size: 17px; } .aw__active { gap: 12px; } }
+@container (max-height: 175px) and (max-width: 330px) { .aw__clock { font-size: 14px; } .aw__glyph { width: 14px; height: 14px; } .aw__glyph svg { width: 14px; height: 14px; } .aw__btn { padding: 0 9px; } }
+
+@keyframes aw-spin { to { transform: rotate(360deg); } }
+@keyframes aw-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
+@keyframes aw-ripple { 0% { transform: scale(0.85); opacity: 0.55; } 100% { transform: scale(1.55); opacity: 0; } }
+@keyframes aw-shake { 10%, 90% { transform: translateX(-1px); } 20%, 80% { transform: translateX(2px); } 30%, 50%, 70% { transform: translateX(-3px); } 40%, 60% { transform: translateX(3px); } }
+@keyframes aw-toast-in { from { opacity: 0; transform: translateY(-8px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes aw-drain { to { transform: scaleX(0); } }
+@keyframes aw-draw { to { stroke-dashoffset: 0; } }
+@keyframes aw-fade-up { from { opacity: 0; transform: translateY(8px) scale(0.97); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .aw *, .aw *::before { animation: none !important; transition-duration: 0.01ms !important; }
+  .aw__check-ring, .aw__check-tick { stroke-dashoffset: 0; }
+  .aw__ripple { display: none; }
+}
+
+@container (max-width: 330px) { .aw__sub { display: none; } }
+@container (min-height: 300px) { .aw__sounds { max-height: 58px; } .aw__setup { gap: 12px; } .aw__main, .aw__opts { gap: 10px; } }

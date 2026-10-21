@@ -1,0 +1,177 @@
+/* ============================================================ page fit
+   Each page is a fixed 2-row grid (see widgetPages). Platters fill their cell and
+   scroll inside only when their own content cannot fit. */
+
+.panel__body > .widget-grid {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  height: 0;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  grid-template-columns: repeat(var(--grid-columns, 2), minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-content: stretch;
+}
+.widget-grid > .widget {
+  min-height: 0;
+  min-width: 0;
+  gap: 0;
+  container-type: inline-size;
+}
+.widget-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  max-height: 100%;
+  gap: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.widget-content::-webkit-scrollbar { display: none; }
+.widget-content > * { min-width: 0; max-width: 100%; }
+.widget--media > .widget-content { overflow: hidden; }
+.widget--controls { container-type: size; container-name: controls; }
+.widget__head { flex: none; margin: 0 0 10px; min-height: 20px; }
+.widget__empty { flex: 1; min-height: 0; gap: 8px; padding: 10px; font-size: var(--fs-12); line-height: 1.4; }
+.widget__title { min-width: 0; flex-shrink: 1; }
+.widget__eyebrow { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.widget-grid--arranging > .widget { padding-top: 42px; touch-action: none; cursor: grab; }
+.widget-grid--arranging > .widget:active { cursor: grabbing; }
+.widget-grid--arranging .widget-content { pointer-events: none; }
+.widget-grid--arranging .media__viz { display: none; }
+.panel__body--tutorial > .widget-grid { opacity: 0.18; filter: blur(2px); pointer-events: none; }
+
+@container dashboard (max-width: 680px) {
+  .widget-grid > .widget { padding: 13px 14px; }
+  .panel__body { gap: 6px; }
+  .panel__body > .widget-grid { gap: 10px; }
+  .widget__head { margin-bottom: 7px; }
+}
+
+/* ---------------------------------------------------------- widget content
+   Sizing hints for widget internals that do not ship their own CSS. Zero
+   specificity on purpose: a widget's own stylesheet always wins. */
+.media.media--tile {height:100%;justify-content:space-between;gap:8px;}
+:where(.widget-grid) .media__art--sm {width:48px;height:48px;border-radius:13px;}
+:where(.widget-grid) .media__tile-title {font-size:15px;letter-spacing:-.3px;}
+:where(.widget-grid) .media__tile-artist {font-size:11px;}
+:where(.widget-grid) .media__transport {gap:4px;}
+:where(.widget-grid) .media__btn--sm {width:34px;height:34px;}
+:where(.widget-grid) .media__source {font-size:8px;margin-bottom:3px;}
+:where(.widget-grid) .media__times {margin-top:4px;font-size:9px;}
+:where(.widget-grid) .media__range {height:5px;}
+:where(.widget-grid) .weather__temp {font-size:40px;}
+:where(.widget-grid) .weather__desc {font-size:11px;margin-top:2px;}
+:where(.widget-grid) .weather__range {font-size:10px;margin-top:5px;}
+:where(.widget-grid) .weather__aqi {margin-top:8px;padding-top:6px;font-size:10px;}
+.weather__attribution {font-size:8px;line-height:1.3;}
+:where(.widget-grid) .notes {flex:1;min-height:0;display:flex;flex-direction:column;}
+.widget-list-pager {display:flex;align-items:center;justify-content:flex-end;gap:8px;font-size:9px;color:var(--text-3);flex:none;}
+.widget-list-pager button {font-size:17px;line-height:1;padding:0 3px;}
+:where(.widget-grid) .world-clock {grid-template-columns:84px minmax(0,1fr);padding:2px 0 7px;gap:14px;}
+:where(.widget-grid) .clock-dial {width:82px;}
+:where(.widget-grid) .clock-local strong {font-size:27px;}
+:where(.widget-grid) .world-clocks {gap:0;}
+:where(.widget-grid) .world-clocks__city {min-height:26px;}
+:where(.widget-grid) .world-clocks__city strong {font-size:12px;letter-spacing:0;}
+:where(.widget-grid) .focus-clock {font-size:43px;line-height:1.1;padding:6px 0 12px;letter-spacing:-1.7px;}
+:where(.widget-grid) .focus-controls {flex-wrap:wrap;gap:8px;}
+:where(.widget-grid) .system-lines {gap:14px;padding:14px 0;}
+:where(.widget-grid) .notif-mini {gap:6px;}
+:where(.widget-grid) .notif-mini__row {padding:5px 0;}
+:where(.widget-grid) .reset-watch {gap:7px;}
+:where(.widget-grid) .reset-event__title {font-size:10px;-webkit-line-clamp:1;}
+:where(.widget-grid) .reset-watch__note {font-size:8px;margin:7px 0 5px;}
+:where(.widget-grid) .ai {min-height:0;flex:1;display:flex;flex-direction:column;gap:8px;}
+:where(.widget-grid) .ai__row {padding:0;min-height:0;}
+:where(.widget-grid) .ai__report {font-size:8px;line-height:1.3;}
+:where(.widget-grid) .ai__sub {font-size:9px;}
+:where(.widget-grid) .dock__grid--mini {display:flex;flex-wrap:wrap;align-content:center;gap:12px;flex:1;}
+:where(.widget-grid) .dock__tile {width:60px;}
+:where(.widget-grid) .nearby,:where(.widget-grid) .phone-bucket {height:100%;min-height:0;overflow:hidden;}
+:where(.widget-grid) .phone-bucket__grid {flex:1;min-height:0;grid-template-columns:180px minmax(0,1fr);}
+:where(.widget-grid) .phone-bucket__qr {width:140px;}
+:where(.widget-grid) .phone-bucket__files {max-height:100px;}
+:where(.widget-grid) .phone-bucket__security {font-size:9px;}
+:where(.widget-grid) .phone-bucket__intro h2 {font-size:20px;letter-spacing:-.5px;}
+:where(.widget-grid) .phone-bucket__eyebrow {display:none;}
+:where(.widget-grid) .phone-bucket__drop {min-height:100px;}
+:where(.widget-grid) .phone-bucket__files-head {margin-top:0;}
+:where(.widget-grid) .phone-bucket__url {display:none;}
+:where(.widget-grid) .phone-bucket__limits>span {display:none;}
+:where(.widget-grid) .quick-settings {height:100%;min-height:0;}
+@container dashboard (max-width:680px) {
+  :where(.widget-grid) .media__art--sm {width:36px;height:36px;}
+  :where(.widget-grid) .media__tile-title {font-size:12px;}
+  :where(.widget-grid) .media__btn {width:23px;height:25px;}
+  :where(.widget-grid) .media__btn--sm {width:29px;height:29px;}
+  :where(.widget-grid) .media__tile-main {gap:7px;}
+  :where(.widget-grid) .media__tile-artist {font-size:10px;}
+  :where(.widget-grid) .media__viz--tile {min-height:25px;height:31px;flex-basis:31px;}
+  :where(.widget-grid) .weather__temp {font-size:30px;}
+  :where(.widget-grid) .weather__aqi small {font-size:8px;}
+  :where(.widget-grid) .weather__attribution {font-size:7px;}
+  :where(.widget-grid) .world-clock {grid-template-columns:62px minmax(0,1fr);gap:9px;}
+  :where(.widget-grid) .clock-dial {width:62px;}
+  :where(.widget-grid) .clock-local strong {font-size:23px;}
+  :where(.widget-grid) .world-clocks__city {min-height:21px;}
+  :where(.widget-grid) .focus-clock {font-size:32px;padding:2px 0 8px;}
+  :where(.widget-grid) .widget__head {margin-bottom:6px;}
+  :where(.widget-grid) .phone-bucket__grid {grid-template-columns:135px minmax(0,1fr);}
+  :where(.widget-grid) .phone-bucket__qr {width:105px;}
+  :where(.widget-grid) .phone-bucket__qr-card {display:flex;}
+  :where(.widget-grid) .phone-bucket__intro p {font-size:10px;}
+  :where(.widget-grid) .phone-bucket__files {max-height:65px;}
+  :where(.widget-grid) .reset-watch__note {margin-top:4px;}
+  :where(.widget-grid) .reset-event:nth-child(n+3) {display:none;}
+}
+
+.widget-list-pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: var(--fs-11); color: var(--text-3); flex: none; }
+:where(.focus-controls, .focus-presets) { display: flex; align-items: center; gap: 4px; min-width: 0; flex-wrap: wrap; }
+:where(.focus-presets) { flex: 1; }
+:where(.focus-presets button) { background: var(--platter); border: 0; border-radius: 999px; padding: 5px 10px; font-size: var(--fs-11); color: var(--text-2); cursor: pointer; }
+:where(.focus-presets .selected) { background: var(--accent-soft); color: var(--accent); }
+:where(.system-lines) { display: flex; flex-direction: column; gap: 13px; padding: 10px 0 3px; }
+:where(.system-lines > div) { display: grid; grid-template-columns: 45px 1fr 32px; gap: 9px; align-items: center; font-size: var(--fs-12); color: var(--text-2); }
+:where(.system-lines strong) { font-size: var(--fs-12); font-weight: var(--fw-medium); text-align: right; color: var(--text-1); }
+:where(.system-lines small) { font-size: var(--fs-11); color: var(--text-3); }
+:where(.system-lines meter) { width: 100%; height: 6px; appearance: none; }
+:where(.system-lines meter)::-webkit-meter-bar { background: var(--platter-strong); border: 0; border-radius: 3px; }
+:where(.system-lines meter)::-webkit-meter-optimum-value { background: var(--text-1); border-radius: 3px; }
+:where(.airdrop-state strong) { font-size: var(--fs-13); font-weight: var(--fw-medium); }
+:where(.airdrop-state p) { font-size: var(--fs-12); line-height: 1.5; color: var(--text-2); }
+:where(.airdrop-state small) { font-size: var(--fs-11); color: var(--text-3); }
+:where(.bluetooth-device) { display: flex; align-items: center; gap: 8px; padding: 9px 0; font-size: var(--fs-13); }
+:where(.bluetooth-device > svg) { color: var(--accent); }
+:where(.bluetooth-device > span) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:where(.bluetooth-device > small) { color: var(--text-3); font-size: var(--fs-11); }
+:where(.bluetooth-power) { font-size: var(--fs-11); color: var(--text-3); border-top: 1px solid var(--line-2); padding-top: 10px; margin: 5px 0 0; }
+:where(.reset-watch) { display: flex; flex-direction: column; gap: 9px; }
+:where(.reset-event) { display: grid; grid-template-columns: 1fr auto; gap: 5px 8px; text-align: left; border: 0; background: transparent; color: var(--text-1); padding: 0; cursor: pointer; }
+:where(.reset-event__tag) { color: var(--accent); font-size: var(--fs-11); }
+:where(.reset-event time) { font-size: var(--fs-11); color: var(--text-3); }
+:where(.reset-event__title) { font-size: var(--fs-12); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+:where(.reset-watch__note) { font-size: var(--fs-11); color: var(--text-3); line-height: 1.5; margin: 8px 0 4px; }
+:where(.ai__report) { display: flex; flex-wrap: wrap; gap: 2px 7px; font-size: var(--fs-11); line-height: 1.4; color: var(--text-3); }
+:where(.ai__report > span) { margin-left: auto; }
+:where(.ai__val) { white-space: nowrap; }
+:where(.focus-clock) { font-size: 35px; font-weight: var(--fw-medium); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; padding: 5px 0; }
+:where(.world-clocks) { display: flex; flex-direction: column; gap: 12px; }
+:where(.world-clocks > div) { display: flex; justify-content: space-between; align-items: center; font-size: var(--fs-13); }
+:where(.world-clocks small) { display: block; font-size: var(--fs-11); color: var(--text-3); margin-top: 3px; }
+:where(.world-clocks strong) { font-size: 22px; font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+@media (prefers-reduced-motion: reduce) { .panel__body--tutorial > .widget-grid { filter: none; } }
+
+/* While arranging, content is a quiet preview so the arranger bar reads clearly. */
+.widget-grid--arranging .widget-content {
+  opacity: 0.55;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 75%, transparent);
+  mask-image: linear-gradient(#000 75%, transparent);
+}

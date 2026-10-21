@@ -1,0 +1,44 @@
+/* Custom dropdown: dark Apple-style trigger and portal menu. Self-contained so it
+   works in the island and in the Settings window without either's tokens. */
+.dd {
+  display: inline-flex; align-items: center; justify-content: space-between; gap: 8px;
+  height: 30px; min-width: 0; max-width: 100%; padding: 0 9px 0 11px; border: 0; border-radius: 8px;
+  background: var(--st-ctrl, rgba(255, 255, 255, 0.12)); color: var(--st-t1, rgba(255, 255, 255, 0.92));
+  font: inherit; font-size: 13px; font-weight: 500; letter-spacing: -0.005em; text-align: left; cursor: pointer;
+  transition: background 140ms ease, transform 120ms ease, box-shadow 140ms ease;
+}
+.dd--sm { height: 24px; padding: 0 7px 0 10px; font-size: 12px; border-radius: 6px; }
+.dd:hover:not(:disabled) { background: var(--st-ctrl-hover, rgba(255, 255, 255, 0.18)); }
+.dd:active:not(:disabled) { transform: scale(0.98); }
+.dd:focus-visible { outline: 2px solid var(--st-blue, #0a84ff); outline-offset: 2px; }
+.dd--open { background: var(--st-ctrl-hover, rgba(255, 255, 255, 0.18)); }
+.dd:disabled { opacity: 0.45; cursor: default; }
+.dd__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd--empty .dd__label { color: rgba(255, 255, 255, 0.45); }
+.dd__chevron { flex: none; color: rgba(255, 255, 255, 0.6); }
+
+.dd-menu {
+  position: fixed; z-index: 100000; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain;
+  padding: 5px; border-radius: 12px;
+  background: rgba(38, 38, 42, 0.94); color: rgba(255, 255, 255, 0.92);
+  -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 14px 40px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-family: inherit; font-size: 13px; outline: none; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  opacity: 0; transform: translateY(-4px) scale(0.98); transform-origin: top center; pointer-events: none;
+}
+.dd-menu--up { transform-origin: bottom center; transform: translateY(4px) scale(0.98); }
+.dd-menu--ready { opacity: 1; transform: none; pointer-events: auto; transition: opacity 120ms ease, transform 160ms cubic-bezier(0.32, 1.2, 0.5, 1); }
+.dd-option {
+  display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 10px 4px 6px; border-radius: 7px;
+  cursor: default; user-select: none; -webkit-user-select: none;
+}
+.dd-option--active { background: #0a84ff; color: #fff; }
+.dd-option--disabled { opacity: 0.4; }
+.dd-option--active.dd-option--disabled { background: transparent; color: inherit; }
+.dd-option__check { flex: none; display: grid; place-items: center; width: 14px; height: 14px; }
+.dd-option__icon { flex: none; display: grid; place-items: center; width: 18px; height: 18px; }
+.dd-option__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dd-option__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.dd-option__detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: rgba(255, 255, 255, 0.5); }
+.dd-option--active .dd-option__detail { color: rgba(255, 255, 255, 0.78); }
+@media (prefers-reduced-motion: reduce) { .dd, .dd-menu--ready { transition: none; } }

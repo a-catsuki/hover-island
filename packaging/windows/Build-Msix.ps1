@@ -1,7 +1,8 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string] $ExecutablePath,
     [string] $OutputDirectory,
+    [string] $PackageVersion,
     [string] $PfxPath,
     [string] $SigningCertificateThumbprint,
     [switch] $CreateLocalSigningCertificate
@@ -82,10 +83,35 @@ if (-not [IO.Path]::IsPathRooted($OutputDirectory)) {
 $null = New-Item -ItemType Directory -Path $OutputDirectory -Force
 $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
 
-$versionParts = @($config.version -split '\.')
+# Windows only updates a package in place when its version goes up. Every local build gets the
+# next fourth number (0.1.5.1, 0.1.5.2, ...), counting on from whatever is installed now, so a
+# new install replaces the old one without uninstalling. A release bumps the 3-part version in
+# tauri.conf.json and the counter restarts.
+function Get-NextBuildVersion([string] $Base) {
+    $parts = @($Base -split '\.')
+    while ($parts.Count -lt 3) { $parts += '0' }
+    $prefix = ($parts[0..2] -join '.')
+    $counterFile = Join-Path $PSScriptRoot '.build-number'
+    $next = 1
+    if (Test-Path -LiteralPath $counterFile) {
+        $saved = (Get-Content -LiteralPath $counterFile -Raw).Trim().Split('|')
+        if ($saved.Count -eq 2 -and $saved[0] -eq $prefix -and $saved[1] -match '^\d+$') { $next = [int]$saved[1] + 1 }
+    }
+    $installed = Get-AppxPackage -Name 'com.hoverisland.app' -ErrorAction SilentlyContinue | Sort-Object { [version]$_.Version } -Descending | Select-Object -First 1
+    if ($installed) {
+        $v = [version]$installed.Version
+        if ("$($v.Major).$($v.Minor).$($v.Build)" -eq $prefix -and $v.Revision -ge $next) { $next = $v.Revision + 1 }
+    }
+    if ($next -gt 65535) { throw 'Build counter overflow; bump the version in tauri.conf.json.' }
+    Set-Content -LiteralPath $counterFile -Value "$prefix|$next" -Encoding ASCII
+    return "$prefix.$next"
+}
+
+$versionText = if ($PackageVersion) { $PackageVersion } else { Get-NextBuildVersion ([string]$config.version) }
+$versionParts = @($versionText -split '\.')
 if ($versionParts.Count -lt 3 -or $versionParts.Count -gt 4 -or
-    ($versionParts | Where-Object { $_ -notmatch '^\d+$' })) {
-    throw "MSIX requires a numeric 3- or 4-part version; tauri.conf.json has '$($config.version)'."
+    ($versionParts | Where-Object { $_ -notmatch '^\d+$' -or $_.Length -gt 5 -or [int]$_ -gt 65535 })) {
+    throw "MSIX requires a numeric 3- or 4-part version with each part from 0 to 65535; received '$versionText'."
 }
 while ($versionParts.Count -lt 4) { $versionParts += '0' }
 $packageVersion = $versionParts -join '.'

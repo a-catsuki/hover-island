@@ -1,0 +1,28 @@
+/* Shared pieces for the small utility widgets: header caption, ring gauge, empty state. */
+.wk { display: flex; flex-direction: column; width: 100%; height: 100%; min-width: 0; min-height: 0; gap: 8px; color: var(--text-1); font-variant-numeric: tabular-nums; }
+:where(.wk) button { font: inherit; color: inherit; }
+.wk button:focus-visible, .wk a:focus-visible { outline: 2px solid #0A84FF; outline-offset: 1px; }
+.wk-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; min-width: 0; }
+.wk-title { display: inline-flex; align-items: center; gap: 7px; min-width: 0; font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+.wk-title > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-glyph { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; color: #fff; }
+.wk-sub { font-size: 12px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
+.wk-tools { display: flex; align-items: center; gap: 2px; }
+.wk-icon-btn { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-2); cursor: pointer; transition: background 140ms, transform 120ms; }
+.wk-icon-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
+.wk-icon-btn:active:not(:disabled) { transform: scale(0.92); }
+.wk-icon-btn:disabled { opacity: 0.35; cursor: default; }
+.wk-pill { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.12); font-size: 12px; font-weight: 600; cursor: pointer; transition: background 140ms, transform 120ms; }
+.wk-pill:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); }
+.wk-pill:active:not(:disabled) { transform: scale(0.96); }
+.wk-pill:disabled { opacity: 0.5; cursor: default; }
+.wk-pill--blue { background: #0A84FF; color: #fff; }
+.wk-pill--blue:hover:not(:disabled) { background: #3b9cff; }
+.wk-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 0; text-align: center; font-size: 12px; color: var(--text-3); }
+.wk-empty strong { font-size: 14px; font-weight: 600; color: var(--text-1); }
+.wk-empty p { margin: 0; }
+.wk-error { margin: 0; font-size: 12px; color: #FF6961; }
+.wk-ring { position: relative; aspect-ratio: 1; }
+.wk-ring > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wk-ring__inner { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+@media (prefers-reduced-motion: reduce) { .wk * { transition: none !important; animation: none !important; } }

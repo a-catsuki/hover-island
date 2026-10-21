@@ -3,8 +3,8 @@ import { createStore, reconcile, unwrap } from 'solid-js/store'
 import { cmd, DEFAULT_SETTINGS, onSettingsChanged, type DockItem, type Settings } from '../lib/ipc'
 import { applyTemplate } from '../lib/themes'
 import { applyAccent } from './ui'
-import { reportError } from './feedback'
-import { fitPanelLayout } from '../lib/panels'
+import { dismissFeedback, reportError } from './feedback'
+import { fitPanelLayout, normalizePanelNames } from '../lib/panels'
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 const [settings, setSettings] = createStore<Settings>(clone(DEFAULT_SETTINGS))
@@ -29,6 +29,7 @@ function merge(current: Settings, patch: Partial<Settings>): Settings {
     interaction: { ...current.interaction, ...patch.interaction },
     panels: patch.panels ?? current.panels,
     panelOrder: Array.isArray(patch.panelOrder) ? patch.panelOrder : current.panelOrder,
+    panelNames: patch.panelNames ?? current.panelNames ?? {},
     placement: { ...current.placement, ...patch.placement },
     usage: { ...current.usage, ...patch.usage,
       manualConfig: { ...current.usage.manualConfig, ...patch.usage?.manualConfig } },
@@ -41,7 +42,7 @@ function merge(current: Settings, patch: Partial<Settings>): Settings {
     dock: patch.dock ?? current.dock,
   }
   const layout = fitPanelLayout(merged.panels, merged.panelOrder, merged.widgets)
-  return { ...merged, ...layout }
+  return { ...merged, ...layout, panelNames: normalizePanelNames(merged.panelNames, layout.panels) }
 }
 function mergePending(older: Partial<Settings>, newer: Partial<Settings>): Partial<Settings> {
   const combined = { ...older, ...newer }
@@ -147,6 +148,23 @@ export async function flushSettings(): Promise<void> {
     if (writeFailureRevision > startingFailureRevision) throw lastWriteFailure
     if (currentQueue === writeQueue && !Object.keys(pending).length) break
   } while (true)
+}
+/**
+ * Save a patch right now and wait for the native side to accept it (for example
+ * a global shortcut that must be registered). If it is refused, the patch is
+ * dropped, the store goes back to the last saved values, and the error is thrown
+ * so the caller can show it next to the control instead of in the page banner.
+ */
+export async function applySettings(patch: Partial<Settings>): Promise<void> {
+  patchSettings(patch)
+  try {
+    await flushSettings()
+  } catch (error) {
+    for (const key of Object.keys(patch)) delete (pending as Record<string, unknown>)[key]
+    setSettings(reconcile(merge(confirmed, pending)))
+    dismissFeedback()
+    throw error
+  }
 }
 export async function resetSettings(): Promise<void> {
   try {

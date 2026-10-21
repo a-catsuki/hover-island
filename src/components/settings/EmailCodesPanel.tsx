@@ -1,8 +1,9 @@
 import { createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { Check, ExternalLink, KeyRound, Pause, Play, Plus, ShieldCheck, Trash2 } from 'lucide-solid'
+import { Check, ExternalLink, KeyRound, Mail, Pause, Play, RefreshCw, ShieldCheck, Trash2 } from 'lucide-solid'
 import { connectEmailCodes, emailCodes, emailCodesError, pauseEmailCodes, refreshEmailCodes, removeEmailCodes, subscribeEmailCodes } from '../../state/emailCodes'
 import { reportError } from '../../state/feedback'
-import './EmailCodesPanel.css'
+import { Group, SettingsDropdown } from '../../settings/controls'
+import './panels.css'
 
 export default function EmailCodesPanel() {
   const [provider, setProvider] = createSignal<'google' | 'microsoft'>('google')
@@ -38,40 +39,43 @@ export default function EmailCodesPanel() {
     finally { setWorkingId(null) }
   }
 
-  return <section class="email-codes" aria-labelledby="email-codes-title">
-    <header class="email-codes__heading">
-      <span class="email-codes__icon"><KeyRound size={18}/></span>
-      <div><h3 id="email-codes-title">Email verification codes</h3><p>Watch selected inboxes for new sign-in codes.</p></div>
-      <button class="email-codes__refresh" type="button" aria-label="Refresh email connections" onClick={() => void refreshEmailCodes().catch(error => reportError('Could not refresh email connections', error))}>Refresh</button>
-    </header>
+  return <Group
+    title="Email verification codes"
+    description="Optional and off until you connect an account. Hover Island reads only new inbox mail, keeps codes in memory for ten minutes, and stores sign-in credentials encrypted with Windows on this PC."
+  >
+    <Show when={emailCodes().accounts.length} fallback={<p class="slist-empty">No email accounts connected.</p>}>
+      <For each={emailCodes().accounts}>{account => <div class="slist-row">
+        <span class="slist-row__tile" style={{ background: account.provider === 'google' ? '#ea4335' : '#0a84ff' }} aria-hidden="true"><Mail size={15} strokeWidth={1.9} /></span>
+        <span class="slist-row__text">
+          <strong>{account.address}</strong>
+          <small classList={{ 'is-error': !!account.lastError }}>{account.provider === 'google' ? 'Gmail' : 'Outlook'} · {account.paused ? 'Paused' : account.lastError || 'Watching for new codes'}</small>
+        </span>
+        <span class="slist-row__actions">
+          <button type="button" class="slist-icon-btn" disabled={workingId() === account.id} aria-label={account.paused ? `Resume ${account.address}` : `Pause ${account.address}`} title={account.paused ? 'Resume' : 'Pause'} onClick={() => void togglePause(account.id, account.paused)}>{account.paused ? <Play size={14} /> : <Pause size={14} />}</button>
+          <button type="button" class="slist-icon-btn slist-icon-btn--danger" disabled={workingId() === account.id} aria-label={`Remove ${account.address}`} title="Remove" onClick={() => void remove(account.id)}><Trash2 size={14} /></button>
+        </span>
+      </div>}</For>
+    </Show>
 
-    <div class="email-codes__privacy"><ShieldCheck size={16}/><span>Optional and off until you connect an account. Hover Island checks only new inbox mail, keeps codes in memory for ten minutes, and stores provider credentials encrypted with Windows DPAPI on this device.</span></div>
+    <form class="sform" onSubmit={connect}>
+      <h3 class="sform__title"><KeyRound size={14} strokeWidth={1.9} />Connect an account</h3>
+      <div class="sform__grid">
+        <div class="sform__field sform__field--wide"><span>Email provider</span><SettingsDropdown block ariaLabel="Email provider" value={provider()} onChange={setProvider} disabled={busy()} options={[['google', 'Google / Gmail'], ['microsoft', 'Microsoft / Outlook']]} /></div>
+        <label class="sform__field" classList={{ 'sform__field--wide': provider() !== 'google' }}><span>{provider() === 'google' ? 'Desktop OAuth client ID' : 'Public client application ID'}</span><input value={clientId()} onInput={event => setClientId(event.currentTarget.value)} autocomplete="off" spellcheck={false} required maxlength={300} placeholder={provider() === 'google' ? '123…apps.googleusercontent.com' : 'Application (client) ID'} disabled={busy()} /></label>
+        <Show when={provider() === 'google'}><label class="sform__field"><span>Client secret<small>optional</small></span><input type="password" value={clientSecret()} onInput={event => setClientSecret(event.currentTarget.value)} autocomplete="new-password" maxlength={2048} placeholder="Only if your client needs one" disabled={busy()} /></label></Show>
+      </div>
 
-    <div class="email-codes__accounts">
-      <Show when={emailCodes().accounts.length} fallback={<div class="email-codes__empty">No email accounts connected</div>}>
-        <For each={emailCodes().accounts}>{account => <article class="email-codes__account">
-          <span class="email-codes__provider">{account.provider === 'google' ? 'Gmail' : 'Outlook'}</span>
-          <div class="email-codes__address"><strong>{account.address}</strong><small classList={{'email-codes__account-error':!!account.lastError}}>{account.paused ? 'Paused' : account.lastError || 'Checking for new codes'}</small></div>
-          <button type="button" class="email-codes__icon-button" disabled={workingId() === account.id} aria-label={account.paused ? `Resume ${account.address}` : `Pause ${account.address}`} onClick={() => void togglePause(account.id, account.paused)}>{account.paused ? <Play size={15}/> : <Pause size={15}/>}</button>
-          <button type="button" class="email-codes__icon-button email-codes__icon-button--remove" disabled={workingId() === account.id} aria-label={`Remove ${account.address}`} onClick={() => void remove(account.id)}><Trash2 size={15}/></button>
-        </article>}</For>
-      </Show>
-    </div>
-
-    <form class="email-codes__form" onSubmit={connect}>
-      <div class="email-codes__form-title"><Plus size={15}/> Connect an account</div>
-      <label class="email-codes__field"><span>Email provider</span><select value={provider()} onChange={event => setProvider(event.currentTarget.value as 'google' | 'microsoft')} disabled={busy()}><option value="google">Google / Gmail</option><option value="microsoft">Microsoft / Outlook</option></select></label>
-      <label class="email-codes__field"><span>{provider() === 'google' ? 'Desktop OAuth client ID' : 'Public client application ID'}</span><input value={clientId()} onInput={event => setClientId(event.currentTarget.value)} autocomplete="off" spellcheck={false} required maxlength={300} placeholder={provider() === 'google' ? '123…apps.googleusercontent.com' : 'Application (client) ID'} disabled={busy()}/></label>
-      <Show when={provider() === 'google'}><label class="email-codes__field"><span>Client secret <small>optional</small></span><input type="password" value={clientSecret()} onInput={event => setClientSecret(event.currentTarget.value)} autocomplete="new-password" maxlength={2048} placeholder="Only if your Google client requires it" disabled={busy()}/></label></Show>
-
-      <div class="email-codes__setup">
-        <Show when={provider() === 'google'} fallback={<><strong>Microsoft setup</strong><span>Register a public desktop app in Microsoft Entra. Enable public-client flows and add delegated <code>Mail.Read</code>, <code>User.Read</code>, and <code>offline_access</code> permissions.</span><a href="https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-configuration" target="_blank" rel="noreferrer">Desktop app setup <ExternalLink size={12}/></a></>}>
-          <strong>Google setup</strong><span>Enable the Gmail API, create an OAuth client with application type Desktop app, and add your account as a test user if the app is in testing. Gmail read access may require Google verification before general use.</span><a href="https://developers.google.com/identity/protocols/oauth2/native-app" target="_blank" rel="noreferrer">Desktop OAuth setup <ExternalLink size={12}/></a>
+      <div class="sform__setup">
+        <Show when={provider() === 'google'} fallback={<><strong>Microsoft setup</strong><span>Register a public desktop app in Microsoft Entra. Turn on public client flows and add the delegated permissions <code>Mail.Read</code>, <code>User.Read</code> and <code>offline_access</code>.</span><a class="sform__link" href="https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-configuration" target="_blank" rel="noreferrer">Desktop app setup <ExternalLink size={12} /></a></>}>
+          <strong>Google setup</strong><span>Enable the Gmail API and create an OAuth client of type Desktop app. If the app is in testing, add your account as a test user. Gmail read access may need Google verification for wider use.</span><a class="sform__link" href="https://developers.google.com/identity/protocols/oauth2/native-app" target="_blank" rel="noreferrer">Desktop OAuth setup <ExternalLink size={12} /></a>
         </Show>
       </div>
-      <Show when={localError() || emailCodesError()}><p class="email-codes__error" role="alert">{localError() || emailCodesError()}</p></Show>
-      <button class="email-codes__connect" type="submit" disabled={busy() || !clientId().trim()}>{busy() ? <><span class="email-codes__spinner"/> Waiting for provider sign-in…</> : <><Check size={15}/> Connect with {provider() === 'google' ? 'Google' : 'Microsoft'}</>}</button>
-      <p class="email-codes__footnote">Sign-in opens in your browser. Your client ID is saved with the connection; secrets are encrypted locally and never shown again. Pause or remove a connection at any time. Revoke Hover Island’s access from your Google or Microsoft account security page to end provider authorization.</p>
+      <Show when={localError() || emailCodesError()}><p class="sform__error" role="alert">{localError() || emailCodesError()}</p></Show>
+      <div class="sform__actions">
+        <button class="button button--primary" type="submit" disabled={busy() || !clientId().trim()}>{busy() ? <><span class="sform__spinner" />Waiting for sign-in…</> : <><Check size={13} />Connect with {provider() === 'google' ? 'Google' : 'Microsoft'}</>}</button>
+        <button type="button" class="text-button" aria-label="Refresh email connections" onClick={() => void refreshEmailCodes().catch(error => reportError('Could not refresh email connections', error))}><RefreshCw size={12} /> Refresh</button>
+      </div>
+      <p class="sform__note"><ShieldCheck size={11} style={{ 'vertical-align': '-1px', 'margin-right': '4px' }} />Sign-in opens in your browser. Secrets are encrypted here and never shown again. You can pause or remove a connection any time, and revoke access from your Google or Microsoft account page.</p>
     </form>
-  </section>
+  </Group>
 }

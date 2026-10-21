@@ -40,8 +40,8 @@ export function createMagneticSpring(onFrame: (offset: MagneticOffset) => void, 
   let lastTime: number | undefined
   let disposed = false
   const publish = () => onFrame({ x: current.x.value, y: current.y.value })
-  const settled = () => Math.abs(target.x - current.x.value) < 0.08 && Math.abs(target.y - current.y.value) < 0.08
-    && Math.abs(current.x.velocity) < 0.8 && Math.abs(current.y.velocity) < 0.8
+  const settled = () => Math.abs(target.x - current.x.value) < 0.05 && Math.abs(target.y - current.y.value) < 0.05
+    && Math.abs(current.x.velocity) < 1 && Math.abs(current.y.velocity) < 1
   const frame = (time: number) => {
     raf = undefined
     if (disposed) return
@@ -69,6 +69,13 @@ export function createMagneticSpring(onFrame: (offset: MagneticOffset) => void, 
     raf = requestAnimationFrame(frame)
   }
   return {
+    impulse(offset: MagneticOffset) {
+      if (disposed || reducedMotion()) return
+      const bounded = clampMagneticOffset(offset)
+      current.x.velocity += bounded.x * 12
+      current.y.velocity += bounded.y * 12
+      schedule()
+    },
     retarget(next: MagneticOffset) {
       if (disposed) return
       target = clampMagneticOffset(next)
@@ -91,6 +98,10 @@ export function createMagneticSpring(onFrame: (offset: MagneticOffset) => void, 
   }
 }
 
+/** Below these a spring is visually at rest, so the frame loop can stop. Sub-quarter-pixel tails only burn paints. */
+export const SPRING_REST_DISTANCE = 0.25
+export const SPRING_REST_VELOCITY = 6
+
 export function stepSpring(
   state: SpringState,
   target: number,
@@ -111,32 +122,55 @@ export function stepSpring(
     value += velocity * dt
   }
 
-  if (Math.abs(target - value) < 0.08 && Math.abs(velocity) < 0.8) {
+  if (Math.abs(target - value) < SPRING_REST_DISTANCE && Math.abs(velocity) < SPRING_REST_VELOCITY) {
     return { value: target, velocity: 0 }
   }
   return { value, velocity }
 }
 
+/** Apple-style spring: perceived duration (response, seconds) and damping fraction. */
+export function springStiffness(responseSeconds: number): number {
+  return Math.pow((2 * Math.PI) / responseSeconds, 2)
+}
+
+/** Opening is quick with a hint of life (under 1% overshoot); closing is firm and never rebounds. */
+export const ISLAND_SPRING = {
+  open: { stiffness: springStiffness(0.34), damping: 0.82 },
+  close: { stiffness: springStiffness(0.26), damping: 0.94 },
+} as const
+
+/** The close spring is visually done by about 280ms; the native window may shrink after this. */
+export const ISLAND_CLOSE_SETTLE_MS = 300
+
 export function createIslandSpring(
   initial: SpringFrame,
   onFrame: (frame: SpringFrame) => void,
   reducedMotion: () => boolean,
+  /** Called with true when the spring starts moving and false once it rests (for will-change and similar hints). */
+  onActive?: (active: boolean) => void,
 ) {
   let current = { ...initial }
   let velocity: SpringFrame = { width: 0, height: 0, radius: 0 }
   let target = { ...initial }
+  let feel: { stiffness: number; damping: number } = ISLAND_SPRING.open
   let raf: number | undefined
   let lastTime: number | undefined
   let disposed = false
 
+  let active = false
+  const setActive = (next: boolean) => {
+    if (active === next) return
+    active = next
+    onActive?.(next)
+  }
   const publish = () => onFrame({ ...current })
   const settled = () =>
-    Math.abs(target.width - current.width) < 0.08 &&
-    Math.abs(target.height - current.height) < 0.08 &&
-    Math.abs(target.radius - current.radius) < 0.08 &&
-    Math.abs(velocity.width) < 0.8 &&
-    Math.abs(velocity.height) < 0.8 &&
-    Math.abs(velocity.radius) < 0.8
+    Math.abs(target.width - current.width) < SPRING_REST_DISTANCE &&
+    Math.abs(target.height - current.height) < SPRING_REST_DISTANCE &&
+    Math.abs(target.radius - current.radius) < SPRING_REST_DISTANCE &&
+    Math.abs(velocity.width) < SPRING_REST_VELOCITY &&
+    Math.abs(velocity.height) < SPRING_REST_VELOCITY &&
+    Math.abs(velocity.radius) < SPRING_REST_VELOCITY
 
   const frame = (time: number) => {
     raf = undefined
@@ -146,17 +180,19 @@ export function createIslandSpring(
       velocity = { width: 0, height: 0, radius: 0 }
       publish()
       lastTime = time
+      setActive(false)
       return
     }
     const delta = lastTime === undefined ? 1 / 60 : (time - lastTime) / 1000
     lastTime = time
-    const width = stepSpring({ value: current.width, velocity: velocity.width }, target.width, delta)
-    const height = stepSpring({ value: current.height, velocity: velocity.height }, target.height, delta)
-    const radius = stepSpring({ value: current.radius, velocity: velocity.radius }, target.radius, delta)
+    const width = stepSpring({ value: current.width, velocity: velocity.width }, target.width, delta, feel.stiffness, feel.damping)
+    const height = stepSpring({ value: current.height, velocity: velocity.height }, target.height, delta, feel.stiffness, feel.damping)
+    const radius = stepSpring({ value: current.radius, velocity: velocity.radius }, target.radius, delta, feel.stiffness, feel.damping)
     current = { width: width.value, height: height.value, radius: radius.value }
     velocity = { width: width.velocity, height: height.velocity, radius: radius.velocity }
     publish()
     if (!settled()) raf = requestAnimationFrame(frame)
+    else setActive(false)
   }
 
   const schedule = () => {
@@ -168,12 +204,18 @@ export function createIslandSpring(
       return
     }
     lastTime = undefined
+    setActive(true)
     raf = requestAnimationFrame(frame)
   }
 
   return {
     retarget(next: SpringFrame) {
       if (disposed) return
+      // Growing uses the livelier spring, shrinking the firmer one.
+      // A pure width change (size customization) must never overshoot.
+      feel = next.height === current.height
+        ? { stiffness: ISLAND_SPRING.open.stiffness, damping: 1 }
+        : next.width * next.height >= current.width * current.height ? ISLAND_SPRING.open : ISLAND_SPRING.close
       target = { ...next }
       schedule()
     },
@@ -185,11 +227,13 @@ export function createIslandSpring(
       if (raf !== undefined) cancelAnimationFrame(raf)
       raf = undefined
       publish()
+      setActive(false)
     },
     dispose() {
       disposed = true
       if (raf !== undefined) cancelAnimationFrame(raf)
       raf = undefined
+      setActive(false)
     },
   }
 }

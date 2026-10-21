@@ -267,71 +267,6 @@ test('audio endpoint errors can restart the one shared loopback capture', async 
   await until(() => stops === 2, 'recovered loopback was not stopped on final release')
 })
 
-test('ambient audio drive amplifies real broadband energy while rejecting isolated noise', async () => {
-  const metrics = await importTs('src/lib/audioMetrics.ts', {})
-  assert.deepEqual({ ...metrics.audioMetrics(Array(24).fill(0)) }, { energy: 0, bass: 0 })
-  assert.equal(metrics.audioMetrics([0.04, ...Array(23).fill(0)]).energy, 0)
-  const syntheticMusic = metrics.audioMetrics(Array(24).fill(0.2))
-  assert.ok(syntheticMusic.energy > 0.9, 'broadband music should visibly drive the ambient wash')
-  assert.ok(syntheticMusic.bass > 0.9, 'low-frequency energy should visibly swell the secondary light')
-  const ordinaryOutput = Array(24).fill(0.04)
-  assert.ok(metrics.audioMetrics(ordinaryOutput).energy > 0.2, 'ordinary WASAPI levels should create visible light movement')
-  assert.ok(metrics.audioFrequencyMetrics(Array(24).fill(0.08)).mids > 0.1, 'midrange output should drive its own ambient field')
-  const invalid = metrics.audioMetrics([Number.NaN, ...Array(23).fill(0.08)])
-  assert.ok(Number.isFinite(invalid.energy) && invalid.energy < syntheticMusic.energy)
-})
-
-test('visualizer gate and bounded adaptive gain preserve quiet music and reject silence or a lone bin', async () => {
-  const metrics = await importTs('src/lib/audioMetrics.ts', {})
-  const quiet = Array(24).fill(0.00598)
-  const louder = Array(24).fill(0.026)
-  const silence = Array(24).fill(0)
-  const loneBin = [0.8, ...Array(23).fill(0)]
-  const quietTone = [0.087, 0.044, ...Array(22).fill(0)]
-  assert.equal(metrics.isMeaningfulSpectrum(quiet), true, 'quiet broadband output remains live')
-  assert.equal(metrics.isMeaningfulSpectrum(louder), true)
-  assert.equal(metrics.isMeaningfulSpectrum(silence), false)
-  assert.equal(metrics.isMeaningfulSpectrum(loneBin), false, 'an isolated hot FFT bin is treated as noise')
-  assert.equal(metrics.isMeaningfulSpectrum(quietTone), true, 'a quiet tone split across adjacent FFT bands remains audible')
-  assert.ok(metrics.audioMetrics(quietTone).energy > 0, 'quiet tonal output drives the ambient layer')
-  const quietLevels = metrics.adaptSpectrumLevels(quiet, Array(24).fill(0.008), true).levels
-  const loudLevels = metrics.adaptSpectrumLevels(louder, Array(24).fill(0.008), true).levels
-  const rejectedLevels = metrics.adaptSpectrumLevels(loneBin, Array(24).fill(0.008), false).levels
-  const mean = values => values.reduce((sum, value) => sum + value, 0) / values.length
-  assert.ok(mean(quietLevels) > 0.1, 'valid quiet audio gets bounded makeup gain')
-  assert.ok(mean(loudLevels) > mean(quietLevels), 'louder audio remains perceptibly stronger')
-  assert.ok(mean(loudLevels) < 0.7, 'soft knee limits gain on louder output')
-  assert.equal(mean(rejectedLevels), 0)
-})
-
-test('audio light drive stays quiet-to-loud, dt-stable, and detects bass onsets', async () => {
-  const metrics = await importTs('src/lib/audioMetrics.ts', {})
-  const quiet = metrics.audioMetrics(Array(24).fill(0.00598))
-  const louder = metrics.audioMetrics(Array(24).fill(0.026))
-  assert.ok(quiet.energy > 0.2, 'quiet measured loopback output still moves ambient lighting')
-  assert.ok(louder.energy > quiet.energy + 0.15, 'louder output retains a clear increase in light')
-  assert.ok(louder.energy < 1, 'ordinary playback does not pin the ambient field at maximum')
-
-  const once = metrics.adaptSpectrumLevels(Array(24).fill(0), Array(24).fill(1), false, 1 / 30).peaks[0]
-  const half = metrics.adaptSpectrumLevels(Array(24).fill(0), Array(24).fill(1), false, 1 / 60).peaks[0]
-  const twice = metrics.adaptSpectrumLevels(Array(24).fill(0), Array(24).fill(half), false, 1 / 60).peaks[0]
-  assert.ok(Math.abs(once - twice) < 1e-6, 'peak release follows elapsed time rather than frame count')
-
-  const dynamics = metrics.createAudioDynamics()
-  const quietFrame = Array(24).fill(0.006)
-  for (let i = 0; i < 60; i++) dynamics.update(quietFrame, true, 1 / 30)
-  const settledQuiet = dynamics.update(quietFrame, true, 1 / 30)
-  assert.ok(settledQuiet.energy < .5, 'makeup gain for visible geometry must not flatten the ambient light at full brightness')
-  for (let i = 0; i < 60; i++) dynamics.update(Array(24).fill(.026), true, 1 / 30)
-  const settledLoud = dynamics.update(Array(24).fill(.026), true, 1 / 30)
-  assert.ok(settledLoud.energy > settledQuiet.energy + .2, 'the complete dynamics path preserves quiet-to-loud lighting contrast')
-  assert.ok(settledLoud.energy < .8)
-  dynamics.reset()
-  for (let i = 0; i < 60; i++) dynamics.update(quietFrame, true, 1 / 30)
-  const kick = [...Array(7).fill(0.16), ...Array(17).fill(0.006)]
-  assert.ok(dynamics.update(kick, true, 1 / 30).punch > 0.2, 'bass rise produces a decaying onset pulse')
-})
-
 test('album palette extraction returns stable bounded colors from thumbnail pixels', async () => {
   const palette = await importTs('src/lib/albumPalette.ts', {})
   const colors = palette.paletteFromPixels([
@@ -345,27 +280,46 @@ test('album palette extraction returns stable bounded colors from thumbnail pixe
   assert.equal(palette.paletteFromPixels([0, 0, 0, 0]), null)
 })
 
-test('synthetic visualizer previews are locally labeled data and never change native capture status', async () => {
-  let listener
-  let status = 'error'
-  const preview = await importTs('src/lib/syntheticAudioPreview.ts', {
+test('surface interaction stays owned while held and waits for a quiet period after release', async () => {
+  let now = 1000
+  const ui = await importTs('src/state/ui.ts', {
     'solid-js': { createSignal: signal },
-    '../state/audio': { AUDIO_BANDS: 24, audioCaptureStatus: () => status },
-  }, {
-    window: {
-      location: { hostname: 'localhost' },
-      addEventListener: (name, callback) => { if (name === 'hover-island:visualizer-preview') listener = callback },
-    },
+    '../lib/ipc': { cmd: {} },
+    './feedback': { reportError() {} },
+  }, { Date: { now: () => now } })
+  ui.beginSurfaceInteraction()
+  now += 10000
+  assert.equal(ui.surfaceInteractionActive(), true)
+  ui.endSurfaceInteraction()
+  now += 599
+  assert.equal(ui.surfaceInteractionActive(), true)
+  now++
+  assert.equal(ui.surfaceInteractionActive(), false)
+  ui.noteSurfaceInteraction()
+  assert.equal(ui.surfaceInteractionActive(), true)
+})
+
+test('size spring preserves height and does not overshoot during a width customization', async () => {
+  let scheduled
+  const frames = []
+  const motion = await importTs('src/state/motion.ts', {}, {
+    requestAnimationFrame: fn => { scheduled = fn; return 1 }, cancelAnimationFrame: () => { scheduled = undefined },
   })
-  assert.equal(preview.syntheticAudioSpectrum(), null)
-  listener({ detail: { bands: Array(24).fill(0.3) } })
-  assert.equal(preview.syntheticAudioSpectrum()[0], 0.3)
-  assert.equal(status, 'error')
-  listener({ detail: { bands: Array(23).fill(0.8) } })
-  assert.equal(preview.syntheticAudioSpectrum().length, 24, 'invalid preview payload must not replace the last valid frame')
-  listener({ detail: { bands: null } })
-  assert.equal(preview.syntheticAudioSpectrum(), null)
-  assert.equal(status, 'error')
+  const spring = motion.createIslandSpring({ width: 256, height: 38, radius: 14 }, frame => frames.push(frame), () => false)
+  spring.retarget({ width: 384, height: 38, radius: 14 })
+  let time = 0
+  for (let count = 0; scheduled && count < 240; count++) {
+    const frame = scheduled; scheduled = undefined
+    frame(time += 1000 / 60)
+  }
+  assert.ok(frames.length > 2)
+  for (let index = 0; index < frames.length; index++) {
+    assert.equal(frames[index].height, 38)
+    assert.ok(frames[index].width <= 384)
+    if (index) assert.ok(frames[index].width >= frames[index - 1].width)
+  }
+  assert.equal(frames.at(-1).width, 384)
+  spring.dispose()
 })
 
 test('pending island expansion is compensated when collapse arrives before IPC resolves', async () => {
@@ -429,7 +383,9 @@ test('a user open gesture adopts a temporary event expansion', async () => {
   assert.equal(ui.temporaryExpansion(), false)
 })
 
-function peekHarness({ initiallyOpen = false, isClosing = false, dnd = false } = {}) {
+const feedbackLib = await importTs('src/lib/feedbackToast.ts', {})
+
+function peekHarness({ initiallyOpen = false, isClosing = false, dnd = false, interacting = false, hover = false, collapsedMs = 99999 } = {}) {
   let nextTimer = 0
   const timers = new Map()
   const timerDelays = new Map()
@@ -444,12 +400,15 @@ function peekHarness({ initiallyOpen = false, isClosing = false, dnd = false } =
     'solid-js': { createSignal: signal, untrack: fn => fn() },
     './settings': { settings },
     './ui': {
-      open: () => panelOpen, closing: () => isClosing, hovering: () => false, pinned: () => false,
+      open: () => panelOpen, closing: () => isClosing, hovering: () => hover, pinned: () => false,
+      expanded: () => panelOpen, collapsedForMs: () => collapsedMs,
       temporaryExpansion: () => temporary,
+      surfaceInteractionActive: () => interacting,
       expandIsland: value => { expanded++; panelOpen = true; temporary = value },
       collapseIsland: () => { collapsed++; panelOpen = false; temporary = false },
     },
     '../lib/connectionSources': { notificationAllowed: () => true },
+    '../lib/feedbackToast': feedbackLib,
   }, {
     Date: ClockDate,
     setTimeout: (fn, delay = 0) => { const id = ++nextTimer; timers.set(id, fn); timerDelays.set(id, delay); return id },
@@ -457,6 +416,10 @@ function peekHarness({ initiallyOpen = false, isClosing = false, dnd = false } =
   })
   return modulePromise.then(module => ({
     module, settings, timers, timerDelays,
+    setInteracting(value) { interacting = value },
+    setOpen(value) { panelOpen = value; if (!value) temporary = false },
+    setHover(value) { hover = value },
+    setCollapsedMs(value) { collapsedMs = value },
     fireLatest() { const [id, fn] = [...timers].at(-1) ?? []; if (id !== undefined) { timers.delete(id); timerDelays.delete(id); fn() } },
     get collapsed() { return collapsed },
     get expanded() { return expanded },
@@ -464,6 +427,51 @@ function peekHarness({ initiallyOpen = false, isClosing = false, dnd = false } =
     advance(ms) { timeOffset += ms },
   }))
 }
+
+test('volume and brightness acknowledgements never show over the open island; they queue as short toasts', async () => {
+  const h = await peekHarness({ initiallyOpen: true, interacting: true })
+  h.module.ingestActionPeek({ id: 'brightness:1', app: 'Brightness', title: 'Brightness', body: '30%', timestamp: Date.now() })
+  h.advance(10000)
+  h.fireLatest()
+  assert.equal(h.module.peek(), null)
+  assert.equal(h.expanded, 0)
+  h.module.ingestActionPeek({ id: 'brightness:2', app: 'Brightness', title: 'Brightness', body: '70%', timestamp: Date.now() })
+  // Still open and interacting: nothing shows, only the latest value is kept.
+  h.fireLatest()
+  assert.equal(h.module.peek(), null)
+  h.setInteracting(false)
+  h.setOpen(false)
+  h.fireLatest()
+  assert.equal(h.module.peek().category, 'feedback')
+  assert.equal(h.module.peek().title, 'Brightness 70%')
+  assert.equal(h.module.peek().feedbackIcon, 'brightness')
+  h.module.dismissPeek()
+})
+
+test('a deferred alert is discarded when DND starts or its auth code expires', async () => {
+  const h = await peekHarness({ interacting: true })
+  h.module.ingestActionPeek({ id: 'deferred', app: 'App', title: 'Alert', body: '', timestamp: Date.now() })
+  h.settings.dnd = true
+  h.setInteracting(false)
+  h.fireLatest()
+  assert.equal(h.module.peek(), null)
+  h.settings.dnd = false
+  h.setInteracting(true)
+  h.module.ingestActionPeek({ id: 'expired', app: 'Code', title: '004291', body: '', timestamp: Date.now(), expiresAt: Date.now() + 100 })
+  h.advance(101)
+  h.setInteracting(false)
+  h.fireLatest()
+  assert.equal(h.module.peek(), null)
+})
+
+test('a fresh alert after idle cancels an older deferred value', async () => {
+  const h = await peekHarness({ interacting: true })
+  h.module.ingestActionPeek({ id: 'old-deferred', app: 'Volume', title: '20%', body: '', timestamp: Date.now() })
+  h.setInteracting(false)
+  h.module.ingestActionPeek({ id: 'latest-immediate', app: 'Volume', title: '40%', body: '', timestamp: Date.now() })
+  assert.equal(h.module.peek().title, '40%')
+  h.module.dismissPeek()
+})
 
 test('event peeks replace stale burst items and restart one bounded timer', async () => {
   const h = await peekHarness()
@@ -895,11 +903,107 @@ test('focus state rejects malformed storage and ignores non-finite durations', a
       setItem: (key, value) => values.set(key, value),
     },
   })
-  assert.deepEqual(JSON.parse(JSON.stringify(focus.focusTimer())), {
-    duration: 1500, remaining: 1500, endsAt: null, completed: false,
-  })
+  const restored = JSON.parse(JSON.stringify(focus.focusTimer()))
+  assert.equal(restored.mode, 'focus')
+  assert.equal(restored.duration, 1500)
+  assert.equal(restored.remaining, 1500)
+  assert.equal(restored.endsAt, null)
+  assert.equal(restored.completed, false)
+  assert.deepEqual(restored.durations, { focus: 25, short: 5, long: 15 })
+  assert.equal(restored.sessions, 0)
+  assert.equal(restored.alerts, true)
   focus.resetFocus(Number.NaN)
   assert.equal(focus.focusTimer().duration, 1500)
   focus.resetFocus(181)
   assert.equal(focus.focusTimer().duration, 10_800)
+})
+
+test('focus timer runs focus, break and long break with a session count and end alerts', async () => {
+  let now = 1_700_000_000_000
+  const values = new Map()
+  const focus = await importTs('src/state/focus.ts', { 'solid-js': { createSignal: signal } }, {
+    localStorage: { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) },
+    Date: class extends Date { static now() { return now } constructor(...args) { super(...(args.length ? args : [now])) } },
+  })
+  const alerts = []
+  focus.onFocusComplete(event => alerts.push(event))
+  focus.startFocus()
+  now += 10_000
+  focus.pauseFocus()
+  assert.equal(focus.focusTimer().remaining, 1490)
+  assert.equal(focus.focusTimer().endsAt, null)
+  focus.startFocus()
+  now += 1490_000
+  focus.tickFocus()
+  assert.equal(focus.focusTimer().completed, true)
+  assert.equal(focus.focusTimer().mode, 'short')
+  assert.equal(focus.focusTimer().remaining, 300)
+  assert.equal(focus.focusTimer().sessions, 1)
+  assert.deepEqual(JSON.parse(JSON.stringify(alerts)), [{ finished: 'focus', next: 'short', sessions: 1 }])
+  focus.nudgeFocusMinutes(1)
+  assert.equal(focus.focusTimer().durations.short, 6)
+  focus.setFocusMode('focus')
+  focus.nudgeFocusMinutes(-1)
+  assert.equal(focus.focusTimer().durations.focus, 20)
+  focus.startFocus()
+  focus.setFocusMode('long')
+  assert.equal(focus.focusTimer().mode, 'focus', 'mode cannot change while running')
+})
+
+test('Quick settings toasts are short, queue while hovering and show only after the island settles collapsed', async () => {
+  const h = await peekHarness({ initiallyOpen: true, hover: true })
+  h.module.ingestActionPeek({ id: 'qs:1', app: 'Quick settings', title: 'Wi-Fi turned on. Network is ready', body: 'Windows confirmed the change and a very long explanation.', timestamp: Date.now() })
+  assert.equal(h.module.peek(), null)
+  assert.equal(h.expanded, 0)
+  // Pointer left but the island is still open/closing: still waiting.
+  h.setHover(false)
+  h.fireLatest()
+  assert.equal(h.module.peek(), null)
+  // Collapsed, but not yet for 350 ms.
+  h.setOpen(false)
+  h.setCollapsedMs(100)
+  h.fireLatest()
+  assert.equal(h.module.peek(), null)
+  h.setCollapsedMs(400)
+  h.fireLatest()
+  const toast = h.module.peek()
+  assert.equal(toast.category, 'feedback')
+  assert.equal(toast.title, 'Wi-Fi turned on. Network')
+  assert.equal(toast.body, '')
+  assert.equal(toast.feedbackIcon, 'wifi')
+  assert.equal(h.temporary, true)
+  assert.equal([...h.timerDelays.values()].at(-1), 1600)
+  h.module.dismissPeek()
+})
+
+test('error toasts last 2.4 s and a newer toast for the same control replaces the queued one', async () => {
+  const h = await peekHarness({ hover: true })
+  h.module.ingestActionPeek({ id: 'qs:a', app: 'Quick settings', title: 'Bluetooth on', body: '', timestamp: Date.now() })
+  h.module.ingestActionPeek({ id: 'qs:b', app: 'Quick settings', title: 'Could not change Wi-Fi', body: '', timestamp: Date.now() })
+  h.setHover(false)
+  h.fireLatest()
+  assert.equal(h.module.peek().id, 'qs:b')
+  assert.equal(h.module.peek().feedbackError, true)
+  assert.equal([...h.timerDelays.values()].at(-1), 2400)
+  h.module.dismissPeek()
+})
+
+test('a toast never replaces a visible real notification, and stale queued toasts are dropped', async () => {
+  const h = await peekHarness()
+  h.module.ingestNotifications([{ id: 'real', app: 'WhatsApp', title: 'Hi', body: '', timestamp: Date.now() + 1 }])
+  h.module.ingestActionPeek({ id: 'qs:late', app: 'Quick settings', title: 'Mic muted', body: '', timestamp: Date.now() })
+  assert.equal(h.module.peek().id, 'real')
+  h.advance(20000)
+  h.module.dismissPeek()
+  h.fireLatest()
+  assert.equal(h.module.peek(), null)
+})
+
+test('feedback readiness requires a collapsed, idle island', async () => {
+  const base = { expanded: false, open: false, closing: false, pinned: false, hovering: false, interacting: false, peekVisible: false, collapsedForMs: 400 }
+  assert.equal(feedbackLib.feedbackReady(base), true)
+  for (const change of [{ expanded: true }, { open: true }, { closing: true }, { pinned: true }, { hovering: true }, { interacting: true }, { peekVisible: true }, { collapsedForMs: 349 }])
+    assert.equal(feedbackLib.feedbackReady({ ...base, ...change }), false)
+  assert.equal(feedbackLib.shortToastText('Memory optimize finished with a long tail.'), 'Memory optimize finished')
+  assert.ok(feedbackLib.shortToastText('Extraordinarily-long-single-word-here-ok').length <= 26)
 })

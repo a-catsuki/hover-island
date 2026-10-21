@@ -1,0 +1,33 @@
+﻿{
+    "verifiedAtUtc":  "2026-10-19T09:58:32.5809447Z",
+    "installedVersion":  "0.1.5.2",
+    "packageFullName":  "com.hoverisland.app_0.1.5.2_x64__hq77z97e8bw9y",
+    "packageStatus":  "Ok",
+    "installedBinarySha256":  "c8036b40e61ffed09d1f5faaeb4599e5b508c8a10f0aaa7d014533636e1a3386",
+    "buildBinarySha256":  "c8036b40e61ffed09d1f5faaeb4599e5b508c8a10f0aaa7d014533636e1a3386",
+    "binaryMatchesBuild":  true,
+    "running":  [
+                    {
+                        "ProcessId":  28408,
+                        "ExecutablePath":  "C:\\Program Files\\WindowsApps\\com.hoverisland.app_0.1.5.2_x64__hq77z97e8bw9y\\hover-island.exe"
+                    }
+                ],
+    "dataChecks":  [
+                       {
+                           "path":  "C:\\Users\\HP\\AppData\\Roaming\\com.hoverisland.app\\settings.json",
+                           "exists":  true
+                       },
+                       {
+                           "path":  "C:\\Users\\HP\\AppData\\Roaming\\com.hoverisland.app\\notes.json",
+                           "exists":  true
+                       },
+                       {
+                           "path":  "C:\\Users\\HP\\AppData\\Local\\Packages\\com.hoverisland.app_hq77z97e8bw9y\\LocalCache\\Roaming\\com.hoverisland.app\\settings.json",
+                           "exists":  true
+                       },
+                       {
+                           "path":  "C:\\Users\\HP\\AppData\\Local\\Packages\\com.hoverisland.app_hq77z97e8bw9y\\LocalCache\\Roaming\\com.hoverisland.app\\notes.json",
+                           "exists":  true
+                       }
+                   ]
+}

@@ -1,0 +1,76 @@
+/* Collapsed island: a black capsule. Left glyph or album art, right live activity. */
+.pill__compact {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(8px, 1.6vw, 12px);
+  overflow: hidden;
+}
+.pill__compact-item { display: flex; min-width: 0; flex: 0 1 auto; align-items: center; gap: 7px; white-space: nowrap; }
+.pill__compact-media { min-width: 0; flex: 1 1 96px; gap: 8px; }
+.pill__compact-art {
+  display: grid; width: var(--pill-art, 22px); height: var(--pill-art, 22px); flex: none; place-items: center; overflow: hidden;
+  border-radius: 7px; background: var(--platter-strong); color: var(--text-2);
+}
+.pill__compact-art img { width: 100%; height: 100%; object-fit: cover; }
+.pill__compact-title { min-width: 0; flex: 1 1 auto; overflow: hidden; color: var(--text-1); font-size: 12px; font-weight: var(--fw-medium); letter-spacing: -0.01em; text-overflow: ellipsis; }
+.pill__compact-live { display: grid; flex: none; place-items: center; height: 18px; padding-right: 2px; }
+.pill__compact-controls { display: flex; flex: none; align-items: center; gap: 0; }
+.pill__compact-controls button {
+  display: grid; width: 26px; height: 26px; flex: none; place-items: center; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--text-2); cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform 160ms var(--spring);
+}
+.pill__compact-controls button:hover:not(:disabled) { background: var(--platter-hover); color: var(--text-1); }
+.pill__compact-controls button:active:not(:disabled) { transform: scale(var(--press-scale)); }
+.pill__compact-controls button:disabled { opacity: .35; cursor: default; }
+.pill__compact-controls button svg { fill: currentColor; stroke-width: 1.5; }
+.pill__compact-clock strong,
+.pill__compact-aistat strong,
+.pill__compact-battery strong,
+.pill__compact-ai strong { color: var(--text-1); font-size: 12px; font-weight: var(--fw-semibold); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.pill__compact-clock { flex-direction: row; align-items: center; gap: 6px; }
+.pill__compact-clock strong { font-family: var(--clock-font, inherit); }
+.pill__compact-clock--analog { gap: 6px; }
+.pill__analog { display: block; flex: none; }
+.pill__compact-label { max-width: 56px; overflow: hidden; color: var(--text-3); font-size: 11px; text-overflow: ellipsis; }
+.pill__compact-clock .pill__compact-label { display: none; }
+.pill__compact-weather { gap: 5px; color: var(--text-2); }
+.pill__compact-weather strong { color: var(--text-1); font-size: 12px; font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.pill__compact-weather .pill__compact-label { max-width: 52px; }
+.pill__compact-ai { gap: 5px; }
+.pill__compact-ai .pill__ring { width: 14px; height: 14px; flex: none; }
+.pill__compact-battery { gap: 5px; color: var(--text-2); }
+.pill__compact-empty { min-width: 0; overflow: hidden; color: var(--text-3); font-size: 12px; text-overflow: ellipsis; }
+.pill__alert-badge {
+  display: flex; align-items: center; gap: 6px; max-width: 104px; min-width: 26px; flex: 0 1 104px; height: 24px; border: 0; border-radius: 999px;
+  padding: 0 9px 0 8px; background: rgba(255, 69, 58, 0.20); color: #ff8a80; font: inherit; font-size: 11px; font-weight: var(--fw-medium); cursor: pointer;
+  transition: transform 160ms var(--spring), background var(--dur-fast) var(--ease);
+}
+.pill__alert-badge:hover { background: rgba(255, 69, 58, 0.28); }
+.pill__alert-badge:active { transform: scale(var(--press-scale)); }
+.pill__alert-badge > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill__alert-badge--auth { max-width: 96px; flex: 0 1 96px; background: rgba(10, 132, 255, 0.22); color: #7cc0ff; font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; letter-spacing: 0.06em; }
+.pill__alert-badge--auth .pill__alert-dot { background: var(--sys-blue); }
+.pill__alert-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sys-red); flex: none; }
+.pill__focus { color: var(--text-2); font-size: 11px; font-variant-numeric: tabular-nums; }
+.pill__beam { display: grid; place-items: center; flex: none; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: var(--platter-strong); color: var(--text-1); cursor: pointer; transition: background 140ms, transform 160ms var(--spring); }
+.pill__beam:hover { background: var(--platter-active); }
+.pill__beam:active { transform: scale(var(--press-scale)); }
+.pill__beam:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pill--compact-small .pill__compact { gap: 8px; }
+.pill--compact-small .pill__compact-label { display: none; }
+.pill--compact-small .pill__compact-controls button { width: 24px; }
+.pill--compact-small .pill__compact-live { display: none; }
+.pill--compact-large .pill__compact { gap: 12px; }
+@media (prefers-reduced-motion: reduce) { .pill__compact-controls button:active:not(:disabled), .pill__alert-badge:active, .pill__beam:active { transform: none; } }
+.pill__compact-media:has(.pill__compact-controls) .pill__compact-live { display: none; }
+
+/* Optional AI stat (compactAiStat). Uses the same compact item rules as the other items. */
+.pill__compact-aistat { gap: 5px; color: var(--text-2); flex: none; }
+.pill__aistat-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--text-3); }
+.pill__compact-aistat--live .pill__aistat-dot { background: var(--sys-green); animation: pill-aistat-pulse 1.8s ease-in-out infinite; }
+@keyframes pill-aistat-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(.8); } }
+@media (prefers-reduced-motion: reduce) { .pill__compact-aistat--live .pill__aistat-dot { animation: none; } }

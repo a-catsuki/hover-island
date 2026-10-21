@@ -1,0 +1,21 @@
+.live-bars {
+  --lb-color: #fff;
+  --lb-h: 18px;
+  --lb-w: 3px;
+  --lb-gap: 2.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lb-gap);
+  height: var(--lb-h);
+  flex: none;
+  pointer-events: none;
+}
+.live-bars__bar {
+  display: block;
+  width: var(--lb-w);
+  height: var(--lb-w);
+  border-radius: calc(var(--lb-w) / 2);
+  background: var(--lb-color);
+  transition: background-color 400ms ease;
+}

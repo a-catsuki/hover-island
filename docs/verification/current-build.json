@@ -1,25 +1,27 @@
 {
-  "generatedAtUtc": "2026-10-16T07:42:32.5724846Z",
-  "version": "0.1.4.0",
-  "status": "Built, signed, verified, installed and launched. Live hardware and service validation remains separate.",
+  "generatedAtUtc": "2026-10-19T09:56:00.0000000Z",
+  "version": "0.1.5.2",
+  "status": "Built, signed, verified and installed. Live hardware and service validation remains separate.",
+  "releaseRecordNote": "Installer facts below are for the retained 0.1.5.2 kit, which packages the current target/release binary. The verification block still records the 0.1.4.0 test gate; it was not re-run for 0.1.5.2.",
   "executable": {
     "path": "C:\\Users\\HP\\source\\hover-island\\src-tauri\\target\\release\\hover-island.exe",
-    "bytes": 14879232,
-    "sha256": "ca884711ff7d8ad161758d8eab801bb04d45b31aaac6ecbeb1c54fb0e110bc22",
+    "bytes": 14920704,
+    "sha256": "c8036b40e61ffed09d1f5faaeb4599e5b508c8a10f0aaa7d014533636e1a3386",
     "profile": "release, opt-level=s, ThinLTO, strip=true, custom-protocol",
-    "allCurrentJsCssAssetNamesEmbedded": true,
+    "packagedExecutableSha256": "c8036b40e61ffed09d1f5faaeb4599e5b508c8a10f0aaa7d014533636e1a3386",
+    "installedExecutableSha256": "c8036b40e61ffed09d1f5faaeb4599e5b508c8a10f0aaa7d014533636e1a3386",
     "matchesPackagedExecutable": true,
-    "matchesInstalledExecutable": true,
-    "log": "docs/verification/latest-release-build.log"
+    "matchesInstalledExecutable": true
   },
   "installer": {
-    "zip": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.4.0-x64-20261016-073751-660-6cfcd014.zip",
-    "zipBytes": 5478169,
-    "zipSha256": "9ca148a5fa9de200b1a4086f90a3b6d7ca574daa26a5a19fc44d3337172cf47c",
-    "package": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.4.0-x64-20261016-073751-660-6cfcd014\\HoverIsland.msix",
-    "packageSha256": "18de3c2ac21b4682fa809bd60be9cde0be7aba224ddb7d612ea4de794d75070c",
-    "install": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.4.0-x64-20261016-073751-660-6cfcd014\\Install.cmd",
-    "readme": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.4.0-x64-20261016-073751-660-6cfcd014\\README.txt",
+    "kit": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.5.2-x64-20261019-095519-329-263ccf5e",
+    "zip": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.5.2-x64-20261019-095519-329-263ccf5e.zip",
+    "zipBytes": 5498189,
+    "zipSha256": "4c6245d1121b591d337fbd4bc14a98599121e4ad5f00ae28f31691887384be00",
+    "package": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.5.2-x64-20261019-095519-329-263ccf5e\\HoverIsland.msix",
+    "packageSha256": "3af7f9bae6e25fcc430e9a71619ba0784a3097055bd59628b1e81d059bf1640f",
+    "install": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.5.2-x64-20261019-095519-329-263ccf5e\\Install.cmd",
+    "readme": "C:\\Users\\HP\\source\\hover-island\\releases\\HoverIsland-0.1.5.2-x64-20261019-095519-329-263ccf5e\\README.txt",
     "signed": true,
     "publisher": "CN=Hover Island",
     "signerThumbprint": "B695B47BAE4B74B294B3E9C184F2C0A8394C9AF6",
@@ -27,9 +29,8 @@
     "verifyOnlyPassed": true,
     "packageInstalledByThisRun": true,
     "certificateTrustChangedByThisRun": false,
-    "installedVersion": "0.1.4.0",
-    "installedLocation": "C:\\Program Files\\WindowsApps\\com.hoverisland.app_0.1.4.0_x64__hq77z97e8bw9y",
-    "nativeProcessId": 11436,
+    "installedVersion": "0.1.5.2",
+    "installedLocation": "C:\\Program Files\\WindowsApps\\com.hoverisland.app_0.1.5.2_x64__hq77z97e8bw9y",
     "responding": true,
     "capabilities": [
       "internetClient",
@@ -37,19 +38,21 @@
       "userNotificationListener",
       "runFullTrust",
       "bluetooth",
-      "radios"
+      "radios",
+      "location"
     ],
-    "buildLog": "docs/verification/latest-package-build.log",
-    "verificationLog": "docs/verification/latest-installer-verify.log",
-    "installLog": "docs/verification/latest-install.log"
+    "buildLog": "docs/verification/msix-package-build-20261019-0152.log",
+    "installLog": "docs/verification/msix-install-20261019.log",
+    "proof": "docs/verification/install-proof-20261019-0152.json"
   },
   "source": {
-    "fingerprint": "2fa712424cb4dca3ed5403830ef04c87caf286346057b4de19d9309e8d70ad6b",
-    "fileCount": 188,
-    "unchangedAcrossBuild": true,
+    "fingerprint": "afc4277f6423bbe898edafdc6cc8842c13a185dddb91a6170ba9fbe9afbb4e66",
+    "fileCount": 189,
+    "unchangedAcrossBuild": null,
     "assetsManifest": "docs/verification/final-source-assets.json",
     "before": "docs/verification/release-source-before.json",
-    "after": "docs/verification/release-source-after.json"
+    "after": "docs/verification/release-source-after.json",
+    "note": "The recorded before/after fingerprint pair is the 17 October 0.1.5.0 pair. No source fingerprint pair was captured for the 0.1.5.2 package."
   },
   "verification": {
     "readOnlyLive": {
@@ -82,9 +85,10 @@
     "notificationListener": {
       "packaged": true,
       "access": "allowed",
-      "toastCount": 2,
-      "exitCode": 0,
-      "testedExecutable": "C:\\Program Files\\WindowsApps\\com.hoverisland.app_0.1.4.0_x64__hq77z97e8bw9y\\hover-island.exe"
+      "toastCount": 4,
+      "record": "docs/verification/installed-notification-diagnostics-20261019.json",
+      "testedExecutable": "C:\\Program Files\\WindowsApps\\com.hoverisland.app_0.1.5.0_x64__hq77z97e8bw9y\\hover-island.exe",
+      "note": "Measured against the 0.1.5.0 install before the 0.1.5.2 upgrade; not re-measured for 0.1.5.2."
     },
     "emailCodes": {
       "uiRecord": "docs/verification/email-code-ui.json",
@@ -100,13 +104,15 @@
     "frontendTests": {
       "passed": 81,
       "failed": 0,
-      "log": "docs/verification/latest-frontend-tests.log"
+      "log": "docs/verification/latest-frontend-tests.log",
+      "gate": "0.1.4.0"
     },
     "nativeTests": {
       "log": "docs/verification/latest-native-tests.log",
       "passed": 153,
       "failed": 0,
-      "ignored": 11
+      "ignored": 11,
+      "gate": "0.1.4.0"
     },
     "productionBrowser": {
       "record": "docs/verification/browser-smoke.json",

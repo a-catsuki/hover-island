@@ -1,0 +1,30 @@
+{
+  "format": "hypit.runtime-local@1",
+  "dataRoot": ".hypit/runtimes/local",
+  "credentials": {
+    "local": {
+      "use": "@hypit/credential-store-local"
+    }
+  },
+  "endpoints": {
+    "hypihub.default": {
+      "use": "@hypit/provider-hypihub",
+      "config": {
+        "baseUrl": "https://hypit.ai",
+        "apiKey": {
+          "store": "local",
+          "key": "hypihub.oauth"
+        }
+      }
+    },
+    "media.local": {
+      "use": "@hypit/media-local"
+    },
+    "html.local": {
+      "use": "@hypit/provider-html-local"
+    },
+    "image.opencv.local": {
+      "use": "@hypit/provider-image-opencv-local"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-17",
+  "tests": {
+    "command": "npm test",
+    "skipped": 0,
+    "exitCode": 0,
+    "total": 114,
+    "durationMs": 5055.1848,
+    "passed": 114,
+    "failed": 0
+  },
+  "typecheck": {
+    "exitCode": 0,
+    "command": "npx tsc --noEmit"
+  },
+  "build": {
+    "command": "npm run build",
+    "settings": "dist/assets/settings-Dl1P141T.js",
+    "duration": "1m 13s",
+    "exitCode": 0,
+    "modules": 2301,
+    "main": "dist/assets/main-D6T-p9kD.js",
+    "base": "dist/assets/base-CpMUFMau.js"
+  },
+  "browser": {
+    "pageErrors": 0,
+    "flowGroups": 8,
+    "artifact": "docs/verification/interaction-weather-smoke-20261017.json"
+  },
+  "diffCheck": {
+    "exitCode": 0,
+    "command": "git diff --check"
+  },
+  "scope": "Source and browser preview validation. No installed app restart, install, native permission dialog or total RAM proof."
+}

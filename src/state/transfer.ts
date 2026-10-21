@@ -67,10 +67,6 @@ function enqueueLifecycle<T>(operation: () => Promise<T>): Promise<T> {
 export async function refreshTransfer(): Promise<void> {
   const revision = sessionRevision
   const request = ++refreshRevision
-  if (browserPreview) {
-    if (revision === sessionRevision && request === refreshRevision) setTransfer(EMPTY)
-    return
-  }
   try {
     const snapshot = await cmd.transferStatus()
     if (revision === sessionRevision && request === refreshRevision) {
@@ -84,7 +80,6 @@ export async function refreshTransfer(): Promise<void> {
 }
 
 export function startTransfer(): Promise<string | null> {
-  if (browserPreview) return Promise.resolve('Phone bucket is available in the desktop app.')
   if (startOperation?.revision === sessionRevision) return startOperation.promise
 
   const revision = ++sessionRevision
@@ -110,7 +105,6 @@ export function startTransfer(): Promise<string | null> {
 }
 
 export function stopTransfer(): Promise<string | null> {
-  if (browserPreview) return Promise.resolve(null)
   const revision = ++sessionRevision
   uploadGeneration += 1
   const xhr = currentXhr
@@ -149,7 +143,13 @@ export function transferUpload(file: File, onProgress?: (fraction: number) => vo
 
 async function transferUploadNow(file: File, onProgress: ((fraction: number) => void) | undefined, generation: number): Promise<void> {
   if (browserPreview) {
-    throw new Error('Phone bucket uploads are available in the desktop app.')
+    // Browser preview can only show the sending state when asked to (localStorage beam-sim=1); otherwise be honest.
+    let simulate = false
+    try { simulate = localStorage.getItem('hover-island.preview.beam-sim') === '1' } catch { /* preview only */ }
+    if (!simulate) throw new Error('Phone bucket uploads are available in the desktop app.')
+    if (!transfer().active) { const error = await startTransfer(); if (error) throw new Error(error) }
+    await simulatePreviewUpload(file, onProgress, generation)
+    return
   }
   if (file.size > transfer().maxFileBytes) {
     throw new Error(`This file exceeds the ${Math.round(transfer().maxFileBytes / (1024 * 1024))} MB per-file limit.`)
@@ -163,7 +163,7 @@ async function transferUploadNow(file: File, onProgress: ((fraction: number) => 
   }
   const current = transfer()
   if (!current.active || !current.desktopUrl) {
-    throw new Error('The phone bucket could not start. Try again from the Nearby panel.')
+    throw new Error('The phone bucket could not start. Try again from Beam.')
   }
   const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
   const progress: TransferUploadProgress = { id, name: file.name, loaded: 0, total: file.size, previewUrl: makeUploadPreview(file) }
@@ -216,6 +216,32 @@ async function transferUploadNow(file: File, onProgress: ((fraction: number) => 
   } finally {
     if (currentXhr === requestXhr) currentXhr = null
   }
+}
+
+/** Preview-only: animates a believable upload so the sending state can be reviewed without the desktop app. */
+async function simulatePreviewUpload(file: File, onProgress: ((fraction: number) => void) | undefined, generation: number): Promise<void> {
+  const id = `preview-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  const total = Math.max(file.size, 24 * 1024 * 1024)
+  setUploads((items) => [...items, { id, name: file.name, loaded: 0, total }].slice(-5))
+  const steps = 40
+  for (let step = 1; step <= steps; step++) {
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    if (generation !== uploadGeneration) break
+    const loaded = Math.round(total * step / steps)
+    setUploads((items) => items.map((item) => item.id === id ? { ...item, loaded } : item))
+    onProgress?.(step / steps)
+  }
+  try { localStorage.setItem('hover-island.preview.beam-files', 'true') } catch { /* preview only */ }
+  await refreshTransfer()
+  setUploads((items) => items.filter((item) => item.id !== id))
+}
+
+/** Drop upload rows that failed; the error text has already been shown to the person. */
+export function dismissFailedUploads(): void {
+  setUploads((items) => {
+    for (const item of items) if (item.error) releaseUploadPreview(item)
+    return items.filter((item) => !item.error)
+  })
 }
 
 export { transfer, uploads }

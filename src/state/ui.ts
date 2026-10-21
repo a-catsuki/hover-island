@@ -2,18 +2,45 @@ import { createSignal } from 'solid-js'
 import { cmd } from '../lib/ipc'
 import { reportError } from './feedback'
 
-const [expanded, setExpanded] = createSignal(false)
+const [expanded, setExpandedRaw] = createSignal(false)
+let collapsedAt = 0
 const [open, setOpen] = createSignal(false)
 const [closing, setClosing] = createSignal(false)
 const [hovering, setHovering] = createSignal(false)
 const [pinned, setPinnedState] = createSignal(false)
 const [temporaryExpansion, setTemporaryExpansion] = createSignal(false)
-const [accent, setAccentState] = createSignal('#6e8bff')
+const [accent, setAccentState] = createSignal('#0a84ff')
+
+/** Records when the island last finished collapsing so queued toasts can wait for it to settle. */
+function setExpanded(value: boolean): void {
+  if (!value && expanded()) collapsedAt = Date.now()
+  setExpandedRaw(value)
+}
+/** Milliseconds the island has been fully collapsed (huge before the first expansion). */
+export function collapsedForMs(): number {
+  return expanded() ? 0 : Date.now() - collapsedAt
+}
 
 let collapseTimer: ReturnType<typeof setTimeout> | undefined
 let nativeExpanded = false
 let desiredExpanded = false
 let transition: Promise<void> | null = null
+let interactionHolds = 0
+let interactionQuietUntil = 0
+
+/** Pointer holds are not idle, even when a slider stops emitting input. */
+export function beginSurfaceInteraction(): void {
+  interactionHolds++
+  noteSurfaceInteraction()
+}
+export function noteSurfaceInteraction(): void { interactionQuietUntil = Date.now() + 600 }
+export function endSurfaceInteraction(): void {
+  interactionHolds = Math.max(0, interactionHolds - 1)
+  noteSurfaceInteraction()
+}
+export function surfaceInteractionActive(): boolean {
+  return interactionHolds > 0 || Date.now() < interactionQuietUntil
+}
 const expectedNativeEvents = new Map<boolean, number>()
 const expectedNativeTimers = new Map<boolean, ReturnType<typeof setTimeout>>()
 
@@ -37,8 +64,12 @@ function consumeExpectedNativeEvent(value: boolean): boolean {
   return true
 }
 
-export function applyAccent(hex: string): void {
-  if (!/^#[0-9a-f]{6}$/i.test(hex)) return
+// The old default accents were indigo. New installs and anyone still on the
+// stock accent get the system blue, a deliberate custom colour is kept.
+const LEGACY_DEFAULT_ACCENTS = new Set(['#6e8bff', '#818cf8'])
+export function applyAccent(requested: string): void {
+  if (!/^#[0-9a-f]{6}$/i.test(requested)) return
+  const hex = LEGACY_DEFAULT_ACCENTS.has(requested.toLowerCase()) ? '#0a84ff' : requested
   setAccentState(hex)
   document.documentElement.style.setProperty('--accent', hex)
   document.documentElement.style.setProperty('--accent-soft', `${hex}24`)
@@ -116,7 +147,8 @@ export function collapseIsland(): void {
   setClosing(true)
   setOpen(false)
   clearTimeout(collapseTimer)
-  collapseTimer = setTimeout(finalizeCollapse, 260)
+  // Long enough for the close spring (see ISLAND_CLOSE_SETTLE_MS in motion.ts) to finish before the native window shrinks.
+  collapseTimer = setTimeout(finalizeCollapse, 300)
 }
 
 export function finalizeCollapse(): void {

@@ -12,6 +12,9 @@ import {
   Timer,
   Activity,
   SlidersHorizontal,
+  Network,
+  Moon,
+  AlarmClock,
 } from 'lucide-solid'
 import type { WidgetConfig, WidgetKind } from '../../lib/ipc'
 import { patchSettings, settings } from '../../state/settings'
@@ -32,6 +35,9 @@ import ResetWatchView from './ResetWatchView'
 import BluetoothView from './BluetoothView'
 import QuickSettingsView from '../views/QuickSettingsView'
 import WebsiteAlertsView from './ErpView'
+import NetworkWidget from './NetworkWidget'
+import AwakeView from './AwakeView'
+import RemindersView from './RemindersView'
 
 export interface WidgetDef {
   kind: WidgetKind
@@ -119,6 +125,30 @@ export const WIDGETS: Record<WidgetKind, WidgetDef> = {
     icon: () => <Radio class="icon icon--sm" strokeWidth={1.7} aria-hidden="true" />,
     render: () => <NearbyView compact />,
   },
+  awake: {
+    kind: 'awake',
+    label: 'Keep me awake',
+    hint: 'Random alarms until your end time',
+    wide: false,
+    icon: () => <Moon class="icon icon--sm" strokeWidth={1.7} aria-hidden="true" />,
+    render: () => <AwakeView />,
+  },
+  reminders: {
+    kind: 'reminders',
+    label: 'Reminders',
+    hint: 'Timed reminders, linked to Notes',
+    wide: false,
+    icon: () => <AlarmClock class="icon icon--sm" strokeWidth={1.7} aria-hidden="true" />,
+    render: () => <RemindersView />,
+  },
+  network: {
+    kind: 'network',
+    label: 'Network',
+    hint: 'Speed test, ping and connection',
+    wide: false,
+    icon: () => <Network class="icon icon--sm" strokeWidth={1.7} aria-hidden="true" />,
+    render: () => <NetworkWidget />,
+  },
   ai: {
     kind: 'ai',
     label: 'AI activity',
@@ -146,6 +176,9 @@ export const WIDGET_KINDS: WidgetKind[] = [
   'reset-watch',
   'clock',
   'bluetooth',
+  'network',
+  'awake',
+  'reminders',
   'nearby',
 ]
 

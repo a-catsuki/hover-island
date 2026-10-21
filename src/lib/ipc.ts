@@ -54,6 +54,8 @@ export interface LyricsResult {
   status: 'ok' | 'not_found' | 'no_timed_lyrics' | 'invalid_track' | 'rate_limited' | 'unavailable'
   provider: string
   lines: LyricsLine[]
+  /** False for plain lyrics: every `at` is 0 and the lines must not be followed in time. Absent means timed. */
+  timed?: boolean
   retryAfterSeconds?: number
 }
 
@@ -91,7 +93,7 @@ export interface AppNotification {
   /** epoch millis */
   timestamp: number
   icon?: string | null
-  category?: 'erp' | 'website' | 'transfer' | 'ai' | 'preference' | 'auth'
+  category?: 'erp' | 'website' | 'transfer' | 'ai' | 'ai-activity' | 'preference' | 'auth' | 'feedback'
   phase?: 'staging' | 'receiving' | 'sending' | 'ready' | 'sent' | 'complete' | 'error'
   progress?: number | null
   transferId?: string
@@ -99,22 +101,106 @@ export interface AppNotification {
   url?: string
   /** AI peek variant: 'complete' celebrates, 'needs-input' pulses for attention. */
   aiKind?: 'complete' | 'needs-input'
+  /** Live agent activity shown by the AI toast (category 'ai-activity'). */
+  aiActivity?: AiActivityEvent
   code?: string
   sender?: string
   account?: string
   subject?: string
   expiresAt?: number
+  /** Short action toast (category 'feedback'): glyph id and error styling. */
+  feedbackIcon?: string
+  feedbackError?: boolean
+  /** Buttons a peek can offer (Snooze, Done...). The peek renderer sends the chosen id to the owning feature. */
+  actions?: Array<{ id: string; label: string; primary?: boolean }>
+  /** The feature that owns `actions`. */
+  actionOwner?: 'reminders' | 'awake'
+  /** Reminder id for reminder peeks. */
+  reminderId?: string
 }
 
 export interface InstalledApp {
   id: string
   name: string
   target: string
-  kind: 'uwp' | 'desktop' | 'url'
+  /** Path for win32/url apps, the AppUserModelId for uwp apps. */
+  kind: 'win32' | 'uwp' | 'url' | 'desktop'
+  /** Not filled by appsList; load lazily with cmd.appsIcon(id). */
   icon?: string | null
+  /** Last run recorded by Windows (ms since epoch) and its run count. */
+  lastUsed?: number | null
+  useCount?: number
 }
 
-export type UsageProviderKind = 'codex' | 'claude-code' | 'cursor' | 'manual'
+export interface AppsUsage {
+  apps: { id: string; lastUsed: number | null; useCount: number }[]
+  recentFiles: { name: string; path: string; lastUsed: number }[]
+}
+
+export type UsageProviderKind = 'codex' | 'claude-code' | 'cursor' | 'gemini' | 'opencode' | 'github-copilot' | 'aider' | 'manual'
+
+/** One recent agent session found in a provider's local logs. */
+export interface RecentSession {
+  id: string
+  title: string
+  project?: string | null
+  startedAt?: number | null
+  lastActiveAt: number
+  tokens?: number | null
+  active: boolean
+}
+
+/** Session level facts for a provider, derived from its local logs. */
+export interface ActivityInfo {
+  installed: boolean
+  sessions24h: number
+  sessions7d: number
+  lastActiveAt?: number | null
+  /** Mean prompt to first reply time over the last 24 hours. */
+  avgResponseMs?: number | null
+  responses24h: number
+  activeNow: boolean
+  activeSessions: number
+  recent: RecentSession[]
+}
+
+export type AiActivityKind = 'started' | 'progress' | 'question' | 'completed' | 'failed'
+
+/** Payload of the `ai://activity` event. */
+export interface AiActivityEvent {
+  kind: AiActivityKind
+  provider: string
+  title: string
+  detail: string
+  percent?: number | null
+  durationMs?: number | null
+  ts: number
+  sessionId?: string | null
+  source?: 'log' | 'hook'
+}
+
+export interface HookPreview {
+  provider: string
+  label: string
+  path: string
+  exists: boolean
+  installed: boolean
+  changed: boolean
+  applied: boolean
+  diff: string
+  backupPath?: string | null
+  events: string[]
+  note?: string | null
+}
+
+export interface HookStatus {
+  provider: string
+  label: string
+  path: string
+  available: boolean
+  installed: boolean
+  stale: boolean
+}
 
 /** A locally installed AI tool discovered by the native read-only scanner. */
 export interface DetectedProvider {
@@ -127,6 +213,8 @@ export interface DetectedProvider {
   supported: boolean
   /** "live-quota" and/or "local-activity"; empty when nothing local exists. */
   capabilities: string[]
+  /** Running now or used within the last week. False means installed but idle. */
+  active?: boolean
 }
 
 /** AI activity raised into the notch. */
@@ -157,6 +245,7 @@ export interface UsageSnapshot {
   updatedAt: number
   source?: string | null
   resetAt?: number | null
+  activity?: ActivityInfo | null
 }
 
 export interface DockItem {
@@ -182,7 +271,9 @@ export interface Settings {
   compactItems: CompactItem[]
   onboardingVersion: number
   hotkey: string
+  spotlightHotkey: string
   launchAtLogin: boolean
+  autoUpdate: boolean
   collapsed: Size
   expanded: Size
   opacity: number
@@ -192,6 +283,8 @@ export interface Settings {
   background: 'aurora' | 'reactive' | 'artwork' | 'ember' | 'plain' | 'contours' | 'dots' | 'grid' | 'waves'
   panels: Record<string, string>
   panelOrder: string[]
+  /** Custom page names by panel id (trimmed, 16 chars max). Empty means defaults. */
+  panelNames: Record<string, string>
   widgets: WidgetConfig[]
   connections: AppConnection[]
   dnd: boolean
@@ -201,12 +294,22 @@ export interface Settings {
   compactMediaControls: boolean
   /** clock face used by the collapsed notch clock item */
   compactClockStyle: 'digital' | 'analog'
+  /** Windows' own toast banners: normal, hidden while the app runs, or hidden and cleared from Action Center once surfaced. */
+  windowsBanners: 'normal' | 'quiet' | 'clear'
+  /** Small AI stat in the collapsed notch. */
+  compactAiStat: 'off' | 'usage-left' | 'response-time' | 'active-count'
+  /** Show live AI agent toasts. */
+  aiToastsEnabled: boolean
+  /** Provider ids that may raise toasts; empty means all. */
+  aiToastProviders: string[]
   clockTypography: 'rounded' | 'serif' | 'mono'
   clockHourCycle: '12' | '24'
   clockSeconds: boolean
   weatherLat?: number | null
   weatherLon?: number | null
   weatherCity?: string | null
+  weatherAutoLocation: boolean
+  weatherUnits: 'metric' | 'imperial'
   modules: {
     media: boolean
     visualizer: boolean
@@ -245,22 +348,27 @@ export type CompactItem = 'media' | 'clock' | 'weather' | 'battery' | 'ai'
 
 /* ------------------------------------------------------------------ defaults */
 
+export interface UpdateStatus { current: string; latest: string | null; available: boolean; notes: string; checkedAt: number; error: string | null }
+
 export const DEFAULT_SETTINGS: Settings = {
   placement: {mode:'notch',edge:'top',monitor:null},
   version: 1,
   compactItems: ['media', 'clock'],
   onboardingVersion: 0,
   hotkey: 'Alt+Space',
+  spotlightHotkey: 'Control+Space',
   launchAtLogin: false,
-  collapsed: { w: 320, h: 38 },
-  expanded: { w: 800, h: 560 },
+  autoUpdate: true,
+  collapsed: { w: 288, h: 32 },
+  expanded: { w: 800, h: 510 },
   opacity: 0.96,
-  accent: '#818cf8',
+  accent: '#0a84ff',
   theme: 'midnight',
   sizePreset: 'medium',
   background: 'plain',
   panels: { today: 'Today', desk: 'Desk', activity: 'Activity' },
   panelOrder: ['today', 'desk', 'activity'],
+  panelNames: {},
   widgets: [
     { id: 'w-media', kind: 'media', enabled: true, order: 0 },
     { id: 'w-weather', kind: 'weather', enabled: true, order: 1 },
@@ -276,11 +384,17 @@ export const DEFAULT_SETTINGS: Settings = {
   connections: [],
   dnd: false,
   hideBehindWindows: true,
-  compactMediaControls: true,
+  compactMediaControls: false,
   compactClockStyle: 'digital',
+  windowsBanners: 'normal',
+  compactAiStat: 'off',
+  aiToastsEnabled: true,
+  aiToastProviders: [],
   clockTypography: 'rounded',
   clockHourCycle: '12',
   clockSeconds: false,
+  weatherAutoLocation: false,
+  weatherUnits: 'metric',
   modules: { media: true, visualizer: true, notifications: true, usage: true, dock: true },
   visualizer: { style: 'ambient', intensity: 0.7, reactivity: 0.8 },
   dock: [],
@@ -316,8 +430,16 @@ export const cmd = {
 
   // apps
   appsList: () => invoke<InstalledApp[]>('apps_list'),
+  /** Rescans installed apps (at most once a minute) and returns the fresh list. */
+  appsRefresh: () => invoke<InstalledApp[]>('apps_refresh'),
+  /** Windows usage: UserAssist run counts and last run per app id, plus recently opened documents. */
+  appsUsage: () => invoke<AppsUsage>('apps_usage'),
+  /** Logo for an app id from appsList as a PNG data URL, or null. Cached; lookups time out after 5 s. */
+  appsIcon: (id: string, size = 56) => invoke<string | null>('apps_icon', { id, size }),
   audioLoopbackStart: () => invoke<void>('audio_loopback_start'),
   audioLoopbackStop: () => invoke<void>('audio_loopback_stop'),
+  /** `low` = ~15 Hz bands only (collapsed pill, ambient scenes); `false` = full ~30 Hz stream. */
+  audioSetDetail: (low: boolean) => invoke<void>('audio_set_detail', { low }),
   resetWatch: (force=false) => invoke<ResetWatchSnapshot>('reset_watch_get',{force}),
   devicesGet: () => invoke<DeviceSnapshot>('devices_get'),
   appsLaunch: (target: string) => invoke<void>('apps_launch', { target }),
@@ -334,6 +456,8 @@ export const cmd = {
   mediaGet: () => invoke<NowPlaying | null>('media_get'),
   mediaControl: (action: MediaAction, value?: number) =>
     invoke<void>('media_control', { action, value: value ?? null }),
+  updateCheck: () => invoke<UpdateStatus>('update_check'),
+  updateInstall: () => invoke<void>('update_install'),
   lyricsLookup: (trackName: string, artistName: string, albumName: string | null, duration: number) =>
     invoke<LyricsResult>('lyrics_lookup', { trackName, artistName, albumName, duration }),
 
@@ -347,6 +471,7 @@ export const cmd = {
   // notifications
   notificationsGet: () => invoke<AppNotification[]>('notifications_get'),
   notificationsClear: () => invoke<void>('notifications_clear'),
+  notificationsDismiss: (id: string) => invoke<void>('notifications_dismiss', { id }),
   notificationsAccess: () => invoke<boolean>('notifications_request_access'),
   notificationsAccessStatus: () => invoke<{packaged:boolean;status:'allowed'|'denied'|'not-requested'|'unpackaged'}>('notifications_access_status'),
   notificationsTestConnection: (id:string) => invoke<void>('notifications_test_connection',{id}),
@@ -355,6 +480,12 @@ export const cmd = {
   usageGet: () => invoke<UsageSnapshot[]>('usage_get'),
   usageRefresh: () => invoke<UsageSnapshot[]>('usage_refresh'),
   usageDetect: () => invoke<DetectedProvider[]>('usage_detect'),
+  agentEventsInfo: () => invoke<{ enabled: boolean; running: boolean; port: number | null }>('agent_events_info'),
+  agentEventsRecent: () => invoke<AiActivityEvent[]>('agent_events_recent'),
+  agentHooksStatus: () => invoke<HookStatus[]>('agent_hooks_status'),
+  /** dryRun true only previews the change; false writes it (after a preview). */
+  agentHooksInstall: (provider: string, dryRun: boolean) => invoke<HookPreview>('agent_hooks_install', { provider, dryRun }),
+  agentHooksUninstall: (provider: string, dryRun: boolean) => invoke<HookPreview>('agent_hooks_uninstall', { provider, dryRun }),
 
   // spotlight (Ctrl+Space)
   spotlightSearch: (query: string) => invoke<SearchResult[]>('spotlight_search', { query }),
@@ -362,10 +493,17 @@ export const cmd = {
 
   // windows / settings
   openSettingsWindow: () => invoke<void>('open_settings_window'),
+  openSettings: (page?: string) => invoke<void>('open_settings_window', { page: page ?? null }),
   toggleSettingsWindow: () => invoke<void>('toggle_settings_window'),
 
   // widgets
   weatherGet: () => invoke<WeatherSnapshot>('weather_get'),
+  networkPing: (host?: string, samples?: number) => invoke<NetworkPingResult>('network_ping', { host, samples }),
+  networkSpeedtest: () => invoke<NetworkSpeedtestResult>('network_speedtest'),
+  networkSpeedtestCancel: () => invoke<void>('network_speedtest_cancel'),
+  networkInfo: () => invoke<NetworkInfo>('network_info'),
+  weatherDetectLocation: () => invoke<DeviceLocation>('weather_detect_location'),
+  weatherOpenLocationSettings: () => invoke<void>('weather_open_location_settings'),
   weatherSearch: (query: string) => invoke<WeatherLocation[]>('weather_search', { query }),
   calendarGet: () => invoke<CalendarEvent[]>('calendar_get'),
   calendarSave: (event: CalendarEvent) => invoke<CalendarEvent[]>('calendar_save', { event }),
@@ -374,15 +512,36 @@ export const cmd = {
   setInteractionBounds: (width:number, height:number) => invoke<void>('set_interaction_bounds', { width, height }),
   notesGet: () => invoke<NotesState>('notes_get'),
   notesSet: (text: string) => invoke<void>('notes_set', { text }),
+
+  // keep me awake
+  awakeStart: (endEpochMs: number, intensity: AwakeIntensity, volume: number, sound: string) =>
+    invoke<AwakeStatus>('awake_start', { endEpochMs, intensity, volume, sound }),
+  awakeStop: () => invoke<AwakeStatus>('awake_stop'),
+  awakeConfirm: (snoozeMinutes?: number) => invoke<AwakeStatus>('awake_confirm', { snoozeMinutes: snoozeMinutes ?? null }),
+  awakeAudioAck: (seq: number) => invoke<void>('awake_audio_ack', { seq }),
+  awakeStatus: () => invoke<AwakeStatus>('awake_status'),
+
+  // reminders
+  remindersList: () => invoke<Reminder[]>('reminders_list', { tzOffsetMin: new Date().getTimezoneOffset() }),
+  remindersSave: (reminder: Reminder) => invoke<Reminder[]>('reminders_save', { reminder, tzOffsetMin: new Date().getTimezoneOffset() }),
+  remindersDone: (id: string) => invoke<Reminder[]>('reminders_done', { id, tzOffsetMin: new Date().getTimezoneOffset() }),
+  remindersSnooze: (id: string, minutes: number) => invoke<Reminder[]>('reminders_snooze', { id, minutes }),
+  remindersDelete: (id: string) => invoke<Reminder[]>('reminders_delete', { id }),
+  remindersClearDone: () => invoke<Reminder[]>('reminders_clear_done'),
   connectionsList: () => invoke<AppConnection[]>('connections_list'),
   systemStats: () => invoke<SystemStats>('system_stats'),
   quickControlsGet: () => invoke<QuickControlsSnapshot>('quick_controls_get'),
   openNightLightSettings: () => invoke<void>('open_night_light_settings'),
   openBluetoothSettings: () => invoke<void>('open_bluetooth_settings'),
   openPowerSettings: () => invoke<void>('open_power_settings'),
-  openWindowsSettings: (page: 'sound' | 'display' | 'notifications') => invoke<void>('open_windows_settings', { page }),
+  openWindowsSettings: (page: 'sound' | 'display' | 'notifications' | 'notification-access' | 'bluetooth' | 'wifi' | 'airplane' | 'colors' | 'battery' | 'focus') => invoke<void>('open_windows_settings', { page }),
   setBluetoothRadio: (enabled: boolean) => invoke<boolean>('set_bluetooth_radio', { enabled }),
+  bluetoothRadioGet: () => invoke<BluetoothControl>('bluetooth_radio_get'),
+  setWifiRadio: (enabled: boolean) => invoke<boolean>('set_wifi_radio', { enabled }),
+  setAirplaneMode: (enabled: boolean) => invoke<boolean>('set_airplane_mode', { enabled }),
+  setDarkMode: (enabled: boolean) => invoke<void>('set_dark_mode', { enabled }),
   bluetoothDevicesList: () => invoke<BluetoothManagedDevice[]>('bluetooth_devices_list'),
+  bluetoothDevicesSnapshot: () => invoke<BluetoothSnapshot>('bluetooth_devices_snapshot'),
   bluetoothConnect: (deviceId: string) => invoke<BluetoothManagedDevice>('bluetooth_connect', { deviceId }),
   bluetoothDisconnect: (deviceId: string) => invoke<BluetoothManagedDevice>('bluetooth_disconnect', { deviceId }),
   bluetoothUnpair: (deviceId: string) => invoke<void>('bluetooth_unpair', { deviceId }),
@@ -406,6 +565,7 @@ export const cmd = {
   transferPairingDecide: (pairId: string, allow: boolean) => invoke<void>('transfer_pairing_decide', { pairId, allow }),
   transferPairingRemove: (deviceId: string) => invoke<boolean>('transfer_pairing_remove', { deviceId }),
   transferOpenFolder: () => invoke<void>('transfer_open_folder'),
+  transferBucketPaths: () => invoke<string[]>('transfer_bucket_paths'),
   recycleDroppedPaths: (paths: string[]) => invoke<RecycleDroppedPathsResult>('recycle_dropped_paths', { paths }),
 
   // nearby / airdrop-style transfer
@@ -424,6 +584,7 @@ export const EVT = {
   usageChanged: 'usage://changed',
   spotlightOpen: 'spotlight://open',
   aiEvent: 'ai://event',
+  aiActivity: 'ai://activity',
   authCode: 'auth://code',
   authError: 'auth://error',
   authConnectionsChanged: 'auth://connections-changed',
@@ -435,9 +596,29 @@ export const onMediaChanged = (cb: (m: NowPlaying | null) => void): Promise<Unli
 export const onExpandedChanged = (cb: (expanded: boolean) => void): Promise<UnlistenFn> =>
   listen<boolean>('island://expanded', (e) => cb(e.payload))
 
+export const onIslandReveal = (cb: (near: boolean) => void): Promise<UnlistenFn> =>
+  listen<boolean>('island://reveal', (e) => cb(e.payload))
 export const onIslandHover = (cb: (hovering: boolean) => void): Promise<UnlistenFn> =>
   listen<boolean>('island://hover', (e) => cb(e.payload))
-export const onAudioSpectrum = (cb: (value: { bands: number[] }) => void): Promise<UnlistenFn> => listen<{ bands: number[] }>('audio://spectrum', event => cb(event.payload))
+export interface AudioSpectrumFrame {
+  bands: number[]
+  waveform: number[]
+  /** Uncompressed physical levels; all remaining drives are perceptual 0..1. */
+  rms: number
+  peak: number
+  energy: number
+  bass: number
+  mid: number
+  treble: number
+  flux: number
+  onset: number
+  sequence: number
+  beatSequence: number
+  beatAtMs: number
+  capturedAtMs: number
+  sampleRate: number
+}
+export const onAudioSpectrum = (cb: (value: AudioSpectrumFrame) => void): Promise<UnlistenFn> => listen<AudioSpectrumFrame>('audio://spectrum', event => cb(event.payload))
 export const onAudioSpectrumError = (cb: (message: string) => void): Promise<UnlistenFn> => listen<string>('audio://spectrum-error', event => cb(event.payload))
 export const onAudioCaptureReady = (cb: () => void): Promise<UnlistenFn> => listen<void>('audio://capture-ready', () => cb())
 
@@ -455,6 +636,9 @@ export const onUsageChanged = (cb: (u: UsageSnapshot[]) => void): Promise<Unlist
 
 export const onAiEvent = (cb: (event: AiEvent) => void): Promise<UnlistenFn> =>
   listen<AiEvent>(EVT.aiEvent, (e) => cb(e.payload))
+
+export const onAiActivity = (cb: (event: AiActivityEvent) => void): Promise<UnlistenFn> =>
+  listen<AiActivityEvent>(EVT.aiActivity, (e) => cb(e.payload))
 
 export const onEmailCode = (cb: (event: EmailCodeEvent) => void): Promise<UnlistenFn> =>
   listen<EmailCodeEvent>(EVT.authCode, event => cb(event.payload))
@@ -531,6 +715,9 @@ export type WidgetKind =
   | 'clock'
   | 'bluetooth'
   | 'controls'
+  | 'network'
+  | 'awake'
+  | 'reminders'
 
 export interface WidgetConfig {
   id: string
@@ -539,7 +726,8 @@ export interface WidgetConfig {
   order: number
   panel?: string
   clockStyle?: 'analog' | 'digital'
-  size?: 'compact' | 'wide' | 'full'
+  /** Shape on the 2x2 notch grid: compact 1x1, wide 2x1, tall 1x2, full 2x2. */
+  size?: 'compact' | 'wide' | 'tall' | 'full'
   showLyrics?: boolean
   /** The grid cell the user dropped this widget into; absent means flow order. */
   slot?: { row: number; column: number }
@@ -555,6 +743,51 @@ export interface AppConnection {
   /** surface its notifications in the notch */
   notifications: boolean
   notificationSources?: string[]
+}
+
+/** TCP connect timing to a host, from the Network widget. Times are milliseconds. */
+export interface NetworkPingResult {
+  host: string
+  address: string | null
+  port: number
+  sent: number
+  received: number
+  lossPct: number
+  minMs: number | null
+  avgMs: number | null
+  maxMs: number | null
+  jitterMs: number | null
+  samplesMs: (number | null)[]
+}
+export interface NetworkSpeedtestResult {
+  downloadMbps: number
+  uploadMbps: number
+  latencyMs: number
+  jitterMs: number
+  bytesDown: number
+  bytesUp: number
+  finishedAt: number
+  server: string
+  cancelled: boolean
+}
+/** Payload of the `network://speedtest` event. */
+export interface NetworkSpeedProgress {
+  phase: 'latency' | 'download' | 'upload' | 'done' | 'cancelled' | 'error'
+  mbps: number
+  progress: number
+  latencyMs: number | null
+  jitterMs: number | null
+  downloadMbps: number | null
+  uploadMbps: number | null
+  message: string | null
+}
+export interface NetworkInfo {
+  kind: 'wifi' | 'wired' | 'offline' | 'unknown'
+  ssid: string | null
+  signalPct: number | null
+  linkMbps: number | null
+  radio: string | null
+  localIp: string | null
 }
 
 export interface WeatherSnapshot {
@@ -619,7 +852,25 @@ export interface BluetoothManagedDevice {
   canUnpair: boolean
   actionReason?: string | null
 }
+export interface BluetoothSourceReport { source: string; ok: boolean; count: number; error?: string | null }
+export interface BluetoothSnapshot { devices: BluetoothManagedDevice[]; sources: BluetoothSourceReport[]; error?: string | null }
 export interface ResetWatchSnapshot { events: ResetAnnouncement[]; lastCheckedAt: number; sourceUpdatedAt?: number | null; source: string; stale: boolean; error?: string | null }
+
+/** Result of "use device location": Windows Location, or an approximate network lookup. */
+export interface DeviceLocation {
+  location: WeatherLocation
+  method: 'windows' | 'network'
+  /** Why a fallback was used, when it was. */
+  notice?: string | null
+  canOpenSettings: boolean
+}
+
+/** Rejection value of `weather_detect_location`. */
+export interface LocationFailure {
+  code: 'windows_disabled' | 'offline' | 'timeout' | 'unavailable'
+  message: string
+  canOpenSettings: boolean
+}
 
 export interface WeatherLocation {
   name:string
@@ -636,6 +887,65 @@ export interface CalendarEvent {
   end: number
   allDay: boolean
   location?: string | null
+}
+
+export type AwakeIntensity = 'gentle' | 'medium' | 'relentless'
+
+/** Native state of the Keep me awake session (src-tauri/src/awake.rs). */
+export interface AwakeStatus {
+  active: boolean
+  endEpochMs: number
+  startedAtMs: number
+  intensity: AwakeIntensity
+  volume: number
+  sound: string
+  nextAlarmAtMs: number | null
+  pending: boolean
+  pendingSinceMs: number | null
+  level: number
+  alarmCount: number
+  seq: number
+  lastConfirmedAtMs: number | null
+  snoozedUntilMs: number | null
+  keepingAwake: boolean
+  nowMs: number
+}
+
+/** Payload of `awake://alarm`. */
+export interface AwakeAlarm {
+  seq: number
+  level: number
+  final: boolean
+  volume: number
+  sound: string
+  status: AwakeStatus
+}
+
+export interface ReminderRecur {
+  kind: 'daily' | 'weekdays' | 'weekly'
+  hour: number
+  minute: number
+  weekday?: number | null
+}
+
+/** A timed reminder (src-tauri/src/reminders.rs). */
+export interface Reminder {
+  id: string
+  title: string
+  /** next time it is due, epoch ms */
+  due: number
+  recur?: ReminderRecur | null
+  important: boolean
+  done: boolean
+  doneAt?: number | null
+  /** the due alert went out and nobody answered yet */
+  firedAt?: number | null
+  /** the due time that passed while the app was closed */
+  missedAt?: number | null
+  /** id of the linked Notes item */
+  link?: string | null
+  createdAt: number
+  snoozes: number
 }
 
 export interface NotesState {
@@ -688,6 +998,20 @@ export interface QuickControlsSnapshot {
   powerMode: PowerModeControl
   nightLight: BestEffortToggleControl
   doNotDisturb: BestEffortToggleControl
+  /** Optional so older native builds and previews still type-check. */
+  wifi?: ToggleControl
+  airplane?: ToggleControl
+  /** `enabled` means dark theme. */
+  theme?: ToggleControl
+  batterySaver?: ToggleControl
+}
+export interface ToggleControl {
+  supported: boolean
+  enabled: boolean | null
+  bestEffort: boolean
+  /** Windows shows the state but offers no way to change it. */
+  readOnly: boolean
+  error?: string | null
 }
 export interface MemoryCandidate { id: string; name: string; workingSetBytes: number }
 export interface MemoryReclaimResult { id: string; name: string; releasedWorkingSetBytes: number; error?: string | null }

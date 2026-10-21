@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { Battery, BatteryCharging, Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, Music, Pause, Play, SkipBack, SkipForward, Sun } from 'lucide-solid'
+import { Battery, BatteryCharging, Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, Music, Pause, Play, SkipBack, SkipForward, Sun, Zap } from 'lucide-solid'
 import { nowPlaying, mediaBusy, mediaControl } from '../../state/media'
 import { settings } from '../../state/settings'
 import { notifications } from '../../state/notifications'
@@ -7,11 +7,15 @@ import { usage } from '../../state/usage'
 import { focusTimer, formatFocus } from '../../state/focus'
 import { cmd, type SystemStats, type WeatherSnapshot } from '../../lib/ipc'
 import { normalizeCompactItems } from '../../lib/compactConfig'
-import { isReportStale, remainingPercent, reportAge, resetCountdown, resetTimeLabel, usedRatio, windowLabel } from '../../lib/usageDisplay'
+import { canLoadWeather, createWeatherLoader } from '../../lib/weatherLayout'
+import { compactStatValue, isReportStale, remainingPercent, reportAge, resetCountdown, resetTimeLabel, usedRatio, windowLabel } from '../../lib/usageDisplay'
+import { liveActiveCount } from '../../state/aiActivity'
+import { awakeLive } from '../../state/awake'
 import './CollapsedPill.css'
 import { Dynamic } from 'solid-js/web'
 import { clockTime } from '../../lib/clockDisplay'
 import { pendingAlert, openPendingAlert } from '../../state/peek'
+import LiveBars from '../views/LiveBars'
 
 function UsageRing(props: { percent: number }) {
   const radius = 6
@@ -56,27 +60,40 @@ export default function CollapsedPill() {
   const [weather, setWeather] = createSignal<WeatherSnapshot | null>(null)
   const [system, setSystem] = createSignal<SystemStats | null>(null)
   const clockLabel = () => clockTime(clock())
+  const verticalClock = () => settings.placement.edge === 'left' || settings.placement.edge === 'right'
+  const digitalClock = () => <Show when={verticalClock()} fallback={<strong>{clockLabel()}</strong>}>
+    <strong class="pill__clock-stack" aria-hidden="true"><For each={clockLabel().split(/[:\s\u202f]+/).filter(Boolean)}>{part => <span>{part}</span>}</For></strong>
+  </Show>
   const selected = createMemo(() => normalizeCompactItems(settings.compactItems, settings.sizePreset))
   const visible = createMemo(() => selected().filter(item => item !== 'media' || settings.modules.media).filter(item => item !== 'ai' || settings.modules.usage))
   const media = () => nowPlaying()
   const activeMedia = () => { const value = media(); return value && value.status !== 'stopped' ? value : null }
 
-  const refreshWeather = async () => {
-    try { setWeather(await cmd.weatherGet()) } catch { /* Keep the last useful snapshot. */ }
-  }
+  const weatherLoader = createWeatherLoader(cmd.weatherGet, setWeather)
   const refreshSystem = async () => {
     try { setSystem(await cmd.systemStats()) } catch { /* Keep the last useful snapshot. */ }
   }
 
   onMount(() => {
     const clockTimer = window.setInterval(() => {const next=new Date();if(settings.clockSeconds||next.getSeconds()%15===0)setClock(next)}, 1000)
-    const weatherTimer = window.setInterval(() => { if (visible().includes('weather')) void refreshWeather() }, 10 * 60_000)
+    const weatherTimer = window.setInterval(() => { void weatherLoader.refresh() }, 10 * 60_000)
     const systemTimer = window.setInterval(() => { if (visible().includes('battery')) void refreshSystem() }, 60_000)
     onCleanup(() => { clearInterval(clockTimer); clearInterval(weatherTimer); clearInterval(systemTimer) })
   })
   createEffect(() => {
+    // Read every location field so city changes and consent clearing invalidate
+    // compact data immediately, even while an old forecast request is pending.
+    const location = {
+      weatherLat: settings.weatherLat, weatherLon: settings.weatherLon,
+      weatherCity: settings.weatherCity, weatherAutoLocation: settings.weatherAutoLocation,
+    }
+    const enabled = visible().includes('weather') && canLoadWeather(location)
+    weatherLoader.configure(enabled)
+    if (enabled) void weatherLoader.refresh()
+  })
+  onCleanup(() => weatherLoader.configure(false))
+  createEffect(() => {
     const items = visible()
-    if (items.includes('weather') && !weather()) void refreshWeather()
     if (items.includes('battery') && !system()) void refreshSystem()
   })
 
@@ -95,6 +112,13 @@ export default function CollapsedPill() {
     }
     return best
   })
+  // Small AI stat. Usage-left would repeat the "ai" item when that is already in the pill.
+  const aiStat = createMemo(() => {
+    if (!settings.modules.usage) return null
+    const stat = settings.compactAiStat
+    if (stat === 'usage-left' && visible().includes('ai')) return null
+    return compactStatValue(stat, usage(), liveActiveCount())
+  })
   const unread = createMemo(() => notifications().length)
   const stop = (event: Event) => event.stopPropagation()
   const doMedia = (event: MouseEvent, action: 'previous' | 'toggle' | 'next') => {
@@ -106,13 +130,16 @@ export default function CollapsedPill() {
     <div class="pill__compact">
       <For each={visible()}>{item => <>
       <Show when={item === 'media'}>
-        <div class="pill__compact-item pill__compact-media" aria-label={activeMedia() ? `Now playing ${media()?.title ?? ''}` : 'Media controls'} onPointerDown={stop}>
+        <div class="pill__compact-item pill__compact-media" classList={{ 'pill__compact-media--idle': !activeMedia() }} aria-label={activeMedia() ? `Now playing ${media()?.title ?? ''}` : 'Media controls'} onPointerDown={stop}>
           <span class="pill__compact-art">
-            <Show when={activeMedia()?.thumbnail} fallback={<Music size={14} aria-hidden="true" />}>
+            <Show when={activeMedia()?.thumbnail} fallback={<Music size={13} aria-hidden="true" />}>
               {src => <img src={src()} alt="" draggable={false} />}
             </Show>
           </span>
           <span class="pill__compact-title" title={activeMedia()?.title || 'Media'}>{activeMedia()?.title || 'Media'}</span>
+          <Show when={activeMedia()}>
+            <span class="pill__compact-live" aria-hidden="true"><LiveBars playing={media()?.status === 'playing'} bars={4} size={18} color="rgba(255,255,255,0.92)" /></span>
+          </Show>
           <Show when={settings.compactMediaControls && media()}>
           <span class="pill__compact-controls" onPointerDown={stop}>
             <button type="button" aria-label="Previous track" title="Previous track" disabled={mediaBusy() || !media()?.canSkipPrevious} onClick={event => doMedia(event, 'previous')}><SkipBack size={13}/></button>
@@ -123,9 +150,9 @@ export default function CollapsedPill() {
         </div>
       </Show><Show when={item === 'clock'}>
         <div class="pill__compact-item pill__compact-clock" classList={{ 'pill__compact-clock--analog': settings.compactClockStyle === 'analog' }} aria-label={`Local time ${clockLabel()}`}>
-          <Show when={settings.compactClockStyle === 'analog'} fallback={<><span class="pill__compact-label">Local</span><strong>{clockLabel()}</strong></>}>
+          <Show when={settings.compactClockStyle === 'analog'} fallback={<><span class="pill__compact-label">Local</span>{digitalClock()}</>}>
             <AnalogClock date={clock()} />
-            <strong>{clockLabel()}</strong>
+            {digitalClock()}
           </Show>
         </div>
       </Show><Show when={item === 'weather'}>
@@ -143,11 +170,13 @@ export default function CollapsedPill() {
       </Show><Show when={item === 'ai' && bestUsage()}>
         {value => <div class="pill__compact-item pill__compact-ai" title={value().label}><UsageRing percent={value().percent / 100}/><strong>{value().percent}%</strong><span class="pill__compact-label">AI left</span></div>}
       </Show></> }</For>
-      <Show when={visible().length === 0}><span class="pill__compact-empty">Hover Island</span></Show>
+      <Show when={aiStat()}>{stat => <div class="pill__compact-item pill__compact-aistat" classList={{ 'pill__compact-aistat--live': settings.compactAiStat === 'active-count' && Number(stat().value) > 0 }} title={stat().title} aria-label={stat().title}><span class="pill__aistat-dot" aria-hidden="true"/><strong>{stat().value}</strong><span class="pill__compact-label">{stat().label}</span></div>}</Show>
+      <Show when={visible().length === 0 && !aiStat()}><span class="pill__compact-empty" role="img" aria-label="Hover Island" /></Show>
     </div>
     <Show when={!settings.dnd && settings.notifications.enabled ? pendingAlert() : null}>{item=><button class="pill__alert-badge" classList={{'pill__alert-badge--auth':item().category==='auth'}} aria-label={item().category==='auth'?`Verification code ${item().code ?? item().title}; activate to view and copy`:`Unread alert: ${item().title}`} title={item().category==='auth'?`Verification code · ${item().account ?? ''}`:`${item().app}: ${item().title}`} onPointerDown={stop} onClick={event=>{event.stopPropagation();openPendingAlert()}}><span class="pill__alert-dot"/><span>{item().category==='auth'?item().code ?? item().title:item().title}</span></button>}</Show>
     <div class="pill__badges" aria-hidden="true">
       <Show when={settings.modules.notifications && settings.notifications.enabled && unread() > 0}><span class="pill__dot" title={`${unread()} unread`} /></Show>
+      <Show when={awakeLive()}>{live => <span class="pill__awake" classList={{ 'pill__awake--pending': live().pending }} title={`Keeping your PC awake, ${live().remaining} left`}><Zap size={11} strokeWidth={2.4}/>{live().remaining}</span>}</Show>
       <Show when={focusTimer().endsAt && !visible().includes('clock')}><span class="pill__focus">{formatFocus(focusTimer().remaining)}</span></Show>
     </div>
   </div>

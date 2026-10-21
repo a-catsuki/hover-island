@@ -1,0 +1,217 @@
+/* ============================================================ Nearby polish */
+/* Loaded after NearbyView.css — the aesthetic layer for the sharing surface. */
+
+/* ------------------------------------------------------------------- header */
+.nearby { gap: 10px; }
+.nearby__head { padding: 8px 2px 2px; }
+.nearby__device { letter-spacing: var(--track-display); }
+.nearby__pill { height: 24px; background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+.nearby__pill--on { background: color-mix(in srgb, var(--accent) 15%, transparent); border-color: color-mix(in srgb, var(--accent) 42%, transparent); color: var(--text-1); }
+
+/* ----------------------------------------------------------------- mode tabs */
+.nearby__mode-tabs { padding: 4px; gap: 3px; border-radius: 14px; background: #ffffff07; border-color: #ffffff0c; }
+.nearby__mode-tabs button { min-height: 30px; padding: 0 14px; border-radius: 11px; font-size: 12px; font-weight: var(--fw-semibold); }
+.nearby__mode-tabs button.nearby__mode-tab--active { background: #303033; color: #f4f5f8; box-shadow: inset 0 1px #ffffff10, 0 2px 5px #0003; }
+
+/* -------------------------------------------------------------------- notice */
+.nearby__notice { background: color-mix(in srgb, var(--accent) 8%, var(--surface-1)); border-color: color-mix(in srgb, var(--accent) 26%, var(--line-1)); }
+.nearby__protocol { padding: 2px 3px 0; font-size: 10px; }
+
+/* --------------------------------------------------------------- column head */
+.nearby__col-title { padding: 0 4px; }
+.nearby__count { min-width: 22px; text-align: center; padding: 1px 7px; border-radius: var(--r-pill); background: #ffffff0a; font-size: 10px; letter-spacing: 0; }
+
+/* --------------------------------------------------------------- device list */
+.nearby__peers { gap: 7px; }
+.nearby__peer { border-radius: 15px; background: linear-gradient(180deg, #ffffff05, #ffffff02), color-mix(in srgb, var(--surface-1) 90%, transparent); }
+.nearby__peer:hover { background: color-mix(in srgb, var(--surface-2) 82%, transparent); }
+.nearby__peer--sel { background: color-mix(in srgb, var(--accent) 13%, var(--surface-1)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* --------------------------------------------------------------- empty state */
+.nearby__empty-glyph { width: 66px; height: 66px; }
+.nearby__empty-title { font-size: 14px; }
+
+/* ---------------------------------------------------------------- drop zone */
+.nearby__drop { border-radius: 18px; padding: 22px 14px; background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 72%); }
+.nearby__drop-glyph { width: 44px; height: 44px; border-radius: 14px; background: #ffffff06; }
+.nearby__drop-title { font-size: 14px; }
+.nearby__drop--ready { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent); }
+.nearby__drop--active { box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* ---------------------------------------------------------------- transfers */
+.nearby__transfer { border-radius: 15px; background: linear-gradient(180deg, #ffffff05, #ffffff02), color-mix(in srgb, var(--surface-1) 90%, transparent); transition: border-color var(--dur-fast) var(--ease); }
+.nearby__transfer:hover { border-color: #ffffff22; }
+.nearby__dir { width: 30px; height: 30px; border-radius: 10px; }
+.nearby__transfer-status { padding: 2px 8px; border-radius: var(--r-pill); background: color-mix(in srgb, currentColor 16%, transparent); letter-spacing: 0.03em; }
+.nearby__bar { height: 5px; box-shadow: inset 0 1px 2px #0006; }
+.nearby__bar-fill { box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 42%, transparent); }
+.nearby__bar-fill--done { box-shadow: 0 0 10px color-mix(in srgb, var(--ok) 38%, transparent); }
+.nearby__approval-btn { border-radius: 10px; }
+.nearby__transfers-empty { color: var(--text-3); font-size: var(--fs-11); }
+
+/* =============================================================== phone bucket */
+.phone-bucket { background: radial-gradient(ellipse at 12% 0%, #17407019, transparent 60%); }
+.phone-bucket__intro h2 { font-weight: 650; }
+.phone-bucket__intro p { color: #8d95a5; font-size: 11px; }
+.phone-bucket__inactive { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 18px; border: 0; background: none; padding: 18px; }
+.phone-bucket__inactive-copy { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.phone-bucket__inactive-copy strong { font-size: 20px; letter-spacing: -.5px; color: #f4f5f8; }
+.phone-bucket__inactive-copy span { font-size: 11px; color: #a0a6b3; }
+.phone-bucket__inactive-copy small { font-size: 9px; color: #6c7585; }
+.nearby-pair-art { position: relative; display: flex; align-items: center; gap: 16px; padding: 20px 26px; }
+.nearby-pair-art::before { content: ''; position: absolute; inset: -12px; border-radius: 50%; background: radial-gradient(ellipse, #235c9b2e, transparent 67%); pointer-events: none; }
+.nearby-pair-art > span { position: relative; }
+.nearby-pair-art__pc, .nearby-pair-art__phone { display: grid; place-items: center; width: 70px; height: 70px; border: 1px solid #ffffff12; border-radius: 24px; background: linear-gradient(145deg, #25466a66, #101924); box-shadow: inset 0 1px 0 #ffffff0b, 0 16px 30px #0003; color: #a9d1ff !important; }
+.nearby-pair-art__phone { width: 60px; height: 60px; border-radius: 21px; background: linear-gradient(145deg, #315d8866, #121e2e); }
+.nearby-pair-art__path { font-size: 26px !important; letter-spacing: 3px; color: #6ca3de !important; }
+.phone-bucket__qr-card { border-radius: 20px; background: #ffffff04; border: 1px solid #ffffff0b; box-shadow: inset 0 1px 0 #ffffff07; }
+.phone-bucket__qr { background: #fff; padding: 7px; border-radius: 14px; }
+.phone-bucket__drop { border-radius: 20px; border: 1px dashed #719ec83a; background: radial-gradient(ellipse at 50% 10%, #315b8622, transparent 90%); }
+.phone-bucket__drop > svg { color: #92b9ef; }
+.phone-bucket__choose { border-radius: 10px; background: #88b9ff15; border-color: #88b9ff22; color: #b6d4ff; }
+.phone-bucket__file { gap: 9px; border-radius: 11px; padding: 7px 9px; background: #ffffff04; border: 1px solid #ffffff07; }
+.phone-bucket__file-icon { display: grid; place-items: center; width: 28px; height: 28px; flex: none; border-radius: 8px; background: #4e7dae20; color: #a8ccfa; }
+.phone-bucket__file-info { flex: 1; min-width: 0; }
+.phone-bucket__saved { font-size: 9px; color: #99c4a4; }
+.phone-bucket__security { border: 0; background: none; opacity: .75; padding: 3px 0; font-size: 9px; }
+
+/* --------------------------------------------------------- narrow containers */
+@container dashboard (max-width: 680px) {
+  .phone-bucket__inactive { gap: 10px; padding: 10px; }
+  .nearby-pair-art { padding: 12px 18px; }
+  .nearby-pair-art__pc { width: 60px; height: 60px; border-radius: 20px; }
+  .nearby-pair-art__phone { width: 52px; height: 52px; border-radius: 18px; }
+  .phone-bucket__inactive strong { font-size: 18px; }
+  .phone-bucket__file { padding: 5px 7px; }
+  .phone-bucket__file-icon { width: 23px; height: 23px; }
+}
+
+@container dashboard (max-width: 620px) {
+  .nearby__body { grid-template-columns: minmax(0, 1fr); }
+  .nearby__drop { padding: 18px 12px; }
+}
+
+@container dashboard (max-width: 460px) {
+  .nearby__intro,
+  .phone-bucket__intro { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .phone-bucket__actions { align-self: stretch; justify-content: flex-end; }
+  .nearby__drop-hint { display: none; }
+  .nearby__peer-send span { display: none; }
+  .nearby__peer-send { padding: 0 9px; }
+}
+
+/* ========================================================= notch drop → beam */
+/* The coherent PC→phone action: drop files → bucket → scan to beam. */
+
+.phone-bucket__notice--error { border-color: color-mix(in srgb, var(--danger) 42%, var(--line-1)); background: color-mix(in srgb, var(--danger) 10%, var(--surface-1)); color: var(--text-1); }
+
+/* --------------------------------------------------------------- state banner */
+.phone-bucket__state { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #ffffff0b; border-radius: 16px; background: linear-gradient(180deg, #ffffff05, #ffffff02), color-mix(in srgb, var(--surface-1) 90%, transparent); }
+.phone-bucket__state > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.phone-bucket__state > div > strong { font-size: 12px; font-weight: var(--fw-semibold); color: var(--text-1); }
+.phone-bucket__state > div > span { font-size: 10px; line-height: var(--lh-normal); color: var(--text-3); }
+.phone-bucket__state-icon { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 10px; background: var(--accent-soft); color: var(--accent); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
+.phone-bucket__state--busy .phone-bucket__state-icon { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.phone-bucket__state--ready { border-color: color-mix(in srgb, var(--ok) 36%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--ok) 12%, transparent), #ffffff02); }
+.phone-bucket__state--ready .phone-bucket__state-icon { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
+.phone-bucket__spin { animation: pb-spin 900ms linear infinite; }
+
+/* --------------------------------------------------------------- staging list */
+.phone-bucket__staging { display: flex; flex-direction: column; gap: 7px; }
+.phone-bucket__stage { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid #ffffff0b; border-radius: 14px; background: #ffffff04; animation: pb-stage-in 260ms var(--spring) both; }
+.phone-bucket__stage--fail { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.phone-bucket__stage-thumb { display: grid; place-items: center; width: 38px; height: 38px; flex: none; overflow: hidden; border-radius: 11px; background: #4e7dae20; color: #a8ccfa; }
+.phone-bucket__stage-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.phone-bucket__stage-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.phone-bucket__stage-top { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
+.phone-bucket__stage-top strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-medium); color: var(--text-1); }
+.phone-bucket__stage-top span { flex: none; color: var(--accent); font-variant-numeric: tabular-nums; }
+.phone-bucket__stage--fail .phone-bucket__stage-top span { color: var(--danger); }
+.phone-bucket__stage-meta { display: flex; justify-content: space-between; gap: 10px; font-size: 9px; color: var(--text-3); }
+.phone-bucket__stage-meta > span:first-child { flex: none; font-variant-numeric: tabular-nums; }
+.phone-bucket__stage-error { min-width: 0; color: var(--danger); overflow-wrap: anywhere; }
+
+/* --------------------------------------------------------------- countdown */
+.phone-bucket__countdown { display: flex; align-items: center; gap: 6px; width: 100%; color: var(--text-3); font-size: 10px; font-variant-numeric: tabular-nums; }
+.phone-bucket__countdown > span { flex: none; color: var(--text-2); }
+.phone-bucket__countdown-track { flex: 1 1 auto; height: 3px; border-radius: var(--r-pill); background: #ffffff12; overflow: hidden; }
+.phone-bucket__countdown-fill { height: 100%; border-radius: var(--r-pill); background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width 1s linear, background var(--dur) var(--ease); }
+.phone-bucket__countdown-fill--low { background: linear-gradient(90deg, var(--warn), var(--danger)); }
+
+/* --------------------------------------------------------------- QR scan */
+.phone-bucket__qr-wrap { position: relative; display: grid; place-items: center; }
+.phone-bucket__qr-scan { position: absolute; inset: 7px; overflow: hidden; border-radius: 10px; pointer-events: none; }
+.phone-bucket__qr-scan::after { content: ''; position: absolute; left: 0; right: 0; top: -40%; height: 38%; background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 42%, transparent), transparent); animation: pb-scan 2.8s var(--ease) infinite; }
+.phone-bucket__qr-card--ready { box-shadow: inset 0 1px 0 #ffffff07, 0 0 0 1px color-mix(in srgb, var(--ok) 30%, transparent), 0 0 34px color-mix(in srgb, var(--accent) 16%, transparent); }
+
+/* --------------------------------------------------------------- drop zones */
+.phone-bucket__drop--hero { width: 100%; max-width: 520px; min-height: 132px; margin-top: 2px; }
+.phone-bucket__drop--slim { min-height: 80px; padding: 12px; }
+.phone-bucket__drop--slim > span { display: none; }
+
+/* --------------------------------------------------------------- empty state */
+.phone-bucket__files-empty { display: flex; align-items: center; gap: 12px; border-style: dashed; }
+.phone-bucket__files-empty-glyph { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 12px; background: var(--accent-soft); color: var(--accent); }
+.phone-bucket__files-empty > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.phone-bucket__files-empty > div > strong { color: var(--text-2); font-size: 12px; }
+.phone-bucket__files-empty > div > span { font-size: 10px; line-height: var(--lh-normal); }
+
+/* --------------------------------------------------------------- grouped list */
+.phone-bucket__files { display: flex; flex-direction: column; gap: 0; border: 1px solid #ffffff0b; border-radius: 16px; overflow-y: auto; }
+.phone-bucket__group { display: flex; flex-direction: column; }
+.phone-bucket__group + .phone-bucket__group { border-top: 1px solid #ffffff08; }
+.phone-bucket__group-title { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 7px; padding: 8px 10px 5px; color: var(--text-3); font-size: 9px; font-weight: var(--fw-semibold); letter-spacing: .09em; text-transform: uppercase; background: color-mix(in srgb, var(--surface-1) 94%, transparent); backdrop-filter: blur(6px); }
+.phone-bucket__group-count { margin-left: auto; color: var(--text-3); font-weight: var(--fw-regular); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------ trusted phones */
+.phone-bucket__connection { width: 100%; color: var(--text-3); font-size: 10px; text-align: left; }
+.phone-bucket__connection summary,.phone-bucket__security summary { width: fit-content; color: var(--text-3); font-size: 10px; cursor: pointer; }
+.phone-bucket__connection > span,.phone-bucket__connection code,.phone-bucket__connection small { display: block; margin-top: 5px; overflow-wrap: anywhere; }
+.phone-bucket__connection code { padding: 6px 8px; border: 1px solid var(--line-1); border-radius: 9px; background: #0002; color: var(--text-2); font-size: 9px; }
+.phone-bucket__connection small { color: var(--text-3); line-height: var(--lh-normal); }
+.phone-bucket__phones { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--line-1); border-radius: 15px; background: color-mix(in srgb, var(--surface-1) 75%, transparent); }
+.phone-bucket__phones-head { display: flex; justify-content: space-between; color: var(--text-2); font-size: 11px; }
+.phone-bucket__phones-head strong { font-weight: var(--fw-semibold); }
+.phone-bucket__phones-head span { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.phone-bucket__requests,.phone-bucket__device-strip { display: flex; flex-wrap: wrap; gap: 6px; }
+.phone-bucket__request { min-width: 0; flex: 1 1 260px; display: flex; align-items: center; gap: 6px; padding: 8px; border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--line-1)); border-radius: 12px; background: color-mix(in srgb, var(--accent) 8%, var(--surface-1)); }
+.phone-bucket__request > div { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.phone-bucket__request > div strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-1); font-size: 11px; }
+.phone-bucket__request > div span { color: var(--text-3); font-size: 9px; }
+.phone-bucket__request b { color: var(--text-1); font-size: 11px; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.phone-bucket__allow,.phone-bucket__deny,.phone-bucket__device button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: none; height: 27px; padding: 0 8px; border: 1px solid var(--line-1); border-radius: var(--r-pill); background: #ffffff08; color: var(--text-2); font-size: 10px; cursor: pointer; }
+.phone-bucket__allow { border-color: color-mix(in srgb, var(--ok) 40%, transparent); color: var(--ok); }
+.phone-bucket__deny,.phone-bucket__device button { width: 27px; padding: 0; }
+.phone-bucket__allow:disabled,.phone-bucket__deny:disabled,.phone-bucket__device button:disabled { opacity: .45; cursor: wait; }
+.phone-bucket__device { min-width: 0; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 6px 4px 9px; border: 1px solid var(--line-1); border-radius: var(--r-pill); background: #ffffff05; }
+.phone-bucket__device strong { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); font-size: 10px; font-weight: var(--fw-medium); }
+.phone-bucket__device > span:nth-of-type(2) { color: var(--text-3); font-size: 9px; }
+.phone-bucket__device-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--text-3); }
+.phone-bucket__device--online .phone-bucket__device-dot { background: var(--ok); box-shadow: 0 0 8px color-mix(in srgb, var(--ok) 70%, transparent); }
+.phone-bucket__device--online > span:nth-of-type(2) { color: var(--ok); }
+.phone-bucket__security { display: flex; flex-direction: column; gap: 5px; color: var(--text-3); font-size: 10px; line-height: var(--lh-normal); }
+.phone-bucket__security > span { padding-left: 2px; }
+
+@keyframes pb-spin { to { transform: rotate(360deg); } }
+@keyframes pb-scan { 0% { top: -40%; } 55% { top: 110%; } 100% { top: 110%; } }
+@keyframes pb-stage-in { from { opacity: 0; transform: translateY(4px) scale(0.99); } to { opacity: 1; transform: none; } }
+
+/* Keep the bucket inside its widget tile: the staged list gets the slack. */
+.widget-grid .phone-bucket { overflow: auto; scrollbar-width: thin; }
+.widget-grid .phone-bucket__files { max-height: 132px; }
+.widget-grid .phone-bucket__stage-thumb { width: 32px; height: 32px; }
+.widget-grid .phone-bucket__state { padding: 8px 10px; }
+
+@container dashboard (max-width: 620px) {
+  .phone-bucket__drop--hero { min-height: 112px; }
+  .widget-grid .phone-bucket__files { max-height: 104px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nearby__drop-chip { animation: none; }
+  .nearby__peer:hover { transform: none; }
+  .phone-bucket__spin,
+  .phone-bucket__qr-scan::after,
+  .phone-bucket__stage { animation: none; }
+  .phone-bucket__countdown-fill { transition: none; }
+}

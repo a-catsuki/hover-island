@@ -1,0 +1,468 @@
+/* ================================================================== island
+   One transparent native window, one clipped black material. The clip-path
+   (width, height and radius, driven by the spring in Island.tsx) is the shape. */
+
+.island-stage {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 220ms var(--ease-out);
+}
+.island-stage--veiled {
+  opacity: 0;
+}
+
+.island {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+  isolation: isolate;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: none;
+  /* Island.tsx writes --island-clip every spring frame (an inset() round rect, or a
+     path() only while the cursor tugs the notch). The fallback is the first paint. */
+  clip-path: var(
+    --island-clip,
+    inset(
+      0
+      max(0px, calc((100% - var(--collapsed-w)) / 2))
+      max(0px, calc(100% - var(--collapsed-h)))
+      max(0px, calc((100% - var(--collapsed-w)) / 2))
+      round 0 0 19px 19px
+    )
+  );
+}
+
+/* The material is pure black, like the real thing. No gradient, no ring. */
+.island::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 0;
+  background: #000;
+  opacity: var(--island-opacity, 1);
+  backdrop-filter: none;
+}
+.island::after {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- collapsed */
+
+.island__collapsed {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 1;
+  transform: translateX(-50%);
+  /* --pill-w is written by Island.tsx when the resting size changes, never per frame. */
+  width: min(100%, var(--pill-w, var(--collapsed-w)));
+  height: var(--collapsed-h);
+  contain: layout style;
+  opacity: 1;
+  transition: opacity 140ms var(--ease-out);
+}
+.island--open .island__collapsed {
+  opacity: 0;
+  transition-duration: 80ms;
+  pointer-events: none;
+}
+.island__bar {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  animation: none;
+}
+.island__bar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+  border-radius: inherit;
+}
+
+/* ----------------------------------------------------------------- expanded
+   The dashboard is laid out once at its final size (--island-open-*) and the clip
+   reveals it as the spring grows. Content only fades and eases in with transform and
+   opacity, which stay on the compositor: no blur on a panel-sized layer, no relayout. */
+
+.island__expanded {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transform: scale(var(--enter-scale));
+  transform-origin: top center;
+  pointer-events: none;
+  contain: layout style;
+  transition:
+    opacity 90ms linear,
+    transform 140ms var(--ease-out);
+}
+.island--open .island__expanded {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  transition:
+    opacity 170ms var(--ease-out) 40ms,
+    transform 340ms var(--spring-island);
+}
+/* Promote only while something moves, so a resting island holds no extra layers. */
+.island--moving .island__expanded { will-change: transform, opacity; }
+.island--edge-bottom .island__expanded { transform-origin: bottom center; }
+.island--edge-left .island__expanded { transform-origin: left center; }
+.island--edge-right .island__expanded { transform-origin: right center; }
+.island__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  container-type: inline-size;
+  container-name: dashboard;
+}
+
+/* Ambient scenes (optional) sit inside the clip, under the content. */
+.ambient {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ platters */
+
+.widget-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+.widget {
+  --span: 1;
+  grid-column: span var(--span);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
+  border: 0;
+  border-radius: var(--r-platter);
+  background: var(--platter);
+  box-shadow: var(--hairline);
+  overflow: hidden;
+}
+.widget--wide {
+  --span: 2;
+}
+.widget__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.widget__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-title);
+  color: var(--text-1);
+}
+.widget__title .icon,
+.widget__title > svg {
+  color: var(--text-3);
+  stroke-width: 1.75;
+}
+.widget__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-11);
+  font-weight: var(--fw-medium);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.widget__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 6px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--fs-12);
+  line-height: var(--lh-normal);
+}
+.widget__empty .icon {
+  width: 22px;
+  height: 22px;
+  color: var(--text-3);
+}
+
+/* Staggered platter entrance: up to five items, 30ms apart. Replays on every open and
+   every page switch, because the elements mount with the class. Transform and opacity only. */
+.island--open .widget-grid > .widget {
+  /* `backwards`, not `both`: a forwards fill keeps every widget promoted to its own
+     compositor layer (one GPU texture each) for as long as the island stays open. */
+  animation: platter-in 360ms var(--spring-island) backwards;
+}
+.island--open .widget-grid > .widget:nth-child(2) { animation-delay: 30ms; }
+.island--open .widget-grid > .widget:nth-child(3) { animation-delay: 60ms; }
+.island--open .widget-grid > .widget:nth-child(4) { animation-delay: 90ms; }
+.island--open .widget-grid > .widget:nth-child(n + 5) { animation-delay: 120ms; }
+@keyframes platter-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------------- peek */
+/* An in-panel notice. Live activities (the black capsule) restyle it in polish.css. */
+
+.peek {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 2px 0 10px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--platter-strong);
+  box-shadow: var(--hairline);
+  transform-origin: top center;
+  animation: peek-in 420ms var(--spring-pop) both;
+}
+@keyframes peek-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.peek__dot {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--platter-strong);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  color: var(--text-1);
+}
+.peek__dot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.peek__body {
+  flex: 1;
+  min-width: 0;
+}
+.peek__app {
+  font-size: var(--fs-11);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-3);
+}
+.peek__title {
+  margin-top: 2px;
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-title);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.peek__text {
+  margin-top: 2px;
+  font-size: var(--fs-12);
+  line-height: var(--lh-normal);
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* Neutral confirmation (Do Not Disturb and similar) */
+.peek.peek--mute .peek__app { color: var(--text-3); }
+.peek.peek--mute .peek__dot { color: var(--text-2); }
+
+/* The live activity takes over the island: hide the dashboard underneath. */
+.island--peek .panel__head,
+.island--peek .widget-grid,
+.island--peek .panel__foot,
+.island--peek .arrange-hint { visibility: hidden; }
+.island--peek .peek {
+  position: absolute;
+  top: 15px;
+  left: max(16px, calc((100% - 420px) / 2 + 16px));
+  width: min(388px, calc(100% - 32px));
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.island--peek .peek__text { font-size: var(--fs-11); }
+.island--device-peek .peek {
+  top: 14px;
+  left: max(16px, calc((100% - 340px) / 2 + 16px));
+  width: min(308px, calc(100% - 32px));
+}
+.island--device-peek .peek__dot { color: var(--accent); background: var(--accent-soft); }
+
+/* ------------------------------------------------------------------ feedback */
+
+.feedback {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  margin: 0 16px 8px;
+  padding: 8px 8px 8px 14px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--sys-red) 16%, transparent);
+  color: #ff8a80;
+  font-size: var(--fs-12);
+  animation: feedback-in 220ms var(--ease-out);
+}
+.feedback span {
+  overflow-wrap: anywhere;
+  max-height: 42px;
+  overflow: auto;
+}
+@keyframes feedback-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* -------------------------------------------------------------------- pill */
+/* Legacy compact pill pieces (marquee, badges). The compact view itself is in CollapsedPill.css. */
+
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  width: 100%;
+}
+.pill__art {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--platter-strong);
+}
+.pill__art-img { width: 100%; height: 100%; object-fit: cover; }
+.pill__idle { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: 0.9; }
+.pill__glyph { display: grid; place-items: center; color: var(--text-2); }
+.pill__text { flex: 1; min-width: 0; overflow: hidden; font-size: var(--fs-12); white-space: nowrap; }
+.marquee__track { display: flex; gap: 32px; width: max-content; }
+.marquee__item { display: flex; align-items: center; gap: 5px; }
+.marquee:not(.marquee--run) .marquee__item[aria-hidden] { display: none; }
+.marquee--run .marquee__track { animation: marquee var(--marquee-dur) linear infinite; }
+@keyframes marquee {
+  0%, 12% { transform: translateX(0); }
+  88%, 100% { transform: translateX(calc(-50% - 16px)); }
+}
+.pill__artist { color: var(--text-2); }
+.pill__sep { color: var(--text-3); }
+.pill__title { color: var(--text-1); }
+.pill__badges { display: flex; align-items: center; gap: 8px; }
+.pill__ring { display: block; }
+.pill__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sys-red); }
+.pill__usage { display: flex; align-items: center; gap: 5px; }
+.pill__usage-num { font-size: 10px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.pill__clock-stack { display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.05; }
+.pill__clock-stack > span { display: block; }
+.island.island--notch-side:not(.island--open) .pill__compact-item,
+.island.island--mode-sidebar:not(.island--open) .pill__compact-item { flex-direction: column; gap: 3px; }
+.island.island--notch-side:not(.island--open) .pill__compact-clock--analog,
+.island.island--mode-sidebar:not(.island--open) .pill__compact-clock--analog { flex-direction: column; }
+
+/* ------------------------------------------------------------------ recovery */
+
+.app-recovery {
+  margin: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--platter);
+  border-radius: var(--r-card);
+}
+
+/* -------------------------------------------------------- browser preview only */
+
+.preview-label { position: fixed; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 11px; color: rgba(255, 255, 255, 0.55); }
+.preview-label span { display: block; margin-top: 4px; font-size: 10px; color: rgba(255, 255, 255, 0.35); }
+body:has(.preview-label) { background: radial-gradient(ellipse at 50% 0%, #3b4a63, #1f2733 70%); }
+body:has(.preview-label) .island-stage {
+  inset: 0 auto auto 50%;
+  transform: translateX(-50%);
+  width: min(var(--expanded-w), 100vw);
+  height: min(var(--expanded-h), calc(100vh - 60px));
+}
+
+@media (max-width: 560px) {
+  .widget-grid { grid-template-columns: minmax(0, 1fr); }
+  .widget,
+  .widget--wide { --span: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .island__expanded,
+  .island--open .island__expanded { transition: opacity 80ms linear; transform: none; }
+  .island__collapsed { transition: opacity 80ms linear; }
+  .island--open .widget-grid > .widget { animation: none; }
+  .peek, .feedback { animation: none; }
+  .marquee--run .marquee__track { animation: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .widget { background: #17171a; }
+}
+@media (prefers-contrast: more) {
+  .widget { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4); }
+}

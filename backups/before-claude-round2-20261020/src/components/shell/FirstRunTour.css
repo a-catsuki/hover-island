@@ -1,0 +1,151 @@
+/* First run: a full black sheet over the island. One idea per page. */
+.first-run-tour {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 32px 24px 28px;
+  background: #000;
+  text-align: center;
+  outline: none;
+  animation: frt-sheet 360ms var(--spring-island) both;
+}
+@keyframes frt-sheet {
+  from { opacity: 0; transform: scale(var(--enter-scale)); filter: blur(var(--enter-blur)); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+.first-run-tour__close {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--fs-13);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.first-run-tour__close:hover { color: var(--text-1); background: var(--platter); }
+
+.first-run-tour__stage {
+  display: grid;
+  place-items: center;
+  width: min(440px, 100%);
+  min-height: 0;
+}
+.frt-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  animation: frt-step 420ms var(--spring-island) both;
+}
+@keyframes frt-step {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); filter: blur(3px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+.frt-icon {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  margin-bottom: 14px;
+  border-radius: 22px;
+  color: #fff;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.25), 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+.frt-icon--blue { background: linear-gradient(160deg, #3da0ff, #0a60ff); }
+.frt-icon--purple { background: linear-gradient(160deg, #d27bff, #7d3cf0); }
+.frt-icon--orange { background: linear-gradient(160deg, #ffb340, #ff7a0a); }
+.frt-icon--green { background: linear-gradient(160deg, #54e07a, #1fa84a); }
+.frt-eyebrow {
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-caps);
+  color: var(--text-3);
+}
+.first-run-tour h2 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.12;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-display);
+  color: var(--text-1);
+}
+.first-run-tour p {
+  margin: 0;
+  max-width: 34ch;
+  font-size: var(--fs-15);
+  line-height: 1.45;
+  color: var(--text-2);
+  text-wrap: balance;
+}
+.first-run-tour p.frt-status { margin-top: 6px; font-size: var(--fs-13); color: var(--text-3); }
+
+.first-run-tour__bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: min(300px, 100%);
+}
+.first-run-tour__next {
+  width: 100%;
+  height: 46px;
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+}
+.first-run-tour__dots { display: flex; align-items: center; gap: 4px; }
+.first-run-tour__dots button {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.first-run-tour__dots button::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  transition: background var(--dur) var(--ease), transform 300ms var(--spring-pop);
+}
+.first-run-tour__dots button:hover::before { background: rgba(255, 255, 255, 0.4); }
+.first-run-tour__dots button.is-active::before { background: #fff; transform: scale(1.15); }
+.first-run-tour__dots button:focus-visible { outline: 2px solid var(--accent); border-radius: 50%; }
+.first-run-tour__skip {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+.first-run-tour__skip:disabled { opacity: 0.5; cursor: default; }
+.first-run-tour__spacer { height: 28px; }
+
+@container dashboard (max-height: 520px) {
+  .first-run-tour { gap: 18px; }
+}
+@media (max-height: 520px) {
+  .frt-icon { width: 60px; height: 60px; margin-bottom: 6px; }
+  .first-run-tour h2 { font-size: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .first-run-tour, .frt-step { animation: none; }
+}

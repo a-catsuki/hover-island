@@ -1,0 +1,30 @@
+<?svml using="@hypit/recipe@1"?>
+<sheet version="1">
+  film.main {
+    background: "#07080a";
+  }
+
+  text.display {
+    size: 120;
+    weight: 800;
+    line-height: 0.9;
+    tracking: -4;
+    fill: "#f5f2ea";
+  }
+
+  text.eyebrow {
+    size: 24;
+    weight: 400;
+    line-height: 1;
+    tracking: 3;
+    fill: "#9aa0a6";
+  }
+
+  text.body {
+    size: 36;
+    weight: 500;
+    line-height: 1.25;
+    tracking: -0.4;
+    fill: "#c9ccc9";
+  }
+</sheet>

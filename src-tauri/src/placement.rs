@@ -1,5 +1,5 @@
 //! Monitor-aware island placement and explicit pointer-captured dragging.
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, PhysicalPosition};
 
@@ -8,6 +8,11 @@ use crate::settings::Size;
 
 static DRAGGING: AtomicBool = AtomicBool::new(false);
 static DRAG_OFFSET: Mutex<Option<(f64, f64)>> = Mutex::new(None);
+/// Physical position `anchor` last gave the host window. The island is never
+/// user-movable: anything that displaces it is put back (see `enforce_anchor`).
+static LAST_ANCHOR: Mutex<Option<(i32, i32)>> = Mutex::new(None);
+static DRAG_ENDED_AT: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+static ENFORCE_MISMATCHES: AtomicU32 = AtomicU32::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct MonitorRect {
@@ -61,7 +66,55 @@ pub fn anchor(app: &AppHandle) -> tauri::Result<()> {
     let host_height = (logical_height * scale).round().max(1.0) as i32;
     let (x, y) = anchor_position(rect, host_width, host_height, &placement.edge);
     window.set_position(PhysicalPosition::new(x, y))?;
+    if let Ok(mut last) = LAST_ANCHOR.lock() {
+        *last = Some((x, y));
+    }
+    ENFORCE_MISMATCHES.store(0, Ordering::Relaxed);
+    crate::window::invalidate_geometry_cache();
     Ok(())
+}
+
+/// The expanded notch is anchored, not a free window. If anything (a stray
+/// non-client drag, a snap gesture, a display change) leaves the host away from
+/// its anchor, recompute the anchor from the live monitor layout and move it
+/// back. Cheap when nothing is wrong: one position read compared to a cache.
+/// Called from the hover poll about twice a second; never while the user is
+/// deliberately dragging the island between edges (placement drag), nor in the
+/// short window after a drag ends while the frontend commits the new placement.
+pub fn enforce_anchor(app: &AppHandle) {
+    if is_dragging() {
+        return;
+    }
+    if DRAG_ENDED_AT
+        .lock()
+        .ok()
+        .and_then(|ended| *ended)
+        .is_some_and(|at| at.elapsed() < std::time::Duration::from_secs(2))
+    {
+        return;
+    }
+    let Some(target) = LAST_ANCHOR.lock().ok().and_then(|last| *last) else {
+        return;
+    };
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let Ok(position) = window.outer_position() else {
+        return;
+    };
+    if position.x == target.0 && position.y == target.1 {
+        ENFORCE_MISMATCHES.store(0, Ordering::Relaxed);
+        return;
+    }
+    // If the OS refuses the target (clamped coordinates), do not hammer it:
+    // after a few attempts retry only every tenth call (about every 5 seconds).
+    let attempts = ENFORCE_MISMATCHES.fetch_add(1, Ordering::Relaxed);
+    if attempts >= 4 && attempts % 10 != 0 {
+        return;
+    }
+    let _ = anchor(app);
+    // `anchor` resets the counter for deliberate moves; keep it for retries.
+    ENFORCE_MISMATCHES.store(attempts.saturating_add(1), Ordering::Relaxed);
 }
 
 /// Geometry for the native transparent WebView. Shelf bars span a horizontal
@@ -98,15 +151,28 @@ fn host_logical_size(
     scale: f64,
 ) -> (f64, f64) {
     let edge = placement.edge.as_str();
-    match placement.mode.as_str() {
+    let desired = match placement.mode.as_str() {
         "bar" if edge == "top" || edge == "bottom" => {
             (f64::from(monitor.width) / scale, expanded.h)
         }
         "sidebar" if edge == "left" || edge == "right" => {
             (expanded.w.min(420.0), f64::from(monitor.height) / scale)
         }
+        // Keep the native transparent surface stable across the three standard
+        // size presets. Only CSS changes their visible width, so an in-flight
+        // spring cannot be clipped by an early native shrink or delayed growth.
+        // Anchor and hit testing both center the visible surface in this same
+        // host; the extra transparent area remains click-through. Custom sizes
+        // above this bounded envelope still require a native surface resize.
+        "notch" => (expanded.w.max(960.0), expanded.h.max(560.0)),
         _ => (expanded.w, expanded.h),
-    }
+    };
+    // A saved custom size or a high display scale can exceed the current
+    // monitor. The CSS material and hit rectangle use these same host limits.
+    (
+        desired.0.min(f64::from(monitor.width) / scale),
+        desired.1.min(f64::from(monitor.height) / scale),
+    )
 }
 
 fn find_monitor(
@@ -364,6 +430,7 @@ pub fn placement_snap(app: AppHandle) -> Result<Placement, String> {
     } else {
         "bar"
     };
+    let edge = supported_edge(edge, mode);
     Ok(Placement {
         edge: edge.into(),
         monitor: Some(monitor_id_for(monitor)),
@@ -371,9 +438,20 @@ pub fn placement_snap(app: AppHandle) -> Result<Placement, String> {
     })
 }
 
+fn supported_edge<'a>(edge: &'a str, mode: &str) -> &'a str {
+    if mode == "notch" && edge == "bottom" {
+        "top"
+    } else {
+        edge
+    }
+}
+
 #[tauri::command]
 pub fn placement_end_drag() {
     DRAGGING.store(false, Ordering::Release);
+    if let Ok(mut ended) = DRAG_ENDED_AT.lock() {
+        *ended = Some(std::time::Instant::now());
+    }
     if let Ok(mut offset) = DRAG_OFFSET.lock() {
         *offset = None;
     }
@@ -413,8 +491,8 @@ pub fn collapsed_rect(
         return (x, host_y, rail_width, host_height);
     }
     if mode == "notch" && (edge == "left" || edge == "right") {
-        let width = (56.0 * scale).round() as i32;
-        let height = (144.0 * scale).round() as i32;
+        let width = (40.0 * scale).round() as i32;
+        let height = (128.0 * scale).round() as i32;
         let x = if edge == "right" {
             host_x + host_width - width
         } else {
@@ -547,9 +625,17 @@ fn cursor_position() -> Option<(i32, i32)> {
 mod tests {
     use super::{
         anchor_position, collapsed_rect, host_logical_size, magnetic_offset, nearest_edge,
-        MonitorRect,
+        supported_edge, MonitorRect,
     };
     use crate::settings::{Placement, Size};
+
+    #[test]
+    fn bottom_notch_snaps_to_top_but_bottom_bar_remains_valid() {
+        assert_eq!(supported_edge("bottom", "notch"), "top");
+        assert_eq!(supported_edge("bottom", "bar"), "bottom");
+        assert_eq!(supported_edge("left", "notch"), "left");
+        assert_eq!(supported_edge("right", "notch"), "right");
+    }
 
     #[test]
     fn screen_edges_snap_to_their_center_anchors() {
@@ -595,7 +681,7 @@ mod tests {
         };
         assert_eq!(
             host_logical_size(&placement("top", "notch"), expanded, monitor, 2.0),
-            (800.0, 560.0)
+            (960.0, 560.0)
         );
         assert_eq!(
             host_logical_size(&placement("top", "bar"), expanded, monitor, 2.0),
@@ -613,14 +699,95 @@ mod tests {
     }
 
     #[test]
+    fn standard_notch_presets_share_a_host_and_preserve_visible_edge_anchors() {
+        let monitor = MonitorRect {
+            x: -1920,
+            y: -100,
+            width: 1920,
+            height: 1080,
+        };
+        for edge in ["top", "left", "right"] {
+            let placement = Placement {
+                edge: edge.into(),
+                monitor: None,
+                mode: "notch".into(),
+            };
+            for width in [640.0, 800.0, 960.0] {
+                let visible = Size { w: width, h: 560.0 };
+                let (host_w, host_h) = host_logical_size(&placement, visible, monitor, 1.0);
+                assert_eq!((host_w, host_h), (960.0, 560.0));
+                let (x, y) = anchor_position(monitor, host_w as i32, host_h as i32, edge);
+                let (left, top, w, h) = super::anchored_rect(
+                    x,
+                    y,
+                    host_w as u32,
+                    host_h as u32,
+                    1.0,
+                    width,
+                    560.0,
+                    edge,
+                );
+                let (pill_x, pill_y, pill_w, pill_h) = collapsed_rect(
+                    x,
+                    y,
+                    host_w as i32,
+                    host_h as i32,
+                    1.0,
+                    320.0,
+                    38.0,
+                    edge,
+                    "notch",
+                );
+                match edge {
+                    "left" => {
+                        assert_eq!(left, monitor.x);
+                        assert_eq!(top + h / 2, monitor.y + monitor.height / 2);
+                        assert_eq!(pill_x, monitor.x);
+                        assert_eq!(pill_y + pill_h / 2, monitor.y + monitor.height / 2);
+                    }
+                    "right" => {
+                        assert_eq!(left + w, monitor.right());
+                        assert_eq!(top + h / 2, monitor.y + monitor.height / 2);
+                        assert_eq!(pill_x + pill_w, monitor.right());
+                        assert_eq!(pill_y + pill_h / 2, monitor.y + monitor.height / 2);
+                    }
+                    _ => {
+                        assert_eq!(top, monitor.y);
+                        assert_eq!(left + w / 2, monitor.x + monitor.width / 2);
+                        assert_eq!(pill_y, monitor.y);
+                        assert_eq!(pill_x + pill_w / 2, monitor.x + monitor.width / 2);
+                    }
+                }
+            }
+        }
+        let custom = Placement {
+            edge: "top".into(),
+            monitor: None,
+            mode: "notch".into(),
+        };
+        assert_eq!(
+            host_logical_size(
+                &custom,
+                Size {
+                    w: 1200.0,
+                    h: 700.0
+                },
+                monitor,
+                1.0
+            ),
+            (1200.0, 700.0)
+        );
+    }
+
+    #[test]
     fn collapsed_hit_rect_tracks_the_selected_edge_and_dpi() {
         assert_eq!(
             collapsed_rect(100, 50, 1600, 900, 2.0, 320.0, 38.0, "left", "notch"),
-            (100, 356, 112, 288)
+            (100, 372, 80, 256)
         );
         assert_eq!(
             collapsed_rect(100, 50, 1600, 900, 2.0, 320.0, 38.0, "right", "notch"),
-            (1588, 356, 112, 288)
+            (1620, 372, 80, 256)
         );
         assert_eq!(
             collapsed_rect(100, 50, 1600, 900, 1.0, 320.0, 38.0, "bottom", "notch"),
@@ -638,7 +805,7 @@ mod tests {
 
     #[test]
     fn magnetic_pull_is_bounded_and_fades_before_the_hit_target() {
-        let bounds = (100, 100, 56, 144);
+        let bounds = (100, 100, 40, 128);
         let offset = magnetic_offset(140, 52, bounds, 1.0).unwrap();
         assert!(offset.0.abs() < 0.01);
         assert!(offset.1 < 0.0 && offset.1.abs() <= 6.0);

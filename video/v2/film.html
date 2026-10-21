@@ -1,0 +1,532 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#000;font-family:'Inter Display','Inter',system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
+#stage{position:absolute;inset:0;overflow:hidden;background:#020306}
+.abs{position:absolute}
+#space{position:absolute;inset:-200px;background:radial-gradient(1200px 700px at 30% 30%,rgba(40,80,200,.35),transparent 60%),radial-gradient(1000px 800px at 75% 70%,rgba(120,60,220,.28),transparent 60%),#020306}
+#cam{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0}
+#world{position:absolute;left:0;top:0;width:1920px;height:1080px;border-radius:34px;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.08),0 60px 160px rgba(0,0,0,.8),0 0 220px rgba(60,120,255,.18)}
+#wall{position:absolute;inset:0;background:
+ radial-gradient(900px 700px at 70% 75%,rgba(40,120,255,.9),transparent 65%),
+ radial-gradient(800px 600px at 30% 90%,rgba(120,80,255,.75),transparent 60%),
+ radial-gradient(700px 500px at 85% 20%,rgba(0,190,255,.45),transparent 60%),
+ linear-gradient(160deg,#0b1430 0%,#0a2a6b 45%,#173d9c 70%,#0d1a44 100%)}
+#wall:after{content:'';position:absolute;inset:0;background:radial-gradient(1200px 500px at 50% 0%,rgba(0,0,0,.45),transparent 70%)}
+.win{position:absolute;border-radius:14px;background:rgba(246,248,252,.96);box-shadow:0 30px 80px rgba(0,0,0,.45),0 0 0 1px rgba(0,0,0,.1);overflow:hidden;color:#1b2333}
+.win .bar{height:40px;background:#eef1f6;display:flex;align-items:center;padding:0 16px;gap:8px;font:600 14px Inter;color:#55607a;border-bottom:1px solid #dde2ea}
+.win .bar i{width:11px;height:11px;border-radius:50%;background:#c9cfda;display:block}
+.files{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;padding:28px}
+.file{display:flex;flex-direction:column;align-items:center;gap:10px;font:500 14px Inter;color:#3a455c}
+.ficon{width:74px;height:92px;border-radius:10px;position:relative;background:#fff;box-shadow:0 2px 0 #e4e8ef,0 0 0 1px #dfe4ec}
+.ficon b{position:absolute;left:10px;bottom:12px;padding:3px 7px;border-radius:5px;font:800 11px Inter;color:#fff}
+.lines span{display:block;height:12px;border-radius:6px;background:#e3e8f0;margin:14px 28px}
+#taskbar{position:absolute;left:0;right:0;bottom:0;height:64px;background:rgba(18,24,40,.78);backdrop-filter:blur(20px);display:flex;align-items:center;justify-content:center;gap:14px;border-top:1px solid rgba(255,255,255,.08)}
+#taskbar .tb{width:40px;height:40px;border-radius:10px}
+#taskbar .clock{position:absolute;right:28px;font:600 15px Inter;color:#dfe6f5;text-align:right;line-height:1.3}
+#islandSvg{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:visible;filter:drop-shadow(0 18px 40px rgba(0,0,0,.55))}
+#islandContent{position:absolute;left:0;top:0;width:1920px;height:1080px}
+.layer{position:absolute;opacity:0}
+.pillrow{display:flex;align-items:center;justify-content:space-between;height:100%;padding:0 30px}
+.art{border-radius:6px;background:conic-gradient(from 200deg,#ff5e7e,#ffb36b,#7b5cff,#2ee6d6,#ff5e7e);position:relative;overflow:hidden}
+.art:after{content:'';position:absolute;inset:0;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.45),transparent 45%)}
+.card{position:absolute;border-radius:24px;background:#141518;overflow:hidden}
+.ttl{font:600 15px Inter;color:rgba(255,255,255,.55);letter-spacing:.01em}
+.tab{padding:9px 18px;border-radius:12px;font:600 16px Inter;color:rgba(255,255,255,.55)}
+.tab.on{background:rgba(255,255,255,.12);color:#fff}
+.tool{width:38px;height:38px;border-radius:11px;background:rgba(255,255,255,.07);display:grid;place-items:center}
+.tool svg{width:18px;height:18px;stroke:#cfd6e4;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.vbar{position:absolute;bottom:0;width:100%;border-radius:4px}
+.lyr{font:700 24px/1.25 'Inter Display',Inter;letter-spacing:-.01em;color:rgba(255,255,255,.28);position:absolute;left:0;right:0;transition:none;white-space:nowrap}
+.slider{position:absolute;width:64px;border-radius:20px;background:rgba(255,255,255,.1);overflow:hidden}
+.slider .fill{position:absolute;left:0;right:0;bottom:0;background:#fff}
+.tog{position:absolute;width:54px;height:54px;border-radius:50%;display:grid;place-items:center}
+.tog svg{width:24px;height:24px;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+#cursor{position:absolute;left:0;top:0;width:34px;height:42px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.45));transform-origin:4px 3px}
+#ripple{position:absolute;width:80px;height:80px;margin:-40px 0 0 -40px;border-radius:50%;border:3px solid rgba(255,255,255,.9);opacity:0}
+#drag{position:absolute;left:0;top:0;opacity:0}
+#overlay{position:absolute;inset:0;pointer-events:none}
+.kt{position:absolute;left:0;right:0;text-align:center;white-space:nowrap}
+.kt .w{display:inline-block;overflow:hidden;vertical-align:bottom;padding:0 .02em .12em}
+.kt .w>span{display:inline-block;will-change:transform}
+#vign{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.78) 0%,rgba(0,0,0,.35) 22%,transparent 40%)}
+#grain{position:absolute;inset:-100px;opacity:.07;mix-blend-mode:overlay}
+#flash{position:absolute;inset:0;background:radial-gradient(ellipse 700px 160px at 50% 50%,rgba(170,200,255,.9),rgba(120,160,255,0) 70%);opacity:0;mix-blend-mode:screen}
+#line{position:absolute;left:50%;top:540px;height:3px;border-radius:3px;background:#fff;box-shadow:0 0 18px #7fb2ff,0 0 60px #3f7bff;opacity:0;transform:translate(-50%,-50%)}
+#phone{position:absolute;width:330px;height:680px;border-radius:56px;background:#0b0c10;box-shadow:0 0 0 3px #2a2d36,0 0 0 9px #111318,0 50px 120px rgba(0,0,0,.7);overflow:hidden}
+.tile{position:absolute;width:380px;height:300px;border-radius:32px;background:linear-gradient(160deg,#1a1d26,#0c0e13);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);padding:34px 36px;opacity:0}
+.tile .big{font:800 112px/1 'Inter Display',Inter;letter-spacing:-.05em}
+.tile .lbl{font:500 24px/1.3 Inter;color:rgba(255,255,255,.62);margin-top:16px}
+#end{position:absolute;inset:0;opacity:0}
+.btn{position:absolute;left:50%;transform:translateX(-50%);padding:22px 46px;border-radius:999px;background:#fff;color:#000;font:700 28px Inter;letter-spacing:-.01em;white-space:nowrap}
+</style></head><body>
+<div id="stage">
+  <div id="space"></div>
+  <div id="cam">
+    <div id="world">
+      <div id="wall"></div>
+      <div id="winA" class="win" style="left:150px;top:250px;width:640px;height:520px">
+        <div class="bar"><i></i><i></i><i></i><span style="margin-left:10px">Downloads</span></div>
+        <div class="files">
+          <div class="file" id="pdfSlot"><div class="ficon" id="pdfIcon"><b style="background:#e5484d">PDF</b></div>Pitch deck.pdf</div>
+          <div class="file"><div class="ficon"><b style="background:#2f80ed">DOC</b></div>Brief v3.docx</div>
+          <div class="file"><div class="ficon"><b style="background:#27ae60">XLS</b></div>Budget.xlsx</div>
+          <div class="file"><div class="ficon"><b style="background:#9b51e0">FIG</b></div>Onboarding.fig</div>
+          <div class="file"><div class="ficon"><b style="background:#f2994a">PNG</b></div>Hero shot.png</div>
+          <div class="file"><div class="ficon"><b style="background:#56ccf2">MP4</b></div>Demo.mp4</div>
+          <div class="file"><div class="ficon"><b style="background:#828282">ZIP</b></div>Assets.zip</div>
+          <div class="file"><div class="ficon"><b style="background:#eb5757">KEY</b></div>Notes.txt</div>
+        </div>
+      </div>
+      <div id="winB" class="win" style="left:880px;top:190px;width:880px;height:640px">
+        <div class="bar"><i></i><i></i><i></i><span style="margin-left:10px">Roadmap · Q4 launch</span></div>
+        <div style="padding:30px 34px"><div style="font:800 34px Inter;color:#1b2333">Q4 launch plan</div><div style="font:500 16px Inter;color:#7a859b;margin-top:8px">Owner: you · Updated 2 min ago</div></div>
+        <div class="lines"><span style="width:86%"></span><span style="width:78%"></span><span style="width:91%"></span><span style="width:60%"></span><span style="width:84%"></span><span style="width:72%"></span><span style="width:88%"></span><span style="width:46%"></span></div>
+      </div>
+      <div id="taskbar">
+        <div class="tb" style="background:linear-gradient(135deg,#4cc2ff,#0067c0);"></div>
+        <div class="tb" style="background:#f3c34b"></div><div class="tb" style="background:#3b82f6"></div><div class="tb" style="background:#22c55e"></div><div class="tb" style="background:#a855f7"></div><div class="tb" style="background:#ef4444"></div>
+        <div class="clock">9:41 PM<br><span style="opacity:.7;font-weight:500">20/10/2026</span></div>
+      </div>
+      <svg id="islandSvg" viewBox="0 0 1920 1080"><path id="islandPath" fill="#050506"/></svg>
+      <div id="islandContent">
+        <!-- collapsed -->
+        <div id="Lpill" class="layer"><div class="pillrow">
+          <div style="display:flex;align-items:center;gap:12px"><div class="art" style="width:24px;height:24px"></div><span style="font:600 15px Inter;color:rgba(255,255,255,.7)">Midnight Drive</span></div>
+          <div style="display:flex;align-items:center;gap:14px"><div id="pillBars" style="display:flex;gap:3px;align-items:center;height:18px"></div><span style="font:700 15px Inter">9:41</span></div>
+        </div></div>
+        <!-- expanded panel -->
+        <div id="Lpanel" class="layer" style="width:1040px;height:640px">
+          <div id="phead" style="position:absolute;left:24px;right:24px;top:16px;height:44px;display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;gap:4px;padding:4px;border-radius:15px;background:rgba(255,255,255,.05)"><span class="tab on">Today</span><span class="tab">Desk</span><span class="tab">Activity</span></div>
+            <div style="display:flex;gap:8px">
+              <div class="tool" style="width:auto;padding:0 14px;gap:8px;display:flex;font:600 14px Inter;color:#cfd6e4"><svg viewBox="0 0 24 24"><path d="M12 15V3m0 0-4 4m4-4 4 4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>Beam</div>
+              <div class="tool"><svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></div>
+              <div class="tool"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
+              <div class="tool"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></div>
+            </div>
+          </div>
+          <!-- media card -->
+          <div id="cMedia" class="card" style="left:24px;top:84px;width:612px;height:340px;background:linear-gradient(150deg,#1c1530,#121216 60%)">
+            <div id="mediaGlow" style="position:absolute;inset:-40px;background:radial-gradient(400px 260px at 20% 40%,rgba(255,94,126,.35),transparent 70%),radial-gradient(300px 240px at 40% 90%,rgba(123,92,255,.35),transparent 70%)"></div>
+            <div class="art" style="position:absolute;left:26px;top:26px;width:150px;height:150px;border-radius:18px;box-shadow:0 18px 40px rgba(0,0,0,.5)"></div>
+            <div style="position:absolute;left:26px;top:196px"><div style="font:700 26px Inter;letter-spacing:-.01em">Midnight Drive</div><div style="font:500 17px Inter;color:rgba(255,255,255,.6);margin-top:4px">Neon Coast · Apple Music</div></div>
+            <div style="position:absolute;left:26px;width:230px;top:268px;height:5px;border-radius:3px;background:rgba(255,255,255,.15)"><div id="prog" style="height:100%;border-radius:3px;background:#fff;width:40%"></div></div>
+            <div style="position:absolute;left:26px;top:290px;display:flex;gap:30px;align-items:center">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>
+              <div style="width:44px;height:44px;border-radius:50%;background:#fff;display:grid;place-items:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="#000"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg></div>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>
+            </div>
+            <div id="lyrics" style="position:absolute;left:290px;right:24px;top:24px;height:250px;overflow:hidden;-webkit-mask:linear-gradient(transparent,#000 22%,#000 70%,transparent)"><div id="lyrInner" style="position:absolute;left:0;right:0;top:0"></div></div>
+            <div id="viz" style="position:absolute;left:290px;right:24px;bottom:22px;height:46px;display:flex;gap:5px;align-items:flex-end"></div>
+          </div>
+          <!-- weather -->
+          <div id="cWeather" class="card" style="left:652px;top:84px;width:364px;height:340px;background:linear-gradient(165deg,#3d8bff,#1d4fc4)">
+            <div style="position:absolute;left:24px;top:22px;font:600 17px Inter">Bengaluru</div>
+            <div style="position:absolute;left:22px;top:48px;font:300 78px/1 'Inter Display',Inter;letter-spacing:-.04em">24°</div>
+            <div style="position:absolute;left:24px;top:136px;font:600 16px Inter">Partly cloudy</div>
+            <div style="position:absolute;left:24px;top:158px;font:500 14px Inter;opacity:.75">H 28°  L 19°</div>
+            <div id="sun" style="position:absolute;right:46px;top:40px;width:62px;height:62px;border-radius:50%;background:radial-gradient(circle,#ffe17a,#ffb21f);box-shadow:0 0 40px rgba(255,200,60,.7)"></div>
+            <div id="cloud" style="position:absolute;right:20px;top:76px;width:96px;height:42px;border-radius:30px;background:#fff;box-shadow:-28px -14px 0 -2px #fff,0 10px 30px rgba(0,0,0,.15)"></div>
+            <div style="position:absolute;left:24px;right:24px;top:204px;display:flex;justify-content:space-between;font:600 14px Inter;text-align:center" id="hours"></div>
+          </div>
+          <!-- calendar -->
+          <div id="cCal" class="card" style="left:24px;top:440px;width:480px;height:176px">
+            <div style="position:absolute;left:22px;top:18px" class="ttl">Today</div>
+            <div style="position:absolute;right:22px;top:12px;font:800 30px Inter;color:#ff453a">20</div>
+            <div style="position:absolute;left:22px;right:22px;top:58px">
+              <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px"><span style="width:5px;height:40px;border-radius:3px;background:#ff9f0a"></span><div><div style="font:600 18px Inter">Design review</div><div style="font:500 14px Inter;color:rgba(255,255,255,.5)">2:00 PM · Studio</div></div></div>
+              <div style="display:flex;gap:12px;align-items:center"><span style="width:5px;height:40px;border-radius:3px;background:#30d158"></span><div><div style="font:600 18px Inter">Ship v0.1.6</div><div style="font:500 14px Inter;color:rgba(255,255,255,.5)">4:30 PM</div></div></div>
+            </div>
+          </div>
+          <!-- controls -->
+          <div id="cCtl" class="card" style="left:520px;top:440px;width:496px;height:176px">
+            <div class="slider" style="left:22px;top:18px;height:140px"><div class="fill" id="sVol" style="height:40%"></div><svg style="position:absolute;left:20px;bottom:12px" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round"><path d="M4 9v6h4l5 4V5L8 9zM16 9a4 4 0 0 1 0 6"/></svg></div>
+            <div class="slider" style="left:100px;top:18px;height:140px"><div class="fill" id="sBri" style="height:70%"></div><svg style="position:absolute;left:20px;bottom:12px" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg></div>
+            <div class="tog" id="tWifi" style="left:190px;top:22px;background:#0a84ff"><svg viewBox="0 0 24 24" stroke="#fff"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r=".6" fill="#fff"/></svg></div>
+            <div class="tog" id="tBt" style="left:258px;top:22px;background:#0a84ff"><svg viewBox="0 0 24 24" stroke="#fff"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg></div>
+            <div class="tog" id="tDnd" style="left:326px;top:22px;background:rgba(255,255,255,.12)"><svg viewBox="0 0 24 24" stroke="#fff"><path d="M20 14.5A8 8 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5z"/></svg></div>
+            <div id="bud" style="position:absolute;left:190px;right:20px;top:96px;height:62px;border-radius:18px;background:rgba(255,255,255,.07);display:flex;align-items:center;gap:12px;padding:0 16px">
+              <div style="width:34px;height:34px;border-radius:50%;background:#fff;display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="5" height="7" rx="2"/><rect x="16" y="14" width="5" height="7" rx="2"/></svg></div>
+              <div style="flex:1"><div style="font:600 16px Inter">AirPods Pro</div><div style="font:500 13px Inter;color:#30d158">Connected</div></div>
+              <div style="font:700 16px Inter" id="budPct">82%</div>
+            </div>
+          </div>
+        </div>
+        <!-- beam drop target -->
+        <div id="Ldrop" class="layer" style="display:grid;place-items:center">
+          <div style="position:absolute;inset:12px;border:2px dashed rgba(120,170,255,.75);border-radius:18px;background:rgba(10,132,255,.12)"></div>
+          <div style="display:flex;gap:14px;align-items:center;font:700 22px Inter;position:relative"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6fb1ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4"/></svg>Drop to Beam</div>
+        </div>
+        <!-- beam peek -->
+        <div id="Lbeam" class="layer">
+          <svg width="84" height="84" viewBox="0 0 84 84" style="position:absolute;left:22px;top:18px"><circle cx="42" cy="42" r="34" stroke="rgba(255,255,255,.12)" stroke-width="7" fill="none"/><circle id="ring" cx="42" cy="42" r="34" stroke="#0a84ff" stroke-width="7" fill="none" stroke-linecap="round" stroke-dasharray="213.6" stroke-dashoffset="213.6" transform="rotate(-90 42 42)"/></svg>
+          <div id="ringTxt" style="position:absolute;left:22px;top:18px;width:84px;height:84px;display:grid;place-items:center;font:800 20px Inter">0%</div>
+          <div style="position:absolute;left:128px;top:24px"><div style="font:700 22px Inter">Pitch deck.pdf</div><div id="beamSub" style="font:500 16px Inter;color:rgba(255,255,255,.6);margin-top:6px">Sending to Pixel 9 · 12.4 MB/s</div></div>
+          <div style="position:absolute;right:24px;top:30px;padding:10px 16px;border-radius:12px;background:rgba(255,255,255,.1);font:600 15px Inter">Open</div>
+        </div>
+        <!-- spotlight -->
+        <div id="Lspot" class="layer" style="width:820px;height:420px">
+          <div style="position:absolute;left:26px;top:18px;right:26px;height:44px;display:flex;align-items:center;gap:14px">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#9aa6bd" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <span id="spotTxt" style="font:600 28px Inter;letter-spacing:-.01em"></span><span id="caret" style="width:3px;height:30px;background:#0a84ff;border-radius:2px;margin-left:-10px"></span>
+            <span style="margin-left:auto;font:600 14px Inter;color:rgba(255,255,255,.4)">Ctrl Space</span>
+          </div>
+          <div id="spotRes" style="position:absolute;left:14px;right:14px;top:84px"></div>
+        </div>
+        <!-- awake -->
+        <div id="Lawake" class="layer">
+          <svg width="104" height="104" viewBox="0 0 104 104" style="position:absolute;left:24px;top:23px"><circle cx="52" cy="52" r="44" stroke="rgba(255,190,80,.15)" stroke-width="8" fill="none"/><circle id="aring" cx="52" cy="52" r="44" stroke="#ffb13b" stroke-width="8" fill="none" stroke-linecap="round" stroke-dasharray="276.5" stroke-dashoffset="80" transform="rotate(-90 52 52)"/></svg>
+          <div id="moon" style="position:absolute;left:24px;top:23px;width:104px;height:104px;display:grid;place-items:center"><svg width="40" height="40" viewBox="0 0 24 24" fill="#ffd27a"><path d="M20 14.5A8 8 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5z"/></svg></div>
+          <div style="position:absolute;left:156px;top:34px"><div style="font:600 16px Inter;color:#ffb13b;letter-spacing:.06em">KEEP ME AWAKE</div><div style="font:800 34px Inter;letter-spacing:-.02em;margin-top:4px">Until 2:00 AM</div><div id="awakeSub" style="font:500 16px Inter;color:rgba(255,255,255,.6);margin-top:4px">3h 12m to go · next nudge in 9 min</div></div>
+        </div>
+        <!-- reminder -->
+        <div id="Lrem" class="layer">
+          <div id="bell" style="position:absolute;left:24px;top:24px;width:66px;height:66px;border-radius:20px;background:#ff9f0a;display:grid;place-items:center;transform-origin:50% 10%"><svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M12 22a2.5 2.5 0 0 0 2.4-2h-4.8a2.5 2.5 0 0 0 2.4 2zM19 17H5l1.6-2.2V10a5.4 5.4 0 0 1 10.8 0v4.8z"/></svg></div>
+          <div style="position:absolute;left:110px;top:26px"><div style="font:800 26px Inter">Call Ana</div><div style="font:500 16px Inter;color:rgba(255,255,255,.6);margin-top:5px">4:00 PM · from your to-dos</div></div>
+          <div style="position:absolute;right:22px;top:32px;display:flex;gap:8px"><span style="padding:10px 16px;border-radius:12px;background:rgba(255,255,255,.1);font:600 15px Inter">Snooze</span><span style="padding:10px 16px;border-radius:12px;background:#fff;color:#000;font:700 15px Inter">Done</span></div>
+        </div>
+      </div>
+      <div id="drag"><div class="ficon" style="width:74px;height:92px;box-shadow:0 20px 40px rgba(0,0,0,.4)"><b style="background:#e5484d">PDF</b></div></div>
+      <div id="ripple"></div>
+      <svg id="cursor" viewBox="0 0 22 28"><path d="M3.2 2.4 3.2 21.6 7.7 17.5 10.7 24.6 14.2 23.1 11.2 16.2 17.3 16.2Z" fill="#000" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    </div>
+  </div>
+  <!-- screen space -->
+  <div id="phone" style="left:1500px;top:1200px">
+    <div style="position:absolute;left:50%;top:14px;width:110px;height:32px;margin-left:-55px;border-radius:20px;background:#000"></div>
+    <div style="position:absolute;left:26px;right:26px;top:70px;font:700 28px Inter">Beam</div>
+    <div style="position:absolute;left:26px;right:26px;top:108px;font:500 15px Inter;color:rgba(255,255,255,.5)">From Hover Island on your PC</div>
+    <div style="position:absolute;left:18px;right:18px;top:150px;height:110px;border-radius:22px;background:#17191f;padding:18px;display:flex;gap:14px;align-items:center">
+      <div class="ficon" style="width:52px;height:64px;flex:none"><b style="background:#e5484d;left:6px;bottom:8px;font-size:9px">PDF</b></div>
+      <div style="flex:1"><div style="font:700 17px Inter">Pitch deck.pdf</div><div style="height:6px;border-radius:3px;background:rgba(255,255,255,.12);margin-top:10px"><div id="phProg" style="height:100%;width:0;border-radius:3px;background:#0a84ff"></div></div><div id="phTxt" style="font:500 13px Inter;color:rgba(255,255,255,.5);margin-top:8px">Receiving…</div></div>
+    </div>
+    <div id="phDone" style="position:absolute;left:0;right:0;top:300px;display:grid;place-items:center;opacity:0"><div style="width:120px;height:120px;border-radius:50%;background:#30d158;display:grid;place-items:center;box-shadow:0 0 60px rgba(48,209,88,.5)"><svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div><div style="font:700 24px Inter;margin-top:20px">Saved to Files</div></div>
+  </div>
+  <div id="tiles"></div>
+  <div id="vign"></div>
+  <div id="line"></div>
+  <div id="flash"></div>
+  <div id="end">
+    <div id="wm" style="position:absolute;left:0;right:0;top:420px;text-align:center;font:800 168px/1 'Inter Display',Inter;letter-spacing:-.055em"></div>
+    <div id="endTag" style="position:absolute;left:0;right:0;top:612px;text-align:center;font:500 38px Inter;color:rgba(255,255,255,.7);letter-spacing:-.01em">The notch, for Windows.</div>
+    <div id="endBtn" class="btn" style="top:712px">Download free</div>
+    <div id="endUrl" style="position:absolute;left:0;right:0;top:822px;text-align:center;font:500 22px Inter;color:rgba(255,255,255,.5);letter-spacing:.02em">hover-island.vercel.app · Windows 10 &amp; 11</div>
+  </div>
+  <div id="overlay"></div>
+  <canvas id="grain" width="1100" height="700"></canvas>
+</div>
+<script>
+const $ = id => document.getElementById(id)
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x))
+const mix = (a, b, p) => a + (b - a) * p
+const prog = (t, a, b) => clamp((t - a) / (b - a))
+const E = {
+  lin: p => p,
+  out: p => 1 - Math.pow(1 - p, 3),
+  in: p => p * p * p,
+  io: p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2,
+  expo: p => p === 1 ? 1 : 1 - Math.pow(2, -10 * p),
+  ioexpo: p => p === 0 ? 0 : p === 1 ? 1 : p < .5 ? Math.pow(2, 20 * p - 10) / 2 : (2 - Math.pow(2, -20 * p + 10)) / 2,
+  back: p => { const c = 1.9; return 1 + (c + 1) * Math.pow(p - 1, 3) + c * Math.pow(p - 1, 2) },
+  spring: p => p >= 1 ? 1 : 1 - Math.exp(-6.2 * p) * Math.cos(10.5 * p),
+  soft: p => p >= 1 ? 1 : 1 - Math.exp(-5 * p) * Math.cos(6 * p),
+}
+// keyframes: [[t, {…}, ease]] ; ease applies to segment arriving at that key
+function kf(t, keys) {
+  if (t <= keys[0][0]) return { ...keys[0][1] }
+  for (let i = 1; i < keys.length; i++) {
+    const [t1, v1, e] = keys[i], [t0, v0] = keys[i - 1]
+    if (t <= t1) {
+      const p = (E[e || 'io'])((t - t0) / (t1 - t0)), o = {}
+      for (const k in v1) o[k] = mix(v0[k] ?? v1[k], v1[k], p)
+      return o
+    }
+  }
+  return { ...keys[keys.length - 1][1] }
+}
+const S = (el, css) => { for (const k in css) el.style[k] = css[k] }
+
+// ---------- data ----------
+let SPEC = { bands: [], rms: [] }
+const lyricLines = ['City lights are fading slow', 'Headlights on the overpass', 'We were never meant to stay', 'Turn it up and let it go', 'Midnight drive, no one around', 'Hold on to the sound']
+$('lyrInner').innerHTML = lyricLines.map((l, i) => `<div class="lyr" style="top:${i * 52}px">${l}</div>`).join('')
+$('viz').innerHTML = Array.from({ length: 24 }, () => '<div style="flex:1;position:relative;height:100%"><div class="vbar" style="background:linear-gradient(#fff,rgba(255,255,255,.4))"></div></div>').join('')
+$('pillBars').innerHTML = Array.from({ length: 4 }, () => '<i style="display:block;width:3px;border-radius:2px;background:#fff"></i>').join('')
+$('hours').innerHTML = [['Now', '24°'], ['10P', '23°'], ['11P', '22°'], ['12A', '21°'], ['1A', '20°']].map(([h, d]) => `<div><div style="opacity:.75">${h}</div><div style="width:26px;height:26px;margin:10px auto;border-radius:50%;background:${h === 'Now' ? '#ffd45e' : 'rgba(255,255,255,.85)'}"></div><div>${d}</div></div>`).join('')
+const spotRows = [['Figma', 'App · opened 14 times this week', '#a259ff', 'F'], ['Figure-1.png', 'Downloads · 2 min ago', '#f2994a', '▣'], ['Fig budget.xlsx', 'Documents · yesterday', '#27ae60', 'X'], ['Config', 'Folder · Projects', '#5e6b85', '▤']]
+$('spotRes').innerHTML = spotRows.map((r, i) => `<div class="sr" style="height:72px;display:flex;align-items:center;gap:16px;padding:0 14px;border-radius:16px;${i === 0 ? 'background:rgba(10,132,255,.22)' : ''}"><div style="width:46px;height:46px;border-radius:13px;background:${r[2]};display:grid;place-items:center;font:800 22px Inter">${r[3]}</div><div><div style="font:600 21px Inter">${r[0]}</div><div style="font:500 15px Inter;color:rgba(255,255,255,.5);margin-top:3px">${r[1]}</div></div>${i === 0 ? '<div style="margin-left:auto;font:600 15px Inter;color:rgba(255,255,255,.5)">Enter ↵</div>' : ''}</div>`).join('')
+$('wm').innerHTML = 'Hover Island'.split('').map(c => `<span style="display:inline-block">${c === ' ' ? '&nbsp;' : c}</span>`).join('')
+// tiles
+const TILES = [['5', ' MB', 'Installer. That is it.'], ['0', '', 'Microphones touched. Ever.'], ['Rust', '', 'Native speed, tiny memory.'], ['1', ' click', 'Updates, in place.']]
+$('tiles').innerHTML = TILES.map((x, i) => `<div class="tile" id="tile${i}" style="left:${120 + i * 430}px;top:390px"><div class="big"><span class="num">${x[0]}</span><span style="font-size:56px;letter-spacing:-.02em">${x[1]}</span></div><div class="lbl">${x[2]}</div></div>`).join('')
+// grain
+{ const c = $('grain'), g = c.getContext('2d'), im = g.createImageData(1100, 700); let s = 1; for (let i = 0; i < im.data.length; i += 4) { s = (s * 16807) % 2147483647; const v = s % 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255 } g.putImageData(im, 0, 0); c.style.width = '2120px'; c.style.height = '1280px' }
+
+// ---------- kinetic type ----------
+const TEXT = [
+  // [in, out, html, size, y, opts]
+  [0.35, 1.85, 'Macs got the notch.', 112, 470, {}],
+  [2.0, 3.35, 'Windows got a taskbar.', 112, 470, {}],
+  [5.5, 9.2, '<span style="color:rgba(255,255,255,.55)">Introducing</span> Hover Island.', 84, 880, {}],
+  [6.7, 9.2, 'The notch, for Windows.', 44, 980, { sub: true }],
+  [10.9, 13.5, 'Hover. It opens.', 72, 925, {}],
+  [14.6, 16.6, 'Lyrics, in time with the song.', 64, 935, {}],
+  [16.8, 19.6, 'A visualizer that actually listens.', 64, 935, {}],
+  [22.2, 23.5, 'Everything you check, one hover away.', 60, 935, {}],
+  [24.7, 26.1, 'Drag it to the notch.', 72, 930, {}],
+  [26.3, 28.0, 'It lands on your phone.', 72, 930, {}],
+  [28.2, 29.7, 'Same Wi-Fi. No cloud. No app.', 60, 935, {}],
+  [30.3, 31.9, 'Spotlight that learns what you open.', 60, 935, {}],
+  [32.3, 33.9, 'Keep me awake. Until it ships.', 60, 935, {}],
+  [34.3, 35.85, 'Reminders that tap you on the shoulder.', 60, 935, {}],
+  [36.05, 39.8, 'Built light.', 64, 230, {}],
+]
+const STAMPS = [[20.0, 'Weather'], [20.5, 'Calendar'], [21.0, 'Controls'], [21.5, 'Devices']]
+const overlay = $('overlay')
+const textEls = TEXT.map(([a, b, html, size, y, o]) => {
+  const d = document.createElement('div'); d.className = 'kt'
+  d.style.top = y + 'px'; d.style.font = `${o.sub ? 500 : 750} ${size}px/1.05 'Inter Display',Inter`; d.style.letterSpacing = o.sub ? '-.01em' : '-.035em'
+  if (o.sub) d.style.color = 'rgba(255,255,255,.72)'
+  // split words, keep inline spans
+  const tmp = document.createElement('div'); tmp.innerHTML = html
+  const words = []
+  tmp.childNodes.forEach(n => {
+    if (n.nodeType === 3) n.textContent.split(/(\s+)/).forEach(w => { if (w.trim()) words.push(w); else if (w) words.push(' ') })
+    else words.push(n.outerHTML)
+  })
+  d.innerHTML = words.map(w => w === ' ' ? ' ' : `<span class="w"><span>${w}</span></span>`).join('')
+  overlay.appendChild(d); return d
+})
+const stampEl = document.createElement('div'); stampEl.className = 'kt'; stampEl.style.top = '905px'; stampEl.style.font = "800 96px/1 'Inter Display',Inter"; stampEl.style.letterSpacing = '-.045em'; overlay.appendChild(stampEl)
+
+function renderText(t) {
+  TEXT.forEach(([a, b], i) => {
+    const d = textEls[i], ws = d.querySelectorAll('.w>span')
+    if (t < a - .05 || t > b + .6) { d.style.opacity = 0; return }
+    d.style.opacity = 1
+    ws.forEach((w, j) => {
+      const pin = E.expo(prog(t, a + j * .06, a + j * .06 + .55))
+      const pout = E.in(prog(t, b, b + .35))
+      const y = (1 - pin) * 110 - pout * 60
+      const blur = (1 - pin) * 8 + pout * 10
+      w.style.transform = `translateY(${y}%)`
+      w.style.filter = `blur(${blur.toFixed(2)}px)`
+      w.style.opacity = (pin * (1 - pout)).toFixed(3)
+    })
+    // gentle drift
+    d.style.transform = `scale(${1 + prog(t, a, b + .4) * .03})`
+  })
+  // stamps
+  let html = '', st = null
+  for (const s of STAMPS) if (t >= s[0] - .02 && t < s[0] + .5 + (s === STAMPS[3] ? .3 : 0)) st = s
+  if (st && t < 22.1) {
+    const p = prog(t, st[0], st[0] + .22)
+    stampEl.textContent = st[1] + '.'
+    stampEl.style.opacity = 1
+    stampEl.style.transform = `scale(${mix(1.25, 1, E.out(p))})`
+    stampEl.style.filter = `blur(${(1 - E.out(p)) * 6}px)`
+  } else stampEl.style.opacity = 0
+}
+
+// ---------- island geometry ----------
+function islandPath(w, h, r, ear, cx = 960) {
+  const x0 = cx - w / 2, e = Math.max(0, Math.min(ear, h / 2, w / 4))
+  r = Math.max(0, Math.min(r, (w - 2 * e) / 2, h - e)); const k = .5523 * r, n = v => v.toFixed(2)
+  const P = (u, v) => `${n(x0 + u)} ${n(v)}`
+  return `M ${P(-0.5, -2)} L ${P(w + .5, -2)} L ${P(w, 0)} Q ${P(w - e, 0)} ${P(w - e, e)} L ${P(w - e, h - r)} C ${P(w - e, h - r + k)} ${P(w - e - r + k, h)} ${P(w - e - r, h)} L ${P(e + r, h)} C ${P(e + r - k, h)} ${P(e, h - r + k)} ${P(e, h - r)} L ${P(e, e)} Q ${P(e, 0)} ${P(0, 0)} Z`
+}
+const C = { w: 360, h: 40, r: 12, ear: 13 }
+const PANEL = { w: 1040, h: 640, r: 34, ear: 0 }
+const shapeKeys = [
+  [0, C], [10.0, C], [10.55, PANEL, 'spring'], [23.5, PANEL], [24.05, C, 'soft'],
+  [25.2, C], [25.55, { w: 440, h: 104, r: 28, ear: 0 }, 'spring'], [25.9, { w: 440, h: 104, r: 28, ear: 0 }], [26.3, { w: 560, h: 122, r: 30, ear: 0 }, 'spring'],
+  [29.55, { w: 560, h: 122, r: 30, ear: 0 }], [29.95, C, 'soft'],
+  [30.05, C], [30.5, { w: 820, h: 80, r: 26, ear: 0 }, 'spring'], [31.35, { w: 820, h: 80, r: 26, ear: 0 }], [31.8, { w: 820, h: 420, r: 30, ear: 0 }, 'spring'],
+  [32.0, { w: 820, h: 420, r: 30, ear: 0 }], [32.5, { w: 600, h: 150, r: 34, ear: 0 }, 'spring'],
+  [34.0, { w: 600, h: 150, r: 34, ear: 0 }], [34.5, { w: 560, h: 114, r: 30, ear: 0 }, 'spring'],
+  [35.6, { w: 560, h: 114, r: 30, ear: 0 }], [36.05, C, 'soft'],
+]
+function layerWin(t, a, b, fadeIn = .22, fadeOut = .18) { return Math.min(prog(t, a, a + fadeIn), 1 - prog(t, b - fadeOut, b)) }
+
+// ---------- camera ----------
+const camKeys = [
+  [0, { x: 960, y: 20, s: 3.2 }], [4.0, { x: 960, y: 20, s: 3.2 }], [4.6, { x: 960, y: 22, s: 2.9 }, 'out'], [6.6, { x: 960, y: 560, s: .78 }, 'ioexpo'],
+  [9.4, { x: 960, y: 548, s: .8 }, 'lin'], [10.2, { x: 960, y: 375, s: 1.0 }, 'io'],
+  [13.6, { x: 960, y: 370, s: 1.03 }, 'lin'], [14.3, { x: 768, y: 266, s: 1.72 }, 'ioexpo'], [19.8, { x: 782, y: 262, s: 1.8 }, 'lin'],
+  [20.4, { x: 960, y: 350, s: 1.02 }, 'ioexpo'], [23.4, { x: 960, y: 352, s: 1.05 }, 'lin'],
+  [24.2, { x: 960, y: 545, s: 1.0 }, 'ioexpo'], [29.5, { x: 960, y: 540, s: 1.02 }, 'lin'],
+  [30.2, { x: 960, y: 420, s: 1.3 }, 'ioexpo'], [31.6, { x: 960, y: 420, s: 1.3 }, 'lin'], [32.2, { x: 960, y: 345, s: 1.6 }, 'io'],
+  [35.8, { x: 960, y: 340, s: 1.62 }, 'lin'], [36.6, { x: 960, y: 520, s: .62 }, 'ioexpo'], [39.6, { x: 960, y: 520, s: .58 }, 'lin'],
+  [40.0, { x: 960, y: 181, s: 2.6 }, 'ioexpo'], [46, { x: 960, y: 190, s: 2.45 }, 'lin'],
+]
+
+// ---------- cursor path ----------
+const curKeys = [
+  [0, { x: 1500, y: 900, o: 0 }], [8.6, { x: 1500, y: 900, o: 0 }], [8.8, { x: 1440, y: 860, o: 1 }, 'out'], [9.95, { x: 980, y: 22, o: 1 }, 'io'],
+  [10.6, { x: 1010, y: 30, o: 1 }, 'out'], [12.6, { x: 1300, y: 300, o: 1 }, 'io'], [13.4, { x: 1300, y: 300, o: 0 }],
+  [23.9, { x: 900, y: 760, o: 0 }], [24.2, { x: 560, y: 520, o: 1 }, 'out'], [24.65, { x: 247, y: 360, o: 1 }, 'io'],
+  [25.9, { x: 960, y: 60, o: 1 }, 'io'], [26.6, { x: 1080, y: 260, o: 1 }, 'out'], [27.0, { x: 1080, y: 260, o: 0 }],
+]
+// press moments
+const presses = [10.0, 24.75, 25.9]
+
+function setLayer(id, t, a, b, box) {
+  const el = $(id), o = layerWin(t, a, b)
+  el.style.opacity = o.toFixed(3)
+  if (box) S(el, { left: box.l + 'px', top: box.t + 'px', width: box.w + 'px', height: box.h + 'px' })
+  return o
+}
+
+function render(t) {
+  const f = Math.round(t * 30)
+  // camera
+  const c = kf(t, camKeys)
+  const drift = Math.sin(t * .6) * 2
+  $('cam').style.transform = `translate(${960 - c.x * c.s + drift}px, ${540 - c.y * c.s}px) scale(${c.s})`
+  // world reveal
+  const worldReveal = t < 4 ? 0 : prog(t, 4.25, 5.6)
+  const endFade = prog(t, 39.8, 40.3)
+  $('wall').style.opacity = (worldReveal * (1 - endFade)).toFixed(3)
+  ;['winA', 'winB', 'taskbar'].forEach(id => $(id).style.opacity = (worldReveal * (1 - endFade)).toFixed(3))
+  $('world').style.boxShadow = worldReveal > 0 && endFade < 1 ? `0 0 0 2px rgba(255,255,255,${.08 * worldReveal * (1 - endFade)}),0 60px 160px rgba(0,0,0,.8),0 0 220px rgba(60,120,255,${.18 * worldReveal * (1 - endFade)})` : 'none'
+  $('world').style.background = 'transparent'
+  $('space').style.opacity = (prog(t, 4.6, 6.4) * (1 - prog(t, 39.6, 40.2)) + prog(t, 40.2, 44) * .35).toFixed(3)
+  $('space').style.transform = `translate(${Math.sin(t * .2) * 40}px, ${Math.cos(t * .17) * 30}px)`
+  // specs dim
+  const dim = layerWin(t, 36.1, 39.9, .4, .3)
+  $('world').style.filter = dim > 0 ? `brightness(${1 - dim * .75}) blur(${dim * 8}px)` : 'none'
+
+  // island
+  const sh = kf(t, shapeKeys)
+  const visible = t >= 4.0
+  const pop = t < 4.0 ? 0 : E.spring(prog(t, 4.0, 4.7))
+  const ww = sh.w * (t < 4.7 ? mix(1.8, 1, pop) : 1), hh = sh.h * (t < 4.7 ? clamp(pop, 0, 1.2) : 1)
+  const d = visible ? islandPath(ww, Math.max(2, hh), sh.r, sh.ear) : ''
+  $('islandPath').setAttribute('d', d)
+  const edge = t < 5.2 ? 1 - prog(t, 4.6, 5.2) : prog(t, 39.9, 40.4)
+  $('islandPath').setAttribute('stroke', `rgba(160,190,255,${(edge * .22).toFixed(3)})`); $('islandPath').setAttribute('stroke-width', '1.5')
+  $('islandContent').style.clipPath = visible ? `path('${d}')` : 'path("M0 0")'
+  const box = { l: 960 - sh.w / 2 + sh.ear, t: 0, w: sh.w - sh.ear * 2, h: sh.h }
+  // layers
+  const pillO = setLayer('Lpill', t, 4.45, 10.1, { l: 960 - C.w / 2 + C.ear, t: 0, w: C.w - 2 * C.ear, h: C.h })
+  if (t > 24) { const o2 = Math.max(layerWin(t, 24.0, 25.25), layerWin(t, 29.9, 30.1), layerWin(t, 36.0, 47)); $('Lpill').style.opacity = o2.toFixed(3) }
+  const bars = $('pillBars').children, sp = SPEC.bands[f] || []
+  for (let i = 0; i < 4; i++) bars[i].style.height = (4 + (sp[3 + i * 4] || 0) * 14).toFixed(1) + 'px'
+  // panel
+  const po = layerWin(t, 10.08, 23.55, .2, .2)
+  $('Lpanel').style.opacity = po.toFixed(3)
+  S($('Lpanel'), { left: (960 - PANEL.w / 2) + 'px', top: '0px' })
+  const cards = [['cMedia', 10.14], ['cWeather', 10.21], ['cCal', 10.28], ['cCtl', 10.35]]
+  cards.forEach(([id, a], i) => {
+    let p = E.back(prog(t, a, a + .5))
+    // re-pop in glance scene
+    if (t >= 19.9 && i > 0) { const a2 = [0, 20.0, 20.5, 21.0][i]; const q = prog(t, a2, a2 + .45); p = t < a2 ? 1 : 1; const pulse = Math.sin(Math.PI * q) * .045; $(id).style.transform = `scale(${1 + pulse})`; $(id).style.boxShadow = q > 0 && q < 1 ? `0 0 0 2px rgba(255,255,255,${(.5 * Math.sin(Math.PI * q)).toFixed(2)})` : 'none'; $(id).style.opacity = 1; return }
+    $(id).style.opacity = clamp(p).toFixed(3)
+    $(id).style.transform = `translateY(${(1 - p) * 40}px) scale(${mix(.94, 1, clamp(p))})`
+  })
+  // media card focus: dim others while zoomed
+  const focusMedia = layerWin(t, 14.0, 20.2, .5, .5)
+  ;['cWeather', 'cCal', 'cCtl', 'phead'].forEach(id => { if (!(t >= 19.9 && id !== 'phead')) $(id).style.filter = `brightness(${1 - focusMedia * .6})`; else $(id).style.filter = 'none' })
+  $('prog').style.width = (38 + t * .6) + '%'
+  const vb = $('viz').children
+  for (let i = 0; i < 24; i++) vb[i].firstChild.style.height = (6 + (sp[i] || 0) * 94).toFixed(1) + '%'
+  $('mediaGlow').style.opacity = (.6 + (SPEC.rms[f] || 0) * .4).toFixed(3)
+  // lyrics: active index changes
+  const li = clamp(Math.floor((t - 13.8) / 1.25), 0, 5)
+  const lp = E.out(prog(t, 13.8 + li * 1.25, 13.8 + li * 1.25 + .45))
+  const prevOff = Math.max(0, li - 1) * 52, off = li * 52
+  $('lyrInner').style.transform = `translateY(${(90 - mix(prevOff, off, li === 0 ? 1 : lp)).toFixed(1)}px)`
+  ;[...$('lyrInner').children].forEach((el, i) => { const on = i === li; el.style.color = on ? `rgba(255,255,255,${mix(.3, 1, lp).toFixed(2)})` : i === li - 1 ? `rgba(255,255,255,${mix(1, .28, lp).toFixed(2)})` : 'rgba(255,255,255,.28)'; el.style.transform = `scale(${on ? mix(1, 1.04, lp) : 1})`; el.style.transformOrigin = '0 50%' })
+  // glance sliders & toggles
+  const sv = E.out(prog(t, 21.05, 21.7)), sb = E.out(prog(t, 21.2, 21.85))
+  $('sVol').style.height = mix(40, 78, sv) + '%'; $('sBri').style.height = mix(70, 45, sb) + '%'
+  const dnd = prog(t, 21.3, 21.5); $('tDnd').style.background = dnd > .5 ? '#5e5ce6' : 'rgba(255,255,255,.12)'
+  $('budPct').textContent = '82%'
+  $('sun').style.transform = `rotate(${t * 20}deg) scale(${1 + Math.sin(t * 2) * .03})`
+  $('cloud').style.transform = `translateX(${Math.sin(t * .8) * 6}px)`
+
+  // drop target + beam
+  setLayer('Ldrop', t, 25.3, 25.95, box)
+  const bo = setLayer('Lbeam', t, 26.05, 29.6, box)
+  const bp = E.io(prog(t, 26.1, 28.15))
+  $('ring').setAttribute('stroke-dashoffset', (213.6 * (1 - bp)).toFixed(1))
+  $('ring').setAttribute('stroke', bp >= 1 ? '#30d158' : '#0a84ff')
+  $('ringTxt').textContent = bp >= 1 ? '✓' : Math.round(bp * 100) + '%'
+  $('beamSub').textContent = bp >= 1 ? 'Sent to Pixel 9 · 2.1 s' : 'Sending to Pixel 9 · 12.4 MB/s'
+  // file drag
+  const dragging = t >= 24.75 && t < 25.95
+  const cur = kf(t, curKeys)
+  $('drag').style.opacity = dragging ? 1 : 0
+  if (dragging) { const sq = E.in(prog(t, 25.6, 25.95)); S($('drag'), { transform: `translate(${cur.x - 30}px, ${cur.y - 40}px) rotate(${-8 + Math.sin(t * 6) * 3}deg) scale(${1 - sq * .7})` }) }
+  $('pdfIcon').style.opacity = t >= 24.75 && t < 29.6 ? .35 : 1
+  // cursor
+  const press = presses.some(p => t >= p && t < p + .16)
+  $('cursor').style.opacity = cur.o
+  $('cursor').style.transform = `translate(${cur.x}px, ${cur.y}px) scale(${press ? .86 : 1})`
+  const rp = presses.map(p => prog(t, p, p + .5)).find(v => v > 0 && v < 1)
+  if (rp !== undefined) { const p0 = presses.find(p => t >= p && t < p + .5); const cp = kf(p0, curKeys); S($('ripple'), { opacity: (1 - rp) * .9, left: cp.x + 'px', top: cp.y + 'px', transform: `scale(${.3 + rp * 1.4})` }) } else $('ripple').style.opacity = 0
+
+  // spotlight
+  const so = setLayer('Lspot', t, 30.35, 32.15, { l: 960 - 410, t: 0, w: 820, h: Math.max(80, sh.h) })
+  const typed = 'fig'.slice(0, clamp(Math.floor((t - 30.45) / .14) + 1, 0, 3))
+  $('spotTxt').textContent = t < 30.45 ? '' : typed
+  $('caret').style.opacity = Math.floor(t * 2.4) % 2 ? 1 : 0.2
+  ;[...$('spotRes').children].forEach((r, i) => { const p = E.out(prog(t, 31.45 + i * .07, 31.85 + i * .07)); r.style.opacity = p; r.style.transform = `translateY(${(1 - p) * 18}px)` })
+  // awake
+  setLayer('Lawake', t, 32.5, 34.05, box)
+  $('aring').setAttribute('stroke-dashoffset', mix(120, 70, prog(t, 32.4, 34)).toFixed(1))
+  $('moon').style.transform = `scale(${1 + Math.max(0, Math.sin((t - 32.5) * 5)) * .08})`
+  $('Lawake').style.boxShadow = 'none'
+  // reminder
+  setLayer('Lrem', t, 34.45, 35.65, box)
+  const wig = prog(t, 34.45, 35.3); $('bell').style.transform = `rotate(${Math.sin(wig * Math.PI * 7) * 18 * (1 - wig)}deg)`
+
+  // phone
+  const ph = E.out(prog(t, 26.2, 26.9)) - E.in(prog(t, 29.2, 29.7))
+  S($('phone'), { left: '1470px', top: mix(1200, 300, ph) + 'px', transform: `rotate(${mix(8, -4, ph)}deg)` })
+  const pp = E.io(prog(t, 26.4, 28.15))
+  $('phProg').style.width = (pp * 100) + '%'
+  $('phTxt').textContent = pp >= 1 ? 'Done · 4.8 MB' : `Receiving… ${Math.round(pp * 100)}%`
+  const dn = E.back(prog(t, 28.2, 28.7)); $('phDone').style.opacity = clamp(dn); $('phDone').style.transform = `scale(${mix(.6, 1, clamp(dn))})`
+
+  // tiles
+  TILES.forEach((x, i) => {
+    const a = 36.3 + i * .55, p = E.back(prog(t, a, a + .55)), o = Math.min(clamp(prog(t, a, a + .3)), 1 - prog(t, 39.6, 39.95))
+    const el = $('tile' + i); el.style.opacity = o.toFixed(3); el.style.transform = `translateY(${(1 - clamp(p)) * 70}px) scale(${mix(.9, 1, clamp(p))})`
+    if (i === 0) el.querySelector('.num').textContent = Math.max(1, Math.round(5 * E.out(prog(t, a, a + .7))))
+    if (i === 3) el.querySelector('.num').textContent = '1'
+  })
+
+  // cold open line + flash
+  const lineIn = E.ioexpo(prog(t, 3.35, 3.95)), lineOut = prog(t, 3.98, 4.05)
+  S($('line'), { opacity: (lineIn > 0 ? 1 - lineOut : 0), width: mix(0, 1152, lineIn) + 'px' })
+  const fl = t >= 4 ? Math.max(0, 1 - (t - 4) / .5) : 0
+  const fl2 = t >= 40 ? Math.max(0, 1 - (t - 40) / .6) * .8 : 0
+  $('flash').style.opacity = Math.max(fl, fl2).toFixed(3)
+
+  // end card
+  const eo = prog(t, 40.25, 40.6)
+  $('end').style.opacity = eo * (1 - prog(t, 45.2, 46))
+  ;[...$('wm').children].forEach((s, i) => { const p = E.expo(prog(t, 40.3 + i * .045, 40.3 + i * .045 + .8)); s.style.transform = `translateY(${(1 - p) * 60}px)`; s.style.opacity = p; s.style.filter = `blur(${(1 - p) * 10}px)` })
+  const tg = E.out(prog(t, 41.0, 41.6)); $('endTag').style.opacity = tg; $('endTag').style.transform = `translateY(${(1 - tg) * 20}px)`
+  const bt = E.back(prog(t, 41.6, 42.2)); const btPress = t >= 43.2 && t < 43.45 ? .94 : 1
+  $('endBtn').style.opacity = clamp(bt); $('endBtn').style.transform = `translateX(-50%) scale(${mix(.8, 1, clamp(bt)) * btPress})`
+  $('endBtn').style.boxShadow = `0 0 ${40 + Math.sin(t * 4) * 15}px rgba(120,170,255,${.35 * clamp(bt)})`
+  const ur = E.out(prog(t, 42.2, 42.8)); $('endUrl').style.opacity = ur
+  // shine sweep on wordmark
+  const shine = prog(t, 41.9, 43.0)
+  ;[...$('wm').children].forEach((s, i) => { const d = Math.abs(i / 11 - shine * 1.4 + .2); const g = Math.max(0, 1 - d * 5); s.style.color = `rgb(${255 - g * 90},${255 - g * 40},255)`; s.style.textShadow = `0 0 ${g * 40}px rgba(120,170,255,${g * .8})` })
+
+  // vignette + text
+  $('vign').style.opacity = t < 4 ? 0 : (t > 40 ? 0 : 1)
+  renderText(t)
+  // grain jitter
+  $('grain').style.transform = `translate(${(f * 37) % 100 - 50}px, ${(f * 53) % 100 - 50}px)`
+}
+window.render = render
+window.loadSpec = s => { SPEC = s }
+render(0)
+</script>
+</body></html>

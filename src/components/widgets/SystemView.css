@@ -1,0 +1,6 @@
+.sys__rings { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(var(--sys-n, 3), minmax(0, 1fr)); gap: 10px; align-items: stretch; container-type: size; }
+.sys__item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 0; min-height: 0; }
+.sys__item .wk-ring { flex: 0 1 auto; width: min(100%, calc(100cqh - 52px)); max-height: calc(100cqh - 52px); min-height: 48px; }
+.sys__value { font-size: clamp(13px, 5.5cqmin, 22px); font-weight: 500; letter-spacing: -0.02em; }
+.sys__label { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.sys__sub { font-size: 10.5px; color: var(--text-3); white-space: nowrap; }

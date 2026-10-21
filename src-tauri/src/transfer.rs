@@ -769,6 +769,32 @@ pub fn transfer_open_folder(app: AppHandle) -> Result<(), String> {
         .map_err(|e| format!("Could not open the download folder: {e}"))
 }
 
+/// Local paths of the files now in the Beam bucket (newest first), so the UI can
+/// offer them to a Nearby device. Only files this session owns are returned.
+#[tauri::command]
+pub async fn transfer_bucket_paths() -> Result<Vec<String>, String> {
+    let session = active()
+        .lock()
+        .await
+        .as_ref()
+        .map(|entry| entry.session.clone())
+        .ok_or_else(|| "Add files to Beam first.".to_string())?;
+    let paths = {
+        let bucket = session.bucket.lock().unwrap_or_else(|p| p.into_inner());
+        let mut files = bucket.files.values().collect::<Vec<_>>();
+        files.sort_by(|a, b| b.public.created_at.cmp(&a.public.created_at));
+        let listed = files
+            .into_iter()
+            .map(|file| file.path.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+        listed
+    };
+    if paths.is_empty() {
+        return Err("Add files to Beam first.".to_string());
+    }
+    Ok(paths)
+}
+
 fn router(session: Arc<Session>) -> Router {
     Router::new()
         .route("/device", get(device_bookmark))

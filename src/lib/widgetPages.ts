@@ -8,7 +8,15 @@ export interface WidgetSlot {
   rows: number
 }
 
-export type WidgetResolvedSize = 'compact' | 'wide' | 'full'
+export type WidgetResolvedSize = 'compact' | 'wide' | 'tall' | 'full'
+
+/** Columns and rows each shape covers on a two-column page (kept here so this file has no imports to resolve). */
+export const SHAPE_SPAN: Record<WidgetResolvedSize, readonly [columns: number, rows: number]> = {
+  compact: [1, 1],
+  wide: [2, 1],
+  tall: [1, 2],
+  full: [2, 2],
+}
 
 /** The size a widget occupies once kind minimums and the user's choice are applied. */
 export function widgetResolvedSize(widget: WidgetConfig): WidgetResolvedSize {
@@ -78,8 +86,9 @@ export function widgetPages(widgets: WidgetConfig[], columns = 2): WidgetSlot[][
   for (const widget of widgets) {
     if (!widget.enabled || widget.kind === 'airdrop') continue
     const size = widgetResolvedSize(widget)
-    const spanX = size === 'compact' ? 1 : width
-    const spanY = size === 'full' ? height : 1
+    const [shapeX, shapeY] = SHAPE_SPAN[size] ?? SHAPE_SPAN.compact
+    const spanX = Math.min(width, shapeX)
+    const spanY = Math.min(height, shapeY)
 
     let target = targetCell(widget, spanX, spanY)
     if (!target && page.length) {

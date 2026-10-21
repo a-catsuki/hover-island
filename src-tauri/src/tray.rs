@@ -11,6 +11,8 @@ static QUIT_ACKNOWLEDGED_GENERATION: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 
 fn request_quit(app: &AppHandle) {
+    // Give the user's Windows banner setting back right away; Exit does it again.
+    crate::quick_controls::restore_windows_banners_global();
     let generation = QUIT_REQUEST_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
     let _ = app.emit("app://quit-request", ());
     let fallback_app = app.clone();
@@ -64,7 +66,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
                 // Creating a WebView can deadlock if invoked from the native event loop.
                 let app = app.clone();
                 std::thread::spawn(move || {
-                    let _ = window::open_settings(&app);
+                    let _ = window::open_settings(&app, None);
                 });
             }
             "quit" => request_quit(app),

@@ -1,7 +1,7 @@
 {
-  "recordedAt": "2026-10-16T07:26:12.279Z",
-  "fingerprint": "2fa712424cb4dca3ed5403830ef04c87caf286346057b4de19d9309e8d70ad6b",
-  "fileCount": 188,
+  "recordedAt": "2026-10-17T12:23:15.797Z",
+  "fingerprint": "afc4277f6423bbe898edafdc6cc8842c13a185dddb91a6170ba9fbe9afbb4e66",
+  "fileCount": 189,
   "files": [
     {
       "path": "index.html",
@@ -11,12 +11,12 @@
     {
       "path": "package-lock.json",
       "bytes": 71181,
-      "sha256": "273a676f83046b8c97dac28595a4719844f0d972458c57dbdb89ca3f74e32f91"
+      "sha256": "56b1569ba18f8f58416b8dc1b8c3476e0a0201d2625b204e79aaefffe278d75c"
     },
     {
       "path": "package.json",
       "bytes": 1071,
-      "sha256": "c6d62b7be89490e886143c3798ec31c96d397bc48870a2bb31ce4dfc80e46379"
+      "sha256": "e74ed855c1e62b43b6e0bc2f3ed7362ba7458c01835e0826f4cf32dcd382a48a"
     },
     {
       "path": "packaging/windows/AppxManifest.xml",
@@ -61,12 +61,12 @@
     {
       "path": "src-tauri/Cargo.lock",
       "bytes": 138654,
-      "sha256": "6a28aa250fc0d3df50890d5da95add5e1df0633e270de8b6d86890ad631d2347"
+      "sha256": "4353160927438e36cae5cadedb7322f61a970e8c5180d0deb6883c5410322ee3"
     },
     {
       "path": "src-tauri/Cargo.toml",
       "bytes": 2534,
-      "sha256": "3a173dd7f7cf17bed40acc046427bdc5b2de28f388ba24088ff122d1de727caf"
+      "sha256": "1aacc92379d7cf3366a66832cd9c621c48132a3ba079785b2a593750f571dec5"
     },
     {
       "path": "src-tauri/build.rs",
@@ -125,8 +125,8 @@
     },
     {
       "path": "src-tauri/src/audio.rs",
-      "bytes": 24537,
-      "sha256": "1641e2d3ee14b7b5a40cd961259479bab63392cb84ad4d8b7abe3119de2b7e5a"
+      "bytes": 27486,
+      "sha256": "5fd9d1a0a5541f2551a05e16e1a29f1319ebd98b17dd502126da01a1302817ca"
     },
     {
       "path": "src-tauri/src/bluetooth.rs",
@@ -240,8 +240,8 @@
     },
     {
       "path": "src-tauri/src/settings.rs",
-      "bytes": 36531,
-      "sha256": "6d50ae1fd88bec66f9afefdb48faa5aae9e947e393e5d35b487088a90c2c7eda"
+      "bytes": 40946,
+      "sha256": "e5553d8cbdfc6b7e9427a01696f0804015fcda5d9133034fa25d29d9dfff40b1"
     },
     {
       "path": "src-tauri/src/sound.rs",
@@ -280,8 +280,8 @@
     },
     {
       "path": "src-tauri/src/types.rs",
-      "bytes": 7329,
-      "sha256": "e37ecaa8c2ed01ce9b06ea7dab96eff8626a5699b22c4ab66b985a229baa1438"
+      "bytes": 7704,
+      "sha256": "0fefe466cb4bf4e43bbb839b69f8d3f61441802e5d77871ecc68cb95eeafd7b2"
     },
     {
       "path": "src-tauri/src/usage/detect.rs",
@@ -306,7 +306,7 @@
     {
       "path": "src-tauri/tauri.conf.json",
       "bytes": 1352,
-      "sha256": "edc5c7403e19e46b51bf8764ff56c4d8963266fdb7160813f63b2767fb979e0b"
+      "sha256": "1ebe92d58b3285cdf834d4142739cd850875582e725ba0053b7a3dce272a6ae8"
     },
     {
       "path": "src/App.tsx",
@@ -350,8 +350,8 @@
     },
     {
       "path": "src/components/shell/AmbientBackground.tsx",
-      "bytes": 4503,
-      "sha256": "8be0fb50ce82e63af06a5c9757ef19e63b191d288d68af8023977da3470c102b"
+      "bytes": 5040,
+      "sha256": "4795525409dbfddc9f3dbd1a632bb38e966ca3ab441dd9064681099ca0438229"
     },
     {
       "path": "src/components/shell/CollapsedPill.css",
@@ -360,8 +360,8 @@
     },
     {
       "path": "src/components/shell/CollapsedPill.tsx",
-      "bytes": 10893,
-      "sha256": "00b1a15de55ba81239884a35be01dfffe320116adf7591921a6f299e39f0c944"
+      "bytes": 10890,
+      "sha256": "d03f73b91c9e7053dbb1546621c88545950b42be433be07664fa501e8d9fe8db"
     },
     {
       "path": "src/components/shell/EventPeek.css",
@@ -375,8 +375,8 @@
     },
     {
       "path": "src/components/shell/ExpandedPanel.tsx",
-      "bytes": 19256,
-      "sha256": "b09d1d81f2a5d0ee71942e3d6cf8d16d5cb9790541eb9b36cf2cb892c644e56c"
+      "bytes": 20676,
+      "sha256": "128e93f78412bfeb0b9c6abae06461e02b19db048b4a44dcfc4ea7d4175f6613"
     },
     {
       "path": "src/components/shell/FileDropToast.tsx",
@@ -395,13 +395,13 @@
     },
     {
       "path": "src/components/shell/Island.tsx",
-      "bytes": 23252,
-      "sha256": "00b48348d43fb76195ec01959e9cf7e4a5f28ca1620b78dfa22b8b859660a07a"
+      "bytes": 23431,
+      "sha256": "7c4cb7a138ed1ab5c908247dcb91df42dac6730d06993571c662a9f753e14075"
     },
     {
       "path": "src/components/shell/IslandPlacement.css",
-      "bytes": 18222,
-      "sha256": "35052d6da9bd38aed41aa5f5e3b895ab608e1835d17073d2f6cb787f704a5535"
+      "bytes": 18447,
+      "sha256": "2abd2fbf2b3b7d5b923a9502963672a9f0c6707122051fb8ed8738d21324b5d0"
     },
     {
       "path": "src/components/views/BeamBucket.css",
@@ -425,13 +425,13 @@
     },
     {
       "path": "src/components/views/MediaView.css",
-      "bytes": 10573,
-      "sha256": "1693e5ebb52cf0e2697a9ba9bf682fd46d93d8e488ce266e69f85a9cab9d8e51"
+      "bytes": 10785,
+      "sha256": "59f9e3dbf08548d157ebb59bc68ef265c8feac7b414db4e348035a561b985970"
     },
     {
       "path": "src/components/views/MediaView.tsx",
-      "bytes": 18004,
-      "sha256": "c67a006fea3f9988d5e28edb4a427311d6f3e8a754723f64feb3a98156b1bdb8"
+      "bytes": 18401,
+      "sha256": "af53b65e68c7be612b74650cad846c2100b9b44d0259f652539f74af4c6df2e0"
     },
     {
       "path": "src/components/views/NearbyPolish.css",
@@ -495,8 +495,8 @@
     },
     {
       "path": "src/components/views/Visualizer.tsx",
-      "bytes": 27453,
-      "sha256": "96986c492dcf830a0f7239e1813f78ef14dc4e77461d5322184a4c47b188a83b"
+      "bytes": 27599,
+      "sha256": "f3ebde4aff18ec2a2cc23e6cc613e6e48e6da0a90b9e55eee87d0da8876f377c"
     },
     {
       "path": "src/components/views/index.ts",
@@ -620,8 +620,8 @@
     },
     {
       "path": "src/lib/audioMetrics.ts",
-      "bytes": 4898,
-      "sha256": "b02a43fc89c957258fe6e70e11e95248e85e988c566496af5bff10491b93fc6b"
+      "bytes": 5358,
+      "sha256": "9f0e7da429b367f9b802931ab00ff3da50c736ba5de93bf01b9aea3857aa80a9"
     },
     {
       "path": "src/lib/clockDisplay.ts",
@@ -660,13 +660,13 @@
     },
     {
       "path": "src/lib/ipc.ts",
-      "bytes": 25778,
-      "sha256": "89e847f28c2cf80360c7fdb7e96a5c5466464eddec7896326e157a8da39224b6"
+      "bytes": 26028,
+      "sha256": "6b563264a2b5362b614718e9beff7a8683fce2ee9363d24f2fa740763b341fba"
     },
     {
       "path": "src/lib/magneticShape.ts",
-      "bytes": 1512,
-      "sha256": "df04ed6fbb0986049597519076625c4c5e4cf840a12f59628d9a2e8135d2de91"
+      "bytes": 1810,
+      "sha256": "e34fba08c3d3fa4ed4fe6d1aa189aa1c8ae8a964e9c15cf50b9e0bd311494529"
     },
     {
       "path": "src/lib/onboardingConfig.ts",
@@ -675,8 +675,8 @@
     },
     {
       "path": "src/lib/panels.ts",
-      "bytes": 6255,
-      "sha256": "0b4fbd5b661c3b15674a1cd4215e6fde6357cf029f456c3470691024f0af0f28"
+      "bytes": 7156,
+      "sha256": "cd3b882745e41604025a16709fa89b5a1cf8e1ff5c2302575efcf0bd4f62b39d"
     },
     {
       "path": "src/lib/placementPointerDrag.ts",
@@ -725,8 +725,13 @@
     },
     {
       "path": "src/lib/widgetPages.ts",
-      "bytes": 1992,
-      "sha256": "0d74b7ad4fa9022b58f86c281c33fb713eb683f3f0d5a27e21f88b6e4c7b8313"
+      "bytes": 3805,
+      "sha256": "2143469c14fef4d08b2171d5dc472b52b51948cd7a63aeeade9ef2b3dfb89ca5"
+    },
+    {
+      "path": "src/lib/widgetPlacement.ts",
+      "bytes": 3263,
+      "sha256": "ec2ffd501fe3031193c7000cf12d0a59119db8deed4f88f2e3daa177511d2f09"
     },
     {
       "path": "src/lib/widgetPointerDrag.ts",
@@ -770,13 +775,13 @@
     },
     {
       "path": "src/settings/WidgetManager.css",
-      "bytes": 10830,
-      "sha256": "192b894fffce1887d32f1c690f45f8fcec38d66fb206d6b6ae6ead2f8afdab46"
+      "bytes": 11498,
+      "sha256": "ec838b81eec4d3bc9ca0cc121d519a5f633c51c16e754d42286e954a8b3b3b6e"
     },
     {
       "path": "src/settings/WidgetManager.tsx",
-      "bytes": 16809,
-      "sha256": "fd6e66948b0ec7b0a954e3e191d23b0fd8bdb3df45dbc6e4eda085940e49d996"
+      "bytes": 21918,
+      "sha256": "ab88529b3f01b47efcb6f6776aadc296d60669ac74266b998c21b8d22958ff41"
     },
     {
       "path": "src/settings/controls.tsx",
@@ -800,8 +805,8 @@
     },
     {
       "path": "src/state/audio.ts",
-      "bytes": 4093,
-      "sha256": "152d91f0ee4ae486e4dec160c8cc5fc27dc96d1c965163ab15be32d482330170"
+      "bytes": 5584,
+      "sha256": "365872c685f4d8602027ec88bc19087933d3246ce09f99a2431f5cc190b6fe3a"
     },
     {
       "path": "src/state/calendarSources.ts",

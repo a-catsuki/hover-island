@@ -39,10 +39,17 @@ pub struct AppNotification {
 pub struct InstalledApp {
     pub id: String,
     pub name: String,
+    /// File path for "win32"/"url" apps, the AppUserModelId for "uwp" apps.
     pub target: String,
-    /// "uwp" | "desktop" | "url"
+    /// "win32" | "uwp" | "url"
     pub kind: String,
     pub icon: Option<String>,
+    /// Last time Windows recorded this app being run (ms since epoch), from UserAssist.
+    #[serde(default)]
+    pub last_used: Option<u64>,
+    /// Windows run count for this app (UserAssist); 0 when unknown.
+    #[serde(default)]
+    pub use_count: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -63,6 +70,38 @@ pub struct UsageSnapshot {
     /// Provider supplied reset time in Unix milliseconds, when known.
     pub reset_at: Option<u64>,
     pub updated_at: u64,
+    /// Local session activity for this provider, when its logs could be read.
+    pub activity: Option<ActivityInfo>,
+}
+
+/// One recent agent session found in a provider's local logs.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct RecentSession {
+    pub id: String,
+    pub title: String,
+    pub project: Option<String>,
+    pub started_at: Option<u64>,
+    pub last_active_at: u64,
+    pub tokens: Option<u64>,
+    pub active: bool,
+}
+
+/// Session level facts derived from a provider's local logs.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ActivityInfo {
+    pub installed: bool,
+    pub sessions_24h: u32,
+    pub sessions_7d: u32,
+    pub last_active_at: Option<u64>,
+    /// Mean time from a prompt to the first reply, over the last 24 hours.
+    pub avg_response_ms: Option<u64>,
+    pub responses_24h: u32,
+    /// A session log was written within the last two minutes.
+    pub active_now: bool,
+    pub active_sessions: u32,
+    pub recent: Vec<RecentSession>,
 }
 
 pub fn now_millis() -> u64 {

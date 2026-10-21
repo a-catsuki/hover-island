@@ -1,34 +1,63 @@
-.bluetooth-manage{display:flex;flex-direction:column;gap:8px;min-width:0;color:var(--text-1);font-size:11px}
-.bluetooth-manage__head{display:flex;align-items:center;justify-content:space-between;min-height:24px}
-.bluetooth-manage__title{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:650;letter-spacing:-.01em}
-.bluetooth-manage__title svg,.bluetooth-manage__device-icon svg{color:var(--control-blue,var(--accent))}
-.bluetooth-manage__refresh,.bluetooth-manage__forget{display:grid;place-items:center;border:0;border-radius:8px;background:transparent;color:var(--text-3);cursor:pointer;transition:background .14s ease,color .14s ease,transform .14s ease}
-.bluetooth-manage__refresh{width:26px;height:26px}
-.bluetooth-manage__refresh:hover,.bluetooth-manage__forget:hover{background:var(--surface-2);color:var(--text-1)}
-.bluetooth-manage__refresh:active,.bluetooth-manage__action:active,.bluetooth-manage__settings:active,.bluetooth-manage__forget:active{transform:scale(.97)}
-.bluetooth-manage__refresh:disabled,.bluetooth-manage button:disabled{cursor:wait;opacity:.55}
-.bluetooth-manage__list{display:flex;flex-direction:column;gap:4px;max-height:184px;overflow:auto;overscroll-behavior:contain;padding-right:2px}
-.bluetooth-manage__device{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto 24px;align-items:center;gap:7px;min-height:46px;padding:5px 4px;border-radius:10px;background:var(--surface-1,rgba(255,255,255,.045))}
-.bluetooth-manage__device-icon{display:grid;place-items:center}
-.bluetooth-manage__identity{display:flex;flex-direction:column;gap:3px;min-width:0}
-.bluetooth-manage__identity strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:600}
-.bluetooth-manage__meta{display:flex;align-items:center;gap:8px;min-width:0;color:var(--text-3);font-size:9px}
-.bluetooth-manage__meta .is-connected{color:var(--success,var(--control-green,#54c88a))}
-.bluetooth-manage__battery{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
-.bluetooth-manage__action,.bluetooth-manage__confirm-yes,.bluetooth-manage__confirm-no{border:1px solid var(--line-2,rgba(255,255,255,.1));border-radius:7px;background:var(--surface-2,rgba(255,255,255,.06));color:var(--text-1);font:inherit;font-size:9px;font-weight:600;white-space:nowrap;cursor:pointer}
-.bluetooth-manage__action{min-width:56px;padding:5px 7px}
-.bluetooth-manage__fallback{color:var(--text-3);font-size:9px}
-.bluetooth-manage__forget{width:24px;height:26px}
-.bluetooth-manage__confirm{grid-column:1/-1;display:flex;align-items:center;gap:6px;padding:5px 3px 2px;border-top:1px solid var(--line-2,rgba(255,255,255,.08));color:var(--text-2);font-size:9px}
-.bluetooth-manage__confirm>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bluetooth-manage__confirm-yes,.bluetooth-manage__confirm-no{display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:5px 7px}
-.bluetooth-manage__confirm-yes{border-color:rgba(245,105,105,.26);color:var(--danger,var(--control-red,#ff7777))}
-.bluetooth-manage__note,.bluetooth-manage__empty{margin:0;color:var(--text-3);font-size:9px;line-height:1.4}
-.bluetooth-manage__empty{padding:9px 2px}
-.bluetooth-manage__error{margin:0;padding:7px 8px;border:1px solid rgba(245,105,105,.25);border-radius:8px;background:rgba(245,105,105,.07);color:var(--danger,var(--control-red,#ff7777));font-size:9px;line-height:1.4;overflow-wrap:anywhere}
-.bluetooth-manage__settings{display:flex;align-items:center;gap:7px;width:100%;padding:8px 9px;border:1px solid var(--line-2,rgba(255,255,255,.1));border-radius:9px;background:var(--surface-1,rgba(255,255,255,.04));color:var(--text-2);font:inherit;font-size:10px;cursor:pointer;text-align:left}
-.bluetooth-manage__settings span{flex:1}
-.bluetooth-manage__settings svg:first-child{color:var(--control-blue,var(--accent))}
-.bluetooth-manage__spin{animation:bluetooth-manage-spin .85s linear infinite}
-@keyframes bluetooth-manage-spin{to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){.bluetooth-manage *{animation:none!important;transition:none!important}}
+.bluetooth-manage { container: bt / size; position: relative; }
+.bluetooth-manage__count { margin-left: 2px; font-size: 11.5px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
+.bluetooth-manage .wk-tools { gap: 6px; }
+
+/* Control Center style switch for the radio */
+.bluetooth-manage__switch { position: relative; flex: none; width: 38px; height: 22px; padding: 0; border: 0; border-radius: 11px; background: rgba(255, 255, 255, 0.16); cursor: pointer; transition: background 160ms; }
+.bluetooth-manage__switch i { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); transition: transform 200ms cubic-bezier(0.3, 1.4, 0.5, 1); }
+.bluetooth-manage__switch.is-on { background: #0A84FF; }
+.bluetooth-manage__switch.is-on i { transform: translateX(16px); }
+.bluetooth-manage__switch.is-busy { opacity: 0.7; cursor: progress; }
+.bluetooth-manage__switch:disabled:not(.is-busy) { opacity: 0.4; cursor: not-allowed; }
+.bluetooth-manage__switch:focus-visible { outline: 2px solid #0A84FF; outline-offset: 2px; }
+
+/* list: one column by default, platter cards */
+.bluetooth-manage__list { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 6px; overflow-y: auto; scrollbar-width: none; transition: opacity 160ms; }
+.bluetooth-manage__list::-webkit-scrollbar { display: none; }
+.bluetooth-manage__list.is-off { opacity: 0.5; }
+.bluetooth-manage__device { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-height: 52px; padding: 8px 10px; border-radius: 18px; background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.06); }
+.bluetooth-manage__device-icon { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%; background: rgba(255, 255, 255, 0.12); color: var(--text-2); transition: background 160ms, color 160ms; }
+.bluetooth-manage__device.is-connected .bluetooth-manage__device-icon { background: #0A84FF; color: #fff; }
+.bluetooth-manage__identity { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 1px; }
+.bluetooth-manage__identity strong { overflow: hidden; font-size: 13px; font-weight: 600; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.bluetooth-manage__meta { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
+.bluetooth-manage__meta .is-connected { color: #30D158; }
+.bluetooth-manage__battery { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
+.bluetooth-manage__action { height: 26px; padding: 0 12px; }
+.bluetooth-manage__forget { color: var(--text-3); width: 26px; height: 26px; }
+.bluetooth-manage__forget:hover:not(:disabled) { color: #FF453A; }
+.bluetooth-manage__confirm { flex-basis: 100%; display: flex; align-items: center; gap: 6px; padding: 0 0 2px 44px; font-size: 12px; color: var(--text-2); }
+.bluetooth-manage__confirm span { flex: 1; min-width: 0; }
+.bluetooth-manage__confirm-yes { background: #FF453A; color: #fff; height: 26px; }
+.bluetooth-manage__confirm-no { height: 26px; }
+.bluetooth-manage__settings { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 6px 4px 0; border: 0; background: none; font-size: 12.5px; font-weight: 600; color: #0A84FF; cursor: pointer; }
+.bluetooth-manage__settings:hover { filter: brightness(1.15); }
+.bluetooth-manage__spin { animation: bt-spin 900ms linear infinite; }
+@keyframes bt-spin { to { transform: rotate(360deg); } }
+
+/* wide: two columns of cards */
+.bluetooth-manage[data-shape="wide"] .bluetooth-manage__list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.bluetooth-manage[data-shape="wide"] .bluetooth-manage__settings { align-self: flex-end; gap: 4px; }
+
+/* compact: icon chips with the name beneath, no row actions */
+.bluetooth-manage[data-shape="compact"] { gap: 4px; }
+.bluetooth-manage[data-shape="compact"] .bluetooth-manage__list { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 4px; }
+.bluetooth-manage[data-shape="compact"] .bluetooth-manage__device { flex-direction: column; flex-wrap: nowrap; justify-content: center; gap: 3px; min-height: 0; padding: 6px 4px; background: transparent; box-shadow: none; text-align: center; }
+.bluetooth-manage[data-shape="compact"] .bluetooth-manage__identity { flex: none; align-items: center; max-width: 100%; }
+.bluetooth-manage[data-shape="compact"] .bluetooth-manage__identity strong { max-width: 100%; font-size: 11px; }
+.bluetooth-manage[data-shape="compact"] .bluetooth-manage__meta > span:first-child,
+.bluetooth-manage[data-shape="compact"] .bluetooth-manage__action,
+.bluetooth-manage[data-shape="compact"] .bluetooth-manage__forget,
+.bluetooth-manage[data-shape="compact"] .bluetooth-manage__settings span { display: none; }
+.bluetooth-manage[data-shape="compact"] .bluetooth-manage__settings { position: absolute; right: 0; bottom: 0; padding: 4px; }
+.bluetooth-manage[data-shape="compact"] .bluetooth-manage__count { display: none; }
+.bluetooth-manage[data-shape="compact"] .bluetooth-manage__confirm { display: none; }
+
+@media (prefers-reduced-motion: reduce) { .bluetooth-manage__switch i { transition: none; } .bluetooth-manage__spin { animation: none; } }
+
+.bluetooth-manage__failed { gap: 6px; }
+.bluetooth-manage__reason { margin: 0; max-width: 100%; overflow-wrap: anywhere; font-size: 11px; line-height: 1.35; opacity: .72; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.bluetooth-manage__details { font-size: 11px; opacity: .72; max-width: 100%; text-align: left; }
+.bluetooth-manage__details summary { cursor: pointer; text-align: center; }
+.bluetooth-manage__details ul { margin: 4px 0 0; padding-left: 14px; overflow-wrap: anywhere; }
+.bluetooth-manage__details li.is-failed { color: #FF9F0A; }

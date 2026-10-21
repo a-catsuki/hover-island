@@ -22,16 +22,29 @@
 .island:not(.island--peek) .panel__body>.peek--auth { width:min(398px,calc(100% - 32px)); height:92px; }
 @media(prefers-reduced-motion:reduce){.peek__auth-button{transition:none;}.peek__auth-button:active{transform:none;}}
 
-/* Native volume and brightness changes use a compact, glanceable control card. */
-.island.island--device-peek .peek--system {height:84px;min-height:84px;padding:0 18px;align-items:center;gap:15px;border-radius:20px;background:linear-gradient(145deg,#20242d,#111318 78%);border:1px solid #ffffff13;box-shadow:inset 0 1px 0 #ffffff0b,0 12px 34px #0008;}
-.peek-system__icon {width:42px;height:42px;flex:none;display:grid;place-items:center;border-radius:14px;color:#d8e4ff;background:linear-gradient(145deg,#ffffff16,#ffffff08);box-shadow:inset 0 0 0 1px #ffffff0b;}
-.peek--system-muted .peek-system__icon {color:#aab0bd;}
-.peek__body--system {flex:1;min-width:0;display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:14px;row-gap:4px;padding:0;}
-.peek__body--system .peek__app {grid-column:1;grid-row:1;color:#98a4ba;font-size:11px;}
-.peek__body--system .peek__title {grid-column:2;grid-row:1 / span 2;font-size:20px;font-variant-numeric:tabular-nums;}
-.peek-system__track {grid-column:1;grid-row:2;height:5px;overflow:hidden;border-radius:999px;background:#ffffff18;}
-.peek-system__track span {display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#82a5ff,#c1d1ff);transition:width 180ms cubic-bezier(.2,.8,.2,1);}
-.peek--system-muted .peek-system__track span {background:#858b98;}
+/* Volume and brightness use a compact HUD: glyph, capsule level, value. */
+.island.island--live-activity .live-activity>.peek.peek--system {height:100%;min-height:0;padding:0 24px;border:0;border-radius:0;background:transparent;box-shadow:none;}
+.peek-hud {display:flex;align-items:center;gap:14px;width:100%;min-width:0;animation:peek-note-in 240ms var(--spring) both;}
+.peek-hud__icon {display:grid;flex:none;place-items:center;width:26px;height:26px;color:var(--text-1);}
+.peek-hud__track {flex:1;min-width:0;height:10px;overflow:hidden;border-radius:999px;background:rgba(255,255,255,.18);}
+.peek-hud__track>span {display:block;height:100%;border-radius:inherit;background:#fff;transition:width 180ms var(--spring);}
+.peek--system-muted .peek-hud__icon {color:var(--text-3);}
+.peek-hud__value {flex:none;min-width:38px;text-align:right;color:var(--text-3);font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;}
+
+/* App notification banner: icon tile, caption row, title, two-line body. */
+.peek-note {display:flex;align-items:center;gap:12px;width:100%;min-width:0;animation:peek-note-in 260ms var(--spring) both;}
+.peek-note__body {display:flex;flex-direction:column;min-width:0;padding-top:0;}
+.peek-note__meta {display:flex;align-items:center;gap:6px;min-width:0;color:var(--text-3);font-size:11px;font-weight:500;line-height:1.25;}
+.peek-note__app {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.peek-note__time {flex:none;margin-left:auto;font-variant-numeric:tabular-nums;}
+.peek-note__title {margin-top:2px;overflow:hidden;color:var(--text-1);font-size:15px;font-weight:600;letter-spacing:-.014em;line-height:1.25;text-overflow:ellipsis;white-space:nowrap;}
+.peek-note__text {margin-top:1px;overflow:hidden;color:var(--text-2);font-size:13px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;}
+.peek-note__glyph {display:grid;flex:none;place-items:center;width:34px;height:34px;border-radius:9px;color:var(--text-1);background:rgba(255,255,255,.1);}
+.peek-note--device {gap:12px;}
+.peek-note--device .peek-note__title {margin-top:1px;}
+.peek-note--device .peek-note__text {-webkit-line-clamp:1;line-clamp:1;}
+@keyframes peek-note-in {from{opacity:0;transform:scale(.96);filter:blur(4px)}to{opacity:1;transform:none;filter:blur(0)}}
+@media(prefers-reduced-motion:reduce){.peek-note,.peek-hud{animation:none;}.peek-hud__track>span{transition:none;}}
 
 /* -------------------------------------------------------- transfer (AirDrop) */
 
@@ -88,7 +101,6 @@
 .island--edge-left.island--transfer-peek .peek,.island--edge-right.island--transfer-peek .peek {top:calc((100% - 148px)/2 + 19px);width:min(408px,calc(100% - 32px));}
 
 @media(prefers-reduced-motion:reduce){.peek-transfer-icon__progress{transition:none;}.peek-transfer__action:active{transform:none;}}
-@media(prefers-reduced-motion:reduce){.peek-system__track span{transition:none;}}
 
 /* --------------------------------------------------------------- AI activity */
 /* Calm graphite + accent. Deliberately never uses the urgent / red look. */
@@ -142,3 +154,20 @@
   .peek-bot--complete .peek-bot__spark { opacity:.9; }
   .peek-bot--input .peek-bot__signal { opacity:1; }
 }
+
+/* Action toasts: one icon and two to four words in a compact pill. */
+.peek--toast>:not(.peek-toast) { display:none!important; }
+.island.island--live-activity .live-activity>.peek.peek--toast { padding:0 16px; justify-content:center; }
+.peek-toast { display:flex; align-items:center; justify-content:center; gap:9px; width:100%; min-width:0; animation:peek-note-in 220ms var(--spring) both; }
+.peek-toast__icon { display:grid; flex:none; place-items:center; width:22px; height:22px; color:var(--text-1); }
+.peek-toast__text { min-width:0; overflow:hidden; color:var(--text-1); font-size:13px; font-weight:600; letter-spacing:-.01em; text-overflow:ellipsis; white-space:nowrap; }
+.peek--toast-error .peek-toast__icon { color:#ff453a; }
+@media(prefers-reduced-motion:reduce){.peek-toast{animation:none;}}
+
+/* Action pills on reminder and awake peeks. */
+.peek-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
+.peek-actions__btn { height:26px; padding:0 12px; border:0; border-radius:999px; background:rgba(255,255,255,.14); color:var(--text-1); font:inherit; font-size:12px; font-weight:600; cursor:pointer; transition:background 140ms ease, transform 140ms var(--spring); }
+.peek-actions__btn:hover { background:rgba(255,255,255,.22); }
+.peek-actions__btn:active { transform:scale(.96); }
+.peek-actions__btn--primary { background:#fff; color:#000; }
+.peek-actions__btn--primary:hover { background:rgba(255,255,255,.88); }

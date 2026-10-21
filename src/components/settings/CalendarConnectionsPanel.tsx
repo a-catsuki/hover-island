@@ -1,7 +1,8 @@
 import { createSignal, For, onMount, Show } from 'solid-js'
-import { CalendarDays, RefreshCw, Trash2 } from 'lucide-solid'
+import { CalendarDays, Plus, RefreshCw, Trash2 } from 'lucide-solid'
 import { addCalendarSource, calendarSources, calendarSourceError, refreshCalendarSources, removeCalendarSource } from '../../state/calendarSources'
-import { Group } from '../../settings/controls'
+import { Group, SettingsDropdown } from '../../settings/controls'
+import './panels.css'
 
 const providerNames: Record<string, string> = {
   google: 'Google Calendar',
@@ -58,51 +59,51 @@ export default function CalendarConnectionsPanel() {
   }
 
   return (
-    <Group title="Calendars" description="Subscribe with a private iCal link. Hover Island refreshes feeds every five minutes; it does not sign in to Google or Outlook.">
-      <Show when={calendarSources().length > 0} fallback={<p class="set-note">No calendars connected. Your local events still work without a subscription.</p>}>
+    <Group title="Calendars" description="Subscribe with a private iCal link. Hover Island refreshes feeds every five minutes. It does not sign in to Google or Outlook. Subscriptions are read-only, local events stay editable here, and private links are encrypted on this PC.">
+      <Show when={calendarSources().length > 0} fallback={<p class="slist-empty">No calendars connected. Your local events still work without a subscription.</p>}>
         <For each={calendarSources()}>{source => (
-          <div class="calendar-link-row">
-            <CalendarDays size={18} />
-            <div>
+          <div class="slist-row">
+            <span class="slist-row__tile" style={{ background: '#ff453a' }} aria-hidden="true"><CalendarDays size={15} strokeWidth={1.9} /></span>
+            <span class="slist-row__text">
               <strong>{source.label}</strong>
-              <small>
+              <small classList={{ 'is-error': !!source.error }}>
                 {source.error || `${providerNames[source.provider] ?? 'iCalendar'} · ${source.updatedAt ? `Synced ${new Date(source.updatedAt).toLocaleString()}` : 'Waiting for first sync'}`}
               </small>
-            </div>
-            <button type="button" class="text-button" aria-label={'Remove calendar ' + source.label} disabled={busy()} onClick={() => void remove(source.id)}><Trash2 size={15} /></button>
+            </span>
+            <span class="slist-row__actions">
+              <button type="button" class="slist-icon-btn slist-icon-btn--danger" aria-label={'Remove calendar ' + source.label} title="Remove" disabled={busy()} onClick={() => void remove(source.id)}><Trash2 size={14} /></button>
+            </span>
           </div>
         )}</For>
       </Show>
 
       <Show when={calendarSources().length < 6}>
-        <form class="calendar-connect-form" onSubmit={submit}>
-          <label>Provider
-            <select aria-label="Calendar provider" value={provider()} onChange={event => setProvider(event.currentTarget.value)}>
-              <option value="google">Google Calendar</option>
-              <option value="outlook">Outlook</option>
-              <option value="ical">Other iCalendar</option>
-            </select>
-          </label>
-          <label>Calendar name
-            <input aria-label="Calendar name" required maxlength={60} placeholder="Personal calendar" value={label()} onInput={event => setLabel(event.currentTarget.value)} />
-          </label>
-          <label>Private iCal link
-            <input aria-label="Private calendar link" type="password" autocomplete="off" required placeholder="https://…/calendar.ics" value={url()} onInput={event => setUrl(event.currentTarget.value)} />
-          </label>
-          <p class="set-note">
-            <Show when={provider() === 'google'} fallback={<Show when={provider() === 'outlook'} fallback="Paste your calendar's HTTPS iCalendar subscription link.">In Outlook, open Settings → Calendar → Shared calendars → Publish calendar, then copy the ICS link.</Show>}>
-              In Google Calendar, open Settings → your calendar → Integrate calendar, then copy the Secret address in iCal format.
+        <form class="sform" onSubmit={submit}>
+          <h3 class="sform__title"><Plus size={14} strokeWidth={2} />Connect a calendar</h3>
+          <div class="sform__grid">
+            <div class="sform__field">Provider
+              <SettingsDropdown block ariaLabel="Calendar provider" value={provider()} onChange={setProvider} options={[['google', 'Google Calendar'], ['outlook', 'Outlook'], ['ical', 'Other iCalendar']]} />
+            </div>
+            <label class="sform__field">Calendar name
+              <input aria-label="Calendar name" required maxlength={60} placeholder="Personal calendar" value={label()} onInput={event => setLabel(event.currentTarget.value)} />
+            </label>
+            <label class="sform__field sform__field--wide">Private iCal link
+              <input aria-label="Private calendar link" type="password" autocomplete="off" required placeholder="https://…/calendar.ics" value={url()} onInput={event => setUrl(event.currentTarget.value)} />
+            </label>
+          </div>
+          <p class="sform__note">
+            <Show when={provider() === 'google'} fallback={<Show when={provider() === 'outlook'} fallback="Paste your calendar's HTTPS iCalendar subscription link.">In Outlook, open Settings, then Calendar, Shared calendars, Publish a calendar, and copy the ICS link.</Show>}>
+              In Google Calendar, open Settings, pick your calendar, then Integrate calendar, and copy the Secret address in iCal format.
             </Show>
           </p>
-          <button type="submit" class="button" disabled={busy()}><CalendarDays size={14} />{busy() ? 'Connecting…' : 'Connect calendar'}</button>
+          <Show when={error() || calendarSourceError()}><p class="sform__error" role="alert">{error() || calendarSourceError()}</p></Show>
+          <div class="sform__actions">
+            <button type="submit" class="button button--primary" disabled={busy()}><CalendarDays size={13} />{busy() ? 'Connecting…' : 'Connect calendar'}</button>
+            <button type="button" class="text-button" disabled={busy()} onClick={() => void sync()}><RefreshCw size={12} /> Sync now</button>
+          </div>
         </form>
       </Show>
-
-      <Show when={error() || calendarSourceError()}><p class="inline-error" role="alert">{error() || calendarSourceError()}</p></Show>
-      <div class="calendar-connect-foot">
-        <p class="set-note">Subscriptions are read-only. Edit subscribed events in Google or Outlook; local events stay editable here. Private links are encrypted on this PC.</p>
-        <button type="button" class="text-button" disabled={busy()} onClick={() => void sync()}><RefreshCw size={13} />Sync now</button>
-      </div>
+      <Show when={!(calendarSources().length < 6) && (error() || calendarSourceError())}><p class="sform__error" role="alert" style={{ padding: '10px 16px' }}>{error() || calendarSourceError()}</p></Show>
     </Group>
   )
 }

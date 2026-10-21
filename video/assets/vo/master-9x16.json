@@ -1,0 +1,60 @@
+{
+  "name": "master-9x16",
+  "duration": 35.768,
+  "lines": [
+    {
+      "key": "01-hook",
+      "text": "Your PC has a notch now.",
+      "start": 0.8,
+      "end": 2.696
+    },
+    {
+      "key": "02-not",
+      "text": "Not a widget. Not another window.",
+      "start": 2.976,
+      "end": 5.304
+    },
+    {
+      "key": "04-hover",
+      "text": "Hover, and it's everything you check a hundred times a day.",
+      "start": 5.604,
+      "end": 9.06
+    },
+    {
+      "key": "05-music",
+      "text": "Music, with a visualizer that actually listens to your speakers.",
+      "start": 9.32,
+      "end": 13.256
+    },
+    {
+      "key": "06-glance",
+      "text": "Weather, your calendar, and the controls you reach for.",
+      "start": 13.536,
+      "end": 17.136
+    },
+    {
+      "key": "07-beam",
+      "text": "Drag a file onto it, and it's on your phone. Same Wi-Fi, one scan, no cloud.",
+      "start": 17.436,
+      "end": 23.1
+    },
+    {
+      "key": "08-name",
+      "text": "It's called Hover Island. Rust and Tauri. The installer is five megabytes.",
+      "start": 23.42,
+      "end": 28.628
+    },
+    {
+      "key": "09-free",
+      "text": "Free for Windows 10 and 11.",
+      "start": 28.968,
+      "end": 31.392
+    },
+    {
+      "key": "10-close",
+      "text": "The notch was always the good part.",
+      "start": 31.752,
+      "end": 33.768
+    }
+  ]
+}

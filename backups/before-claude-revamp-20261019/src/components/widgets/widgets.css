@@ -1,0 +1,344 @@
+/* Shared styling for the compact widget tiles rendered in the notch panel. */
+
+/* ------------------------------------------------------------------ weather */
+
+.weather {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.weather__now {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.weather__temp {
+  font-size: 34px;
+  line-height: 1;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-display);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.weather__icon {
+  width: 30px;
+  height: 30px;
+  color: var(--accent);
+}
+.weather__desc {
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+}
+.weather__range {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.weather__range em {
+  font-style: normal;
+  color: var(--text-2);
+  font-weight: var(--fw-semibold);
+  margin-right: 2px;
+}
+.weather__change {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-11);
+  cursor: pointer;
+}
+.weather__search {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 6px;
+}
+.weather__search input {
+  min-width: 0;
+  flex: 1;
+  height: 30px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  background: var(--surface-0);
+  color: var(--text-1);
+  padding: 0 8px;
+  font: inherit;
+  font-size: var(--fs-12);
+}
+.weather__search button,
+.weather__locations button {
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  background: var(--surface-1);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-11);
+  cursor: pointer;
+}
+.weather__search button { padding: 0 8px; }
+.weather__search button:disabled,
+.weather__locations button:disabled { opacity: 0.55; cursor: default; }
+.weather__locations {
+  display: flex;
+  flex-direction: column;
+  max-height: 120px;
+  overflow: auto;
+}
+.weather__locations button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 7px;
+  text-align: left;
+  border-radius: 0;
+}
+.weather__locations button + button { border-top: 0; }
+.weather__locations small { color: var(--text-3); font-size: var(--fs-10); }
+.weather__error { margin: 0 0 5px; color: var(--danger); font-size: var(--fs-11); }
+
+/* ----------------------------------------------------------------- calendar */
+
+.cal {
+  display: flex;
+  flex-direction: column;
+}
+.cal__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.cal__row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.cal__time {
+  flex: none;
+  width: 58px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cal__day {
+  font-size: var(--fs-11);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.cal__clock {
+  font-size: var(--fs-11);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.cal__title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cal__add,
+.cal__action {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.cal__head-actions { display: flex; align-items: center; gap: 2px; }
+.cal__file { display: none; }
+.cal__add { color: var(--accent); }
+.cal__add:hover,
+.cal__action:hover { background: var(--surface-2); color: var(--text-1); }
+.cal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--surface-0) 55%, transparent);
+}
+.cal__form > input,
+.cal__times input {
+  width: 100%;
+  min-width: 0;
+  height: 29px;
+  padding: 0 7px;
+  border: 1px solid var(--line-1);
+  border-radius: 5px;
+  background: var(--surface-0);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-11);
+}
+.cal__times { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.cal__times label { display: flex; flex-direction: column; gap: 3px; color: var(--text-3); font-size: var(--fs-10); }
+.cal__form p { margin: 0; color: var(--danger); font-size: var(--fs-11); }
+.cal__error { margin: 2px 0 0; color: var(--danger); font-size: var(--fs-11); }
+.cal__form-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.cal__form-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--line-1);
+  border-radius: 5px;
+  background: var(--surface-1);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-11);
+  cursor: pointer;
+}
+.cal__form-actions button[type='submit'] { color: var(--accent); }
+.cal__form-actions button:disabled { opacity: .55; }
+
+/* -------------------------------------------------------------------- to-do */
+
+.notes { display:flex;flex:1;flex-direction:column;min-width:0;min-height:0;gap:7px; }
+.notes__head { display:flex;align-items:center;gap:7px;min-width:0; }
+.notes__count { color:var(--text-3);font-size:9px;font-variant-numeric:tabular-nums;white-space:nowrap; }
+.notes__status { display:inline-flex;align-items:center;gap:3px;margin-left:auto; }
+.notes__add { display:flex;flex:none;align-items:center;gap:5px;min-width:0;padding:3px 4px 3px 10px;border:1px solid var(--line-1);border-radius:11px;background:color-mix(in srgb,var(--surface-0) 67%,transparent);transition:border-color 150ms ease,background 150ms ease; }
+.notes__add:focus-within { border-color:color-mix(in srgb,var(--accent) 48%,var(--line-1));background:color-mix(in srgb,var(--surface-1) 82%,transparent); }
+.notes__input { width:100%;min-width:0;height:26px;padding:0;border:0;outline:0;background:transparent;color:var(--text-1);font:inherit;font-size:11px; }
+.notes__input::placeholder { color:var(--text-3); }
+.notes__input:disabled { opacity:.55; }
+.notes__add-button { display:grid;flex:none;width:25px;height:25px;place-items:center;padding:0;border:0;border-radius:8px;background:color-mix(in srgb,var(--accent) 16%,var(--surface-1));color:var(--accent);cursor:pointer;transition:background 140ms ease,transform 140ms ease; }
+.notes__add-button:hover:not(:disabled) { background:color-mix(in srgb,var(--accent) 26%,var(--surface-1));transform:scale(1.04); }
+.notes__add-button:disabled { opacity:.38;cursor:default; }
+.notes__list { display:flex;flex:1;flex-direction:column;min-width:0;min-height:0;gap:2px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--text-3) 30%,transparent) transparent; }
+.notes__task { display:flex;flex:none;align-items:center;min-width:0;min-height:28px;gap:7px;padding:2px 3px;border-bottom:1px solid color-mix(in srgb,var(--line-1) 52%,transparent);border-radius:6px; }
+.notes__task:hover { background:color-mix(in srgb,var(--surface-2) 50%,transparent); }
+.notes__check,.notes__delete { display:grid;flex:none;place-items:center;width:21px;height:21px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--text-3);cursor:pointer; }
+.notes__check:hover { background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent); }
+.notes__delete { opacity:0;transition:opacity 120ms ease,color 120ms ease,background 120ms ease; }
+.notes__task:hover .notes__delete,.notes__delete:focus-visible { opacity:1; }
+.notes__delete:hover { background:color-mix(in srgb,var(--danger) 13%,transparent);color:var(--danger); }
+.notes__task-title { flex:1;min-width:0;overflow:hidden;color:var(--text-1);font-size:11px;line-height:1.3;text-overflow:ellipsis;white-space:nowrap; }
+.notes__task--done .notes__check { color:var(--accent); }
+.notes__task--done .notes__task-title { color:var(--text-3);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--text-3) 55%,transparent); }
+.notes__done-label { display:flex;flex:none;align-items:center;gap:4px;margin:4px 3px 0;color:var(--text-3);font-size:9px; }
+.notes__empty { display:grid;flex:1;min-height:44px;place-items:center;padding:7px;color:var(--text-3);font-size:10px;text-align:center; }
+.notes__retry {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-11);
+  cursor: pointer;
+}
+.notes__status--error {
+  color: var(--danger);
+}
+.notes__spin {
+  animation: widget-spin 0.9s linear infinite;
+}
+@keyframes widget-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ----------------------------------------------------------------------- ai */
+
+.ai {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.ai__row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+}
+.prov-icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  box-shadow: var(--ring);
+  overflow: hidden;
+}
+.prov-icon__img,
+.prov-icon__brand {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+.prov-icon__glyph {
+  width: 15px;
+  height: 15px;
+  color: var(--text-2);
+}
+.ai__meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ai__label {
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai__bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line-1);
+  overflow: hidden;
+}
+.ai__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width var(--dur) var(--ease);
+}
+.ai__val {
+  flex: none;
+  max-width: 42%;
+  overflow: hidden;
+  color: var(--text-1);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai__sub {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 9px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

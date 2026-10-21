@@ -1,13 +1,14 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js'
 import {
-  AppWindow,
   ArrowDown,
   ArrowUp,
   Calculator,
+  Command,
   CornerDownLeft,
   FileText,
   Globe,
   Search,
+  Terminal,
   X,
 } from 'lucide-solid'
 import type { SearchResult } from '../../lib/ipc'
@@ -16,17 +17,20 @@ import {
   runResult,
   setSpotlightQuery,
   spotlightLoading,
+  spotlightPending,
   spotlightError,
   spotlightQuery,
   spotlightResults,
 } from '../../state/spotlight'
+import { expanded } from '../../state/ui'
+import { loadAppIcon } from '../../lib/appIcons'
 import './SpotlightView.css'
 
 const MAX_ROWS = 10
 
 const KIND_LABEL: Record<string, string> = {
   app: 'Applications',
-  command: 'Commands',
+  command: 'Actions',
   file: 'Documents',
   url: 'Links',
   web: 'Web',
@@ -35,26 +39,39 @@ const KIND_LABEL: Record<string, string> = {
 
 /* --------------------------------- icons --------------------------------- */
 
-function KindIcon(props: { kind: string }) {
-  const icon = {
-    class: 'icon icon--lg',
-    strokeWidth: 1.75,
-    color: 'currentColor',
-    'aria-hidden': 'true' as const,
-  }
-  switch (props.kind) {
-    case 'file':
-      return <FileText {...icon} />
-    case 'url':
-      return <Globe {...icon} />
-    case 'web':
-      return <Search {...icon} />
-    case 'calc':
-      return <Calculator {...icon} />
-    default:
-      // app / command
-      return <AppWindow {...icon} />
-  }
+const HUES = [211, 262, 330, 14, 36, 142, 174, 195]
+function hueFor(name: string): number {
+  let hash = 0
+  for (const ch of name) hash = (hash * 31 + ch.codePointAt(0)!) >>> 0
+  return HUES[hash % HUES.length]
+}
+
+/** App tile: the real icon when the backend sends one, otherwise a tinted monogram squircle. */
+function ResultIcon(props: { result: SearchResult }) {
+  const glyph = { size: 17, strokeWidth: 1.75, 'aria-hidden': 'true' as const }
+  const kind = () => props.result.kind
+  // The app list carries no logos; ask for the visible ones lazily (cached, a few at a time).
+  const [lazyIcon, setLazyIcon] = createSignal<string | null>(null)
+  createEffect(() => {
+    const result = props.result
+    setLazyIcon(null)
+    if (result.kind !== 'app' || result.icon) return
+    let live = true
+    void loadAppIcon({ id: result.target }, 56).then(value => { if (live) setLazyIcon(value) })
+    onCleanup(() => { live = false })
+  })
+  const icon = () => props.result.icon || lazyIcon()
+  return <span class="spotlight__icon" classList={{ [`spotlight__icon--${kind()}`]: true }}
+    style={kind() === 'app' && !icon() ? `--hue:${hueFor(props.result.title)}` : undefined}>
+    <Show when={icon()} fallback={
+      <Show when={kind() === 'app'} fallback={
+        kind() === 'file' ? <FileText {...glyph}/> : kind() === 'url' ? <Globe {...glyph}/> : kind() === 'web' ? <Search {...glyph}/>
+          : kind() === 'calc' ? <Calculator {...glyph}/> : kind() === 'command' ? <Command {...glyph}/> : <Terminal {...glyph}/>
+      }>
+        <span class="spotlight__mono" aria-hidden="true">{Array.from(props.result.title.trim())[0]?.toUpperCase() ?? '?'}</span>
+      </Show>
+    }>{icon => <img src={icon()} alt="" draggable={false}/>}</Show>
+  </span>
 }
 
 /* ----------------------------- text highlight ---------------------------- */
@@ -130,14 +147,11 @@ function actionHint(result: SearchResult): string {
 function Shimmer() {
   return (
     <div class="spotlight__shimmer" aria-hidden="true">
-      <For each={[0, 1, 2, 3, 4]}>
+      <For each={[0, 1, 2, 3]}>
         {() => (
           <div class="spotlight__shimmer-row">
             <span class="spotlight__shimmer-icon" />
-            <span class="spotlight__shimmer-meta">
-              <span class="spotlight__shimmer-line" />
-              <span class="spotlight__shimmer-line spotlight__shimmer-line--short" />
-            </span>
+            <span class="spotlight__shimmer-line" />
           </div>
         )}
       </For>
@@ -152,15 +166,33 @@ export default function SpotlightView() {
   let inputRef: HTMLInputElement | undefined
   let listRef: HTMLDivElement | undefined
   const [active, setActive] = createSignal(0)
+  // Enter pressed while results were still loading: open the first hit once they land.
+  const [enterQueued, setEnterQueued] = createSignal(false)
 
-  const rows = createMemo(() => spotlightResults().slice(0, MAX_ROWS))
+  // Top Hit first, then the rest grouped by kind (stable, first appearance wins).
+  // Navigation, Enter and the headers all use this same order.
+  const rows = createMemo(() => {
+    const all = spotlightResults().slice(0, MAX_ROWS)
+    if (!spotlightQuery().trim() || all.length < 2) return all
+    const [top, ...rest] = all
+    const order: string[] = []
+    for (const item of rest) if (!order.includes(item.kind)) order.push(item.kind)
+    return [top, ...order.flatMap(kind => rest.filter(item => item.kind === kind))]
+  })
 
-  // Group headers are purely visual: order and indices stay identical to `rows()`,
-  // so keyboard navigation and Enter still resolve to the same result.
   const entries = createMemo(() => {
+    const searching = Boolean(spotlightQuery().trim())
     let prev = ''
+    let prevSection = ''
     return rows().map((result, index) => {
-      const header = result.kind !== prev ? (KIND_LABEL[result.kind] ?? 'Results') : null
+      let header: string | null = null
+      if (!searching) {
+        // Empty query: sections come from the suggestion list (Suggested, Apps, Files, Actions).
+        const section = (result as { section?: string }).section ?? 'Suggested'
+        if (section !== prevSection) header = section
+        prevSection = section
+      } else if (index === 0) header = 'Top Hit'
+      else if (index === 1 || result.kind !== prev) header = KIND_LABEL[result.kind] ?? 'Results'
       prev = result.kind
       return { result, index, header }
     })
@@ -173,37 +205,63 @@ export default function SpotlightView() {
   })
 
   const scrollActiveIntoView = (index: number) => {
-    const el = listRef?.querySelector<HTMLElement>(`[data-index="${index}"]`)
-    el?.scrollIntoView({ block: 'nearest' })
+    listRef?.querySelector<HTMLElement>(`[data-index="${index}"]`)?.scrollIntoView({ block: 'nearest' })
   }
 
   const move = (delta: number) => {
     const len = rows().length
-    if (!len) return
+    if (!len || spotlightPending()) return
     const next = (active() + delta + len) % len
     setActive(next)
     scrollActiveIntoView(next)
   }
 
   const choose = (result: SearchResult | undefined) => {
-    if (result) runResult(result)
+    if (result) void runResult(result)
   }
+
+  const submit = () => {
+    if (spotlightPending()) { setEnterQueued(true); return }
+    choose(rows()[active()])
+  }
+
+  createEffect(() => {
+    if (!enterQueued() || spotlightPending()) return
+    setEnterQueued(false)
+    choose(rows()[0])
+  })
 
   const clearQuery = () => {
     setSpotlightQuery('')
     inputRef?.focus()
   }
 
+  // The island collapsing underneath (native shortcut, tray, another window) ends the search too.
+  createEffect(on(expanded, value => { if (!value) closeSpotlight() }, { defer: true }))
+
   onMount(() => {
     const previousFocus = document.activeElement as HTMLElement | null
-    inputRef?.focus()
+    const openedAt = performance.now()
+    const focusInput = () => { if (document.activeElement !== inputRef) inputRef?.focus({ preventScroll: true }) }
+    focusInput()
+    // The native window can take focus a beat after the webview mounts; keep the field ready until it does.
+    const focusTimers = [60, 160, 360].map(delay => window.setTimeout(focusInput, delay))
+    // Leaving the window (another app, Alt+Tab, the settings window) dismisses the search.
+    // Activation churn right after opening is not a real blur, so give it a moment.
+    const onWindowBlur = () => { if (performance.now() - openedAt < 500) focusInput(); else closeSpotlight() }
+    const onVisibility = () => { if (document.hidden) closeSpotlight() }
+    window.addEventListener('focus', focusInput)
+    window.addEventListener('blur', onWindowBlur)
+    document.addEventListener('visibilitychange', onVisibility)
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Tab') {
-        const targets = Array.from(panelRef?.querySelectorAll<HTMLElement>('input,button:not(:disabled),[tabindex="0"]') ?? [])
+        const targets = Array.from(panelRef?.querySelectorAll<HTMLElement>('input,button:not(:disabled):not([tabindex="-1"])') ?? [])
+        if (!targets.length) return
         const current = targets.indexOf(document.activeElement as HTMLElement)
         const next = (current + (event.shiftKey ? -1 : 1) + targets.length) % targets.length
-        if (targets[next]) { event.preventDefault(); targets[next].focus() }
+        event.preventDefault()
+        targets[next].focus()
         return
       }
       switch (event.key) {
@@ -216,8 +274,10 @@ export default function SpotlightView() {
           move(-1)
           break
         case 'Enter':
+          // Let focused buttons (clear) handle their own Enter.
+          if (event.target instanceof HTMLButtonElement && event.target.type === 'button' && !event.target.matches('[role="option"]')) break
           event.preventDefault()
-          choose(rows()[active()])
+          if (!event.isComposing) submit()
           break
         case 'Escape':
           event.preventDefault()
@@ -227,21 +287,26 @@ export default function SpotlightView() {
       }
     }
     window.addEventListener('keydown', onKey, true)
-    onCleanup(() => { window.removeEventListener('keydown', onKey, true); previousFocus?.focus() })
+    onCleanup(() => {
+      window.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('focus', focusInput)
+      window.removeEventListener('blur', onWindowBlur)
+      document.removeEventListener('visibilitychange', onVisibility)
+      focusTimers.forEach(timer => window.clearTimeout(timer))
+      // Hand focus back, but never leave a text field focused: it would hold the island open.
+      if (previousFocus?.isConnected && !previousFocus.matches('input, textarea, select, [contenteditable]')) previousFocus.focus?.()
+      else (document.activeElement as HTMLElement | null)?.blur?.()
+    })
   })
 
+  const emptyTitle = () => spotlightError() ? 'Search unavailable' : !spotlightQuery().trim() ? 'Nothing here yet' : 'No results'
+  const emptyHint = () => spotlightError() ?? (!spotlightQuery().trim() ? 'Apps and files you open will show up here.' : `Nothing matches "${spotlightQuery().trim()}". Try another name.`)
+
   return (
-    <div class="spotlight" role="dialog" aria-modal="true" aria-label="Spotlight search">
-      <div class="spotlight__panel" ref={panelRef}>
+    <div class="spotlight" role="dialog" aria-modal="true" aria-label="Spotlight search" onPointerDown={event => { if (event.target === event.currentTarget) closeSpotlight() }}>
+      <div class="spotlight__panel" ref={panelRef} onMouseDown={event => { if (!(event.target instanceof HTMLInputElement)) event.preventDefault() }}>
         <div class="spotlight__search">
-          <span class="spotlight__glass">
-            <Search
-              class="icon icon--xl"
-              strokeWidth={1.75}
-              color="currentColor"
-              aria-hidden="true"
-            />
-          </span>
+          <Search class="spotlight__glass" size={22} strokeWidth={1.9} aria-hidden="true" />
           <input
             ref={inputRef}
             class="spotlight__input"
@@ -259,41 +324,31 @@ export default function SpotlightView() {
             onInput={(event) => setSpotlightQuery(event.currentTarget.value)}
           />
           <Show when={spotlightQuery().length > 0}>
-            <button
-              type="button"
-              class="spotlight__clear"
-              onClick={clearQuery}
-              aria-label="Clear search"
-            >
-              <X class="spotlight__clear-icon" strokeWidth={1.75} color="currentColor" aria-hidden="true" />
+            <button type="button" class="spotlight__clear" onClick={clearQuery} aria-label="Clear search">
+              <X size={13} strokeWidth={2.4} aria-hidden="true" />
             </button>
           </Show>
         </div>
 
-        <div id="spotlight-results" class="spotlight__results" role="listbox" aria-label="Search results" ref={listRef} aria-busy={spotlightLoading()}>
-          <Show when={!spotlightLoading()} fallback={<Shimmer />}>
+        <div id="spotlight-results" class="spotlight__results" classList={{ 'is-stale': spotlightPending() && entries().length > 0 }} role="listbox" aria-label="Search results" ref={listRef} aria-busy={spotlightLoading() || spotlightPending()}>
+          <Show when={!(spotlightLoading() && !entries().length)} fallback={<Shimmer />}>
             <Show
               when={entries().length > 0}
               fallback={
-                <div
-                  class="spotlight__empty"
-                  classList={{ 'inline-error': Boolean(spotlightError()) }}
-                  role={spotlightError() ? 'status' : undefined}
-                >
-                  <span class="spotlight__empty-title">
-                    {spotlightError() ? 'Search unavailable' : 'No results'}
-                  </span>
-                  <span class="spotlight__empty-hint">
-                    {spotlightError() ?? 'Try a different name or keyword.'}
-                  </span>
-                </div>
+                <Show when={!spotlightPending()}>
+                  <div class="spotlight__empty" role={spotlightError() ? 'status' : undefined}>
+                    <Search size={26} strokeWidth={1.5} aria-hidden="true" />
+                    <span class="spotlight__empty-title">{emptyTitle()}</span>
+                    <span class="spotlight__empty-hint">{emptyHint()}</span>
+                  </div>
+                </Show>
               }
             >
               <For each={entries()}>
                 {(entry) => (
                   <>
                     <Show when={entry.header}>
-                      {(label) => <div class="spotlight__group">{label()}</div>}
+                      {(label) => <div class="spotlight__group" role="presentation">{label()}</div>}
                     </Show>
                     <button
                       type="button"
@@ -307,22 +362,18 @@ export default function SpotlightView() {
                       onMouseMove={() => active() !== entry.index && setActive(entry.index)}
                       onClick={() => choose(entry.result)}
                     >
-                      <span class="spotlight__icon">
-                        <KindIcon kind={entry.result.kind} />
-                      </span>
+                      <ResultIcon result={entry.result} />
                       <span class="spotlight__meta">
                         <span class="spotlight__title">
                           <For each={highlight(entry.result.title, spotlightQuery())}>
-                            {(part) => (
-                              <span classList={{ 'spotlight__match': part.match }}>{part.text}</span>
-                            )}
+                            {(part) => <span classList={{ 'spotlight__match': part.match }}>{part.text}</span>}
                           </For>
                         </span>
                         <Show when={entry.result.subtitle}>
                           {(subtitle) => <span class="spotlight__subtitle">{subtitle()}</span>}
                         </Show>
                       </span>
-                      <span class="spotlight__hint">{actionHint(entry.result)}</span>
+                      <span class="spotlight__hint">{actionHint(entry.result)}<CornerDownLeft size={12} strokeWidth={2.2} aria-hidden="true" /></span>
                     </button>
                   </>
                 )}
@@ -331,35 +382,12 @@ export default function SpotlightView() {
           </Show>
         </div>
 
-        <Show when={spotlightError() && entries().length > 0}><p class="inline-error" role="alert" style={{ padding: '0 20px' }}>{spotlightError()}</p></Show>
+        <Show when={spotlightError() && entries().length > 0}><p class="spotlight__error" role="alert">{spotlightError()}</p></Show>
 
-        <div class="spotlight__footer">
-          <span class="spotlight__key">
-            <kbd>
-              <ArrowUp class="kbd-icon" strokeWidth={2} color="currentColor" aria-hidden="true" />
-            </kbd>
-            <kbd>
-              <ArrowDown class="kbd-icon" strokeWidth={2} color="currentColor" aria-hidden="true" />
-            </kbd>
-          </span>
-          <span>navigate</span>
-          <span class="spotlight__dot">·</span>
-          <span class="spotlight__key">
-            <kbd>
-              <CornerDownLeft
-                class="kbd-icon"
-                strokeWidth={2}
-                color="currentColor"
-                aria-hidden="true"
-              />
-            </kbd>
-          </span>
-          <span>open</span>
-          <span class="spotlight__dot">·</span>
-          <span class="spotlight__key">
-            <kbd>esc</kbd>
-          </span>
-          <span>close</span>
+        <div class="spotlight__footer" aria-hidden="true">
+          <span class="spotlight__key"><kbd><ArrowUp size={11} strokeWidth={2.2} /></kbd><kbd><ArrowDown size={11} strokeWidth={2.2} /></kbd>navigate</span>
+          <span class="spotlight__key"><kbd><CornerDownLeft size={11} strokeWidth={2.2} /></kbd>open</span>
+          <span class="spotlight__key"><kbd>esc</kbd>close</span>
         </div>
       </div>
     </div>

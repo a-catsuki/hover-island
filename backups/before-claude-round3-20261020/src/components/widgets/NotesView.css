@@ -1,0 +1,143 @@
+/* Tasks: a Reminders-style list. Round check circles, hairline separators, no boxes. */
+.todo {
+  --todo-accent: #FF9F0A;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  gap: 8px;
+  color: var(--text-1);
+}
+:where(.todo) button { font: inherit; color: inherit; }
+
+.todo__head { flex: none; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.todo__title-wrap { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.todo__glyph { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--todo-accent); color: #fff; }
+.todo__heading { font-size: 15px; font-weight: 600; letter-spacing: -0.014em; color: var(--todo-accent); }
+.todo__count { margin-left: auto; font-size: 30px; line-height: 1; font-weight: 300; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.todo__status { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.todo__status--error { color: #FF6961; }
+.todo__retry { border: 0; background: none; padding: 0 4px; font-size: 12px; font-weight: 600; color: #0A84FF; cursor: pointer; }
+.todo__spin { animation: todo-spin 900ms linear infinite; }
+@keyframes todo-spin { to { transform: rotate(360deg); } }
+
+/* ---- add row -------------------------------------------------------------- */
+.todo__add {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 12px 0 6px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  transition: background 150ms;
+}
+.todo__add:focus-within { background: rgba(255, 255, 255, 0.11); }
+.todo .todo__input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+}
+.todo__input::placeholder { color: var(--text-3); }
+.todo__input:disabled { opacity: 0.5; }
+.todo__add-button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--todo-accent);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 140ms, opacity 140ms;
+}
+.todo__add-button:active:not(:disabled) { transform: scale(0.92); }
+.todo__add-button:disabled { opacity: 0.35; cursor: default; }
+
+/* ---- list ----------------------------------------------------------------- */
+.todo__list { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.todo__list::-webkit-scrollbar { display: none; }
+.todo__task {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 2px;
+  border-radius: 8px;
+  outline: 0;
+}
+.todo__task + .todo__task::before { content: ''; position: absolute; top: 0; left: 32px; right: 0; height: 0.5px; background: rgba(255, 255, 255, 0.09); }
+.todo__task:focus-visible { box-shadow: 0 0 0 2px #0A84FF; }
+.todo__task--dragging { z-index: 2; background: rgba(40, 40, 44, 0.96); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+.todo__task--drop { box-shadow: inset 0 1.5px 0 #0A84FF; }
+.todo__task--settle { animation: todo-settle 320ms var(--ease-out, ease-out); }
+@keyframes todo-settle { from { background: rgba(255, 255, 255, 0.12); } to { background: transparent; } }
+
+.todo__drag {
+  position: absolute; left: -9px; display: grid; place-items: center; width: 14px; height: 28px; padding: 0; border: 0; background: none;
+  color: var(--text-3); cursor: grab; opacity: 0; touch-action: none; transition: opacity 120ms;
+}
+.todo__task:hover .todo__drag, .todo__drag:focus-visible { opacity: 0.8; }
+.todo__drag:active { cursor: grabbing; }
+
+.todo__check {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.34);
+  border-radius: 50%;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  transition: background 160ms, border-color 160ms, transform 140ms;
+}
+.todo__check:hover { border-color: var(--todo-accent); }
+.todo__check:active { transform: scale(0.9); }
+.todo__task--done .todo__check { border-color: var(--todo-accent); background: var(--todo-accent); color: #fff; animation: todo-tick 260ms var(--ease-out, ease-out); }
+@keyframes todo-tick { 0% { transform: scale(0.8); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+.todo__title { flex: 1; min-width: 0; overflow: hidden; font-size: 13.5px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; transition: color 160ms; }
+.todo__task--done .todo__title { color: var(--text-3); }
+.todo .todo__edit { flex: 1; min-width: 0; height: 28px; padding: 0 8px; border: 0; border-radius: 8px; outline: 0; background: rgba(255, 255, 255, 0.1); box-shadow: none; color: var(--text-1); font: inherit; font-size: 13.5px; }
+
+.todo__actions { display: flex; align-items: center; flex: none; gap: 0; opacity: 0; transition: opacity 120ms; }
+.todo__task:hover .todo__actions, .todo__task:focus-within .todo__actions { opacity: 1; }
+.todo__action { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text-3); cursor: pointer; }
+.todo__action:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); color: var(--text-1); }
+.todo__action:disabled { opacity: 0.25; cursor: default; }
+.todo__action--delete:hover:not(:disabled) { color: #FF453A; }
+.todo__check:focus-visible, .todo__drag:focus-visible, .todo__action:focus-visible, .todo__add-button:focus-visible, .todo__clear:focus-visible, .todo__retry:focus-visible { outline: 2px solid #0A84FF; outline-offset: 1px; }
+
+.todo__empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center; }
+.todo__empty strong { font-size: 14px; font-weight: 600; }
+.todo__empty span { font-size: 12px; color: var(--text-3); }
+.todo__foot { flex: none; display: flex; justify-content: flex-end; }
+.todo__clear { padding: 2px 4px; border: 0; background: none; font-size: 12px; font-weight: 600; color: #0A84FF; cursor: pointer; }
+
+@media (prefers-reduced-motion: reduce) {
+  .todo__task--done .todo__check, .todo__task--settle { animation: none; }
+  .todo__spin { animation-duration: 2s; }
+}

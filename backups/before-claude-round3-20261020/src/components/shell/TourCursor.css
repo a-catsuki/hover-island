@@ -1,0 +1,66 @@
+/* Tour overlay pieces: cursor, click ripple, highlight ring. Positions are
+   written by the rAF loop in TourCursor.tsx; CSS only handles fades and flair. */
+
+.tour-ring,
+.tour-cursor,
+.tour-ripple {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.tour-ring {
+  z-index: 1;
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent), 0 0 28px color-mix(in srgb, var(--accent) 38%, transparent);
+  opacity: 0;
+  will-change: transform, width, height;
+  transition: opacity 220ms var(--ease-out), box-shadow 320ms var(--ease-out);
+}
+.tour-ring[data-shown="true"] { opacity: 1; }
+.tour-ring[data-flash="true"] {
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 34%, transparent), 0 0 36px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.tour-cursor {
+  z-index: 3;
+  width: 22px;
+  height: 28px;
+  margin: -2px 0 0 -3px;
+  opacity: 0;
+  will-change: transform;
+  transition: opacity 240ms var(--ease-out);
+}
+.tour-cursor[data-shown="true"] { opacity: 1; }
+.tour-cursor__arrow {
+  display: block;
+  transform-origin: 3px 2px;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.55)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
+  transition: transform 160ms var(--spring-pop, cubic-bezier(0.3, 1.6, 0.5, 1));
+}
+.tour-cursor[data-press="true"] .tour-cursor__arrow { transform: scale(0.84); transition-duration: 70ms; }
+
+.tour-ripple {
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.18) 55%, transparent 72%);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7);
+  animation: tour-ripple 700ms var(--ease-out) both;
+}
+@keyframes tour-ripple {
+  from { transform: scale(0.2); opacity: 0.95; }
+  to { transform: scale(1.5); opacity: 0; }
+}
+
+/* The footer would read "Pinned open" while the tour holds the island. */
+html.tour-active .panel__foot span { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-ring, .tour-cursor, .tour-cursor__arrow { transition: none; }
+  .tour-ripple { display: none; }
+}

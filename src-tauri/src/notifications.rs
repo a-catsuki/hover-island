@@ -2,11 +2,26 @@ use crate::state::AppState;
 use crate::types::{now_millis, AppNotification};
 use std::collections::HashSet;
 use std::sync::atomic::Ordering;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use windows::UI::Notifications::Management::{
     UserNotificationListener, UserNotificationListenerAccessStatus,
 };
 use windows::UI::Notifications::{NotificationKinds, UserNotification};
+
+const MAX_TITLE_CHARS: usize = 160;
+const MAX_BODY_CHARS: usize = 400;
+
+/// Collapse runs of whitespace (including newlines) and cap the length.
+fn clean_text(input: &str, max_chars: usize) -> String {
+    let joined = input.split_whitespace().collect::<Vec<_>>().join(" ");
+    if joined.chars().count() <= max_chars {
+        joined
+    } else {
+        let mut cut: String = joined.chars().take(max_chars.saturating_sub(1)).collect();
+        cut.push('\u{2026}');
+        cut
+    }
+}
 
 thread_local! {
     static COM: () = {
@@ -163,16 +178,72 @@ pub fn poll() -> Result<Vec<AppNotification>, String> {
             .map(|id| id.to_string())
             .unwrap_or_else(|_| ts.to_string());
         let (title, body) = texts(&n);
+        let icon = crate::notification_icon::resolve(&app_key, app_info.as_ref());
         out.push(AppNotification {
             id: format!("notification:{app_key}:{native_id}"),
             app,
             title,
             body,
             timestamp: ts,
-            icon: None,
+            icon,
         });
     }
     Ok(out)
+}
+
+/// Windows' native notification id from our composed id
+/// (`notification:{app_key}:{native_id}`).
+fn native_notification_id(id: &str) -> Option<u32> {
+    id.rsplit(':').next()?.parse().ok()
+}
+
+/// True when the user muted this app in Connections (notifications switched off).
+fn app_is_muted(connections: &[crate::types::AppConnection], app: &str) -> bool {
+    let app = app.trim().to_lowercase();
+    connections.iter().any(|connection| {
+        !connection.notifications
+            && std::iter::once(&connection.name)
+                .chain(connection.notification_sources.iter())
+                .any(|name| name.trim().to_lowercase() == app)
+    })
+}
+
+/// `windowsBanners = "clear"`: remove notifications the notch has just surfaced
+/// from Windows' Action Center so they do not pile up in the sidebar. Only
+/// notifications that were shown (not muted, not during island Do Not Disturb,
+/// not the first baseline poll) are passed in by the poll loop; muted apps are
+/// filtered again here. The notch inbox keeps its own copy. Runs on its own
+/// thread so a slow call never stalls the poll.
+pub(crate) fn clear_surfaced(app: &AppHandle, surfaced: &[AppNotification]) {
+    if surfaced.is_empty() {
+        return;
+    }
+    let ids: Vec<u32> = {
+        let state = app.state::<AppState>();
+        let settings = state.settings.lock().unwrap();
+        if settings.windows_banners != "clear" || settings.dnd {
+            return;
+        }
+        surfaced
+            .iter()
+            .filter(|item| !app_is_muted(&settings.connections, &item.app))
+            .filter_map(|item| native_notification_id(&item.id))
+            .collect()
+    };
+    if ids.is_empty() {
+        return;
+    }
+    std::thread::spawn(move || {
+        ensure_com();
+        let Ok(listener) = UserNotificationListener::Current() else {
+            return;
+        };
+        // Give the notch a moment to take its copy before Windows drops its own.
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        for id in ids {
+            let _ = listener.RemoveNotification(id);
+        }
+    });
 }
 
 fn datetime_to_millis(dt: windows::Foundation::DateTime) -> u64 {
@@ -202,8 +273,11 @@ fn texts(n: &UserNotification) -> (String, String) {
     })()
     .unwrap_or_default();
 
-    let title = parts.first().cloned().unwrap_or_default();
-    let body = parts.iter().skip(1).cloned().collect::<Vec<_>>().join(" ");
+    let title = clean_text(parts.first().map(String::as_str).unwrap_or(""), MAX_TITLE_CHARS);
+    let body = clean_text(
+        &parts.iter().skip(1).cloned().collect::<Vec<_>>().join(" "),
+        MAX_BODY_CHARS,
+    );
     (title, body)
 }
 
@@ -311,8 +385,9 @@ fn access_label(status: UserNotificationListenerAccessStatus) -> &'static str {
     }
 }
 
-/// Deliberate routing test, using a saved source and the real popup event path.
-/// This verifies notch routing, not delivery by another Windows application.
+/// Deliberate test through the real popup event path. An empty `id` sends a
+/// generic sample; otherwise the saved source is used. This verifies notch
+/// routing, not delivery by another Windows application.
 #[tauri::command]
 pub fn notifications_test_connection(
     app: AppHandle,
@@ -320,25 +395,37 @@ pub fn notifications_test_connection(
     id: String,
 ) -> Result<(), String> {
     let settings = state.settings.lock().map_err(|_| "Settings unavailable")?;
-    let connection = settings
-        .connections
-        .iter()
-        .find(|item| item.id == id)
-        .ok_or("Connection not found")?;
-    if !connection.notifications || !settings.notifications.enabled || settings.dnd {
-        return Err("Enable this connection's alerts and turn off Do Not Disturb to test.".into());
+    let connection = if id.is_empty() {
+        None
+    } else {
+        Some(
+            settings
+                .connections
+                .iter()
+                .find(|item| item.id == id)
+                .ok_or("Connection not found")?,
+        )
+    };
+    if connection.map_or(false, |item| !item.notifications)
+        || !settings.notifications.enabled
+        || settings.dnd
+    {
+        return Err("Turn on app notifications and turn off Do Not Disturb to test.".into());
     }
     let item = AppNotification {
-        id: format!("routing-test:{}", uuid::Uuid::new_v4()),
+        id: format!("notification:routing-test:{}", uuid::Uuid::new_v4()),
         app: connection
-            .notification_sources
-            .first()
-            .cloned()
-            .unwrap_or_else(|| connection.name.clone()),
-        title: "Connection test".into(),
-        body: "This source can reach your notch. Real alerts also need Windows permission.".into(),
+            .map(|item| {
+                item.notification_sources
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| item.name.clone())
+            })
+            .unwrap_or_else(|| "Hover Island".to_string()),
+        title: "Test notification".into(),
+        body: "Notifications from your apps will look like this.".into(),
         timestamp: now_millis(),
-        icon: connection.icon.clone(),
+        icon: connection.and_then(|item| item.icon.clone()),
     };
     drop(settings);
     app.emit("notifications://popup", item)
@@ -348,6 +435,25 @@ pub fn notifications_test_connection(
 #[tauri::command]
 pub fn notifications_get(state: State<AppState>) -> Vec<AppNotification> {
     state.notifications.lock().unwrap().clone()
+}
+
+/// Remove a single notification from the inbox (it is not restored by later polls).
+#[tauri::command]
+pub fn notifications_dismiss(app: AppHandle, state: State<AppState>, id: String) {
+    let mut dismissed = state.dismissed_notification_ids.lock().unwrap();
+    let mut notifications = state.notifications.lock().unwrap();
+    dismissed.insert(id.clone());
+    while dismissed.len() > 1024 {
+        let Some(oldest) = dismissed.iter().next().cloned() else {
+            break;
+        };
+        dismissed.remove(&oldest);
+    }
+    notifications.retain(|notification| notification.id != id);
+    let snapshot = notifications.clone();
+    drop(notifications);
+    drop(dismissed);
+    let _ = app.emit("notifications://changed", &snapshot);
 }
 
 #[tauri::command]
@@ -408,7 +514,9 @@ pub async fn notifications_request_access(app: AppHandle) -> Result<bool, String
 
 #[cfg(test)]
 mod tests {
-    use super::{access_is_allowed, classify_package_identity_status, merge_poll, status_error};
+    use super::{
+        access_is_allowed, classify_package_identity_status, clean_text, merge_poll, status_error,
+    };
     use crate::types::AppNotification;
     use std::collections::HashSet;
     use windows::UI::Notifications::Management::UserNotificationListenerAccessStatus;
@@ -433,6 +541,15 @@ mod tests {
         assert_eq!(classify_package_identity_status(122), Ok(true));
         assert_eq!(classify_package_identity_status(15700), Ok(false));
         assert!(classify_package_identity_status(5).is_err());
+    }
+
+    #[test]
+    fn clean_text_collapses_whitespace_and_caps_length() {
+        assert_eq!(clean_text("  a \n\n b\t c  ", 50), "a b c");
+        let long = "x".repeat(30);
+        let cut = clean_text(&long, 10);
+        assert_eq!(cut.chars().count(), 10);
+        assert!(cut.ends_with('\u{2026}'));
     }
 
     fn notification(id: &str, title: &str, timestamp: u64) -> AppNotification {

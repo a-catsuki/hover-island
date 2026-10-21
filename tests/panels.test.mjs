@@ -25,12 +25,25 @@ const panels = await loadTypeScript('../src/lib/panels.ts', spec => {
   throw new Error(`Unexpected import ${spec}`)
 })
 const { createPanelLayout, fitPanelLayout, removePanelLayout, renamePanelLayout } = panels
+const widgetShapes = await loadTypeScript('../src/lib/widgetShapes.ts', spec => {
+  if (spec === './widgetPages') return widgetPages
+  throw new Error(`Unexpected import ${spec}`)
+})
 const placement = await loadTypeScript('../src/lib/widgetPlacement.ts', spec => {
   if (spec === './widgetPages') return widgetPages
+  if (spec === './widgetShapes') return widgetShapes
   throw new Error(`Unexpected import ${spec}`)
 })
 
 const widget = (id, kind, order, panel, enabled = true) => ({ id, kind, order, panel, enabled })
+
+test('size presets are about a fifth smaller than round 2 and stay ordered small to large', () => {
+  const values = Object.values(panels.SIZE_PRESETS)
+  assert.deepEqual(values.map(value => value.collapsed.h), [32, 32, 32])
+  assert.deepEqual(values.map(value => value.expanded.h), [490, 510, 520])
+  assert.deepEqual(values.map(value => value.collapsed.w), [232, 288, 344])
+  assert.deepEqual(values.map(value => value.expanded.w), [640, 800, 960])
+})
 
 test('legacy panel overflow becomes ordered named panels with a single flat grid each', () => {
   const widgets = [
@@ -210,4 +223,36 @@ test('panel-tab drops pin to the first free cell and stray coordinates are clamp
   const fallback = placement.firstFreeCell([])
   assert.equal(fallback.row, 1)
   assert.equal(fallback.column, 1)
+})
+
+test('page names are trimmed, capped at 16 characters, known ids only, and empty or default resets', () => {
+  const names = { today: '  Home  ', desk: 'x'.repeat(40), ghost: 'Nope', activity: '   ' }
+  const clean = panels.normalizePanelNames(names, { today: 'Today', desk: 'Desk', activity: 'Activity' })
+  assert.deepEqual({ ...clean }, { today: 'Home', desk: 'x'.repeat(16) })
+  const labels = { today: 'Today', desk: 'Desk' }
+  assert.deepEqual({ ...panels.setPanelName({ today: 'Home' }, labels, 'today', '') }, {})
+  assert.deepEqual({ ...panels.setPanelName({}, labels, 'today', 'Today') }, {})
+  assert.equal(panels.panelDisplayName('today', labels, { today: 'Home' }), 'Home')
+  assert.equal(panels.panelDisplayName('desk', labels, { today: 'Home' }), 'Desk')
+})
+
+test('quick controls and beam get their own pages that only show while their widget is enabled', () => {
+  const widgets = [
+    { id: 'w1', kind: 'media', enabled: true, order: 0, panel: 'today' },
+    { id: 'c', kind: 'controls', enabled: true, order: 1, panel: 'activity' },
+    { id: 'b', kind: 'nearby', enabled: false, order: 2, panel: 'desk' },
+  ]
+  const layout = { panels: { today: 'Today', desk: 'Desk', activity: 'Activity' }, panelOrder: ['today', 'desk', 'activity'], widgets }
+  const next = panels.dedicatePanelLayout(layout, 'controls')
+  assert.equal(next.panels['quick-controls'], 'Quick controls')
+  assert.equal(next.widgets.find(widget => widget.id === 'c').panel, 'quick-controls')
+  assert.ok(next.panelOrder.includes('quick-controls'))
+  assert.equal(panels.panelVisible('quick-controls', next.widgets), true)
+  const beam = panels.dedicatePanelLayout(next, 'nearby')
+  assert.equal(beam.widgets.find(widget => widget.id === 'b').enabled, true)
+  const hidden = beam.widgets.map(widget => widget.id === 'b' ? { ...widget, enabled: false } : widget)
+  assert.equal(panels.panelVisible('beam', hidden), false)
+  assert.deepEqual(panels.visiblePanelOrder(beam.panelOrder, hidden).includes('beam'), false)
+  assert.equal(panels.panelVisible('today', hidden), true)
+  assert.equal(panels.dedicatePanelLayout(layout, 'clock'), layout)
 })

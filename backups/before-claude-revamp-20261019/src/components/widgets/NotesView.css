@@ -1,0 +1,432 @@
+/* To-do list widget (notes/scratchpad upgrade). Compact, dark graphite. */
+
+.todo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: 7px;
+}
+
+.todo .todo__head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  min-width: 0;
+}
+
+.todo__counts {
+  color: var(--text-3);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.todo__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.todo__status--error {
+  color: var(--danger);
+}
+
+.todo__retry {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-11);
+  cursor: pointer;
+}
+
+/* ----------------------------------------------------------------- add row */
+
+.todo__add {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid var(--line-1);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-0) 67%, transparent);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.todo__add:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line-1));
+  background: color-mix(in srgb, var(--surface-1) 82%, transparent);
+}
+
+.todo__input {
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 11px;
+}
+
+.todo__input::placeholder {
+  color: var(--text-3);
+}
+
+.todo__input:disabled {
+  opacity: 0.55;
+}
+
+.todo__add-button {
+  display: grid;
+  flex: none;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface-1));
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 140ms ease, transform 140ms var(--spring);
+}
+
+.todo__add-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 26%, var(--surface-1));
+  transform: scale(1.05);
+}
+
+.todo__add-button:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.todo__add-button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+/* ------------------------------------------------------------------- list */
+
+.todo__list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-3) 30%, transparent) transparent;
+}
+
+.todo__task {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-width: 0;
+  min-height: 30px;
+  gap: 5px;
+  padding: 1px 3px;
+  border-radius: 8px;
+  outline: none;
+  user-select: none;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+
+.todo__task:hover {
+  background: color-mix(in srgb, var(--surface-2) 52%, transparent);
+}
+
+.todo__task:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 62%, transparent);
+  outline-offset: 1px;
+}
+
+.todo__task--dragging {
+  z-index: 6;
+  transition: none;
+  background: color-mix(in srgb, var(--surface-3) 72%, transparent);
+  box-shadow: var(--shadow-lift);
+  cursor: grabbing;
+}
+
+.todo__task--drop {
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.todo__task--settle {
+  animation: todo-settle 300ms var(--spring);
+}
+
+@keyframes todo-settle {
+  0% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* ----------------------------------------------------------------- pieces */
+
+.todo__drag {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 15px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-3) 70%, transparent);
+  cursor: grab;
+  touch-action: none;
+  opacity: 0.55;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+.todo__task:hover .todo__drag {
+  opacity: 1;
+}
+
+.todo__drag:active {
+  cursor: grabbing;
+}
+
+.todo__check {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1.5px solid color-mix(in srgb, var(--text-3) 62%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--surface-0);
+  cursor: pointer;
+  appearance: none;
+  transition: border-color 140ms ease, background 160ms var(--spring), transform 140ms var(--spring);
+}
+
+.todo__check:hover {
+  border-color: var(--accent);
+}
+
+.todo__check:active {
+  transform: scale(0.88);
+}
+
+.todo__task--done .todo__check {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.todo__check svg {
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 120ms ease, transform 180ms var(--spring);
+}
+
+.todo__task--done .todo__check svg {
+  opacity: 1;
+  transform: none;
+  animation: todo-tick 340ms var(--spring);
+}
+
+@keyframes todo-tick {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.todo__title {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-1);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.todo__title::after {
+  content: '';
+  position: absolute;
+  top: 52%;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 240ms var(--spring);
+}
+
+.todo__task--done .todo__title {
+  color: var(--text-3);
+}
+
+.todo__task--done .todo__title::after {
+  transform: scaleX(1);
+}
+
+.todo__edit {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 46%, var(--line-1));
+  border-radius: 7px;
+  outline: none;
+  background: color-mix(in srgb, var(--surface-0) 74%, transparent);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 11px;
+}
+
+/* ----------------------------------------------------------------- actions */
+
+.todo__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.todo__task:hover .todo__actions,
+.todo__task:focus-within .todo__actions {
+  opacity: 1;
+}
+
+.todo__action {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.todo__action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  color: var(--accent);
+}
+
+.todo__action:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+.todo__action--delete:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+}
+
+.todo__check:focus-visible,
+.todo__drag:focus-visible,
+.todo__action:focus-visible,
+.todo__add-button:focus-visible,
+.todo__clear:focus-visible,
+.todo__retry:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 62%, transparent);
+  outline-offset: 1px;
+}
+
+/* -------------------------------------------------------------- empty/foot */
+
+.todo__empty {
+  display: grid;
+  flex: 1;
+  min-height: 44px;
+  place-items: center;
+  padding: 7px;
+  color: var(--text-3);
+  font-size: 10px;
+  text-align: center;
+}
+
+.todo__foot {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+}
+
+.todo__clear {
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.todo__clear:hover {
+  color: var(--accent);
+}
+
+.todo__spin {
+  animation: todo-spin 0.9s linear infinite;
+}
+
+@keyframes todo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .todo__task,
+  .todo__check,
+  .todo__check svg,
+  .todo__title::after,
+  .todo__add-button,
+  .todo__drag,
+  .todo__actions {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .todo__task--done .todo__check svg {
+    transform: none;
+  }
+
+  .todo__task--done .todo__title::after {
+    transform: scaleX(1);
+  }
+}
