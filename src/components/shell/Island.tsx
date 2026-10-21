@@ -181,8 +181,11 @@ export default function Island() {
     if (peek() && !open() && !fileDrop()) dismissPeek()
   })
 
-  const leave = () => {
-    if (!pointerInside()) return
+  // `fromNative` marks a native hover end. The island can be open without the WebView
+  // ever recording the pointer as inside (a peek was clicked open, or a hover arrived
+  // while a drop or peek blocked it); that leave must still close it.
+  const leave = (fromNative = false) => {
+    if (!pointerInside() && !(fromNative && open())) return
     setPointerInside(false)
     clearTimeout(enterTimer)
     clearTimeout(leaveTimer)
@@ -214,7 +217,7 @@ export default function Island() {
   // believed the cursor was still inside and stayed open with nothing hovering it.
   let nativeHover = false
   let lastDomPointer = 0
-  void onIslandHover(value => { nativeHover = value; value ? enter() : leave() }).then(fn => disposed ? fn() : unsubscribe = fn).catch(error => reportError('Hover tracking failed',error))
+  void onIslandHover(value => { nativeHover = value; value ? enter() : leave(true) }).then(fn => disposed ? fn() : unsubscribe = fn).catch(error => reportError('Hover tracking failed',error))
   const notePointer = () => { lastDomPointer = performance.now() }
   window.addEventListener('pointermove', notePointer, { passive: true })
   const hoverWatchdog = setInterval(() => {

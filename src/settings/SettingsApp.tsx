@@ -47,9 +47,9 @@ interface SectionDef {
 }
 
 const SECTIONS: SectionDef[] = [
-  { id: 'general', label: 'General', icon: Settings2, tile: '#8e8e93', group: 0, keywords: 'launch login startup hide maximized windows intro tour welcome replay reset position about version update updates privacy audio speaker output search index files rebuild data local defaults' },
+  { id: 'general', label: 'General', icon: Settings2, tile: '#8e8e93', group: 0, keywords: 'launch login startup intro tour welcome replay reset position about version update updates privacy audio speaker output search index files rebuild data local defaults' },
   { id: 'appearance', label: 'Appearance', icon: Palette, tile: '#0a84ff', group: 0, keywords: 'theme palette scene accent colour color size small medium large compact view clock font time format seconds atmosphere visualizer intensity reactivity background opacity preview' },
-  { id: 'island', label: 'Island', icon: PanelTop, tile: '#5e5ce6', group: 0, keywords: 'layout hover expand open close delay dock style notch bar sidebar screen edge top bottom left right media playback buttons position shortcuts keyboard hotkey search spotlight key combination record conflict global ctrl alt win' },
+  { id: 'island', label: 'Island', icon: PanelTop, tile: '#5e5ce6', group: 0, keywords: 'layout hover expand open close delay hide maximized maximised fullscreen full screen windows behind dock style notch bar sidebar screen edge top bottom left right media playback buttons position shortcuts keyboard hotkey search spotlight key combination record conflict global ctrl alt win' },
   { id: 'widgets', label: 'Widgets', icon: LayoutGrid, tile: '#ff9f0a', group: 0, keywords: 'pages arrange order add remove size lyrics hidden location weather city temperature celsius fahrenheit units automatic windows location services place' },
   { id: 'notifications', label: 'Notifications', icon: Bell, tile: '#ff453a', group: 1, keywords: 'alerts sound chime do not disturb focus dnd peek capture windows access test apps sources shortcuts per-app' },
   { id: 'connections', label: 'Connections', icon: Link2, tile: '#30d158', group: 1, keywords: 'native apps connect disconnect add app discord slack teams whatsapp telegram outlook phone link media spotify email codes gmail websites alert feeds erp pairing calendar ical subscribe feed events google outlook sync' },
@@ -290,7 +290,6 @@ export default function SettingsApp() {
                 <div class="settings__page">
                   <Group title="Startup">
                     <Toggle label="Launch at login" hint="Start Hover Island with Windows" checked={settings.launchAtLogin} onChange={value => set({ launchAtLogin: value })} />
-                    <Toggle label="Hide behind maximized windows" hint="Fade the island out until you reach for it" checked={settings.hideBehindWindows} onChange={value => set({ hideBehindWindows: value })} />
                   </Group>
                   <Group title="Welcome">
                     <Field label="Introduction" hint={tourStatus() || 'Watch the short tour of the island again. It plays on the island.'}>
@@ -377,6 +376,7 @@ export default function SettingsApp() {
                     <Toggle label="Expand on hover" checked={settings.interaction.hoverOpen} onChange={value => interaction({ hoverOpen: value })} />
                     <Slider label="Hover delay" hint={`${settings.interaction.openDelayMs} ms before opening`} min={0} max={1000} step={20} value={settings.interaction.openDelayMs} onInput={value => interaction({ openDelayMs: value })} />
                     <Slider label="Close delay" hint={`${settings.interaction.closeDelayMs} ms after leaving`} min={100} max={2000} step={50} value={settings.interaction.closeDelayMs} onInput={value => interaction({ closeDelayMs: value })} />
+                    <Toggle label="Hide behind maximized windows" hint="Fades out over maximized and fullscreen apps on its screen until you reach for it" checked={settings.hideBehindWindows} onChange={value => set({ hideBehindWindows: value })} />
                   </Group>
                   <Group title="Position" description="You can also drag the island's handle to snap it to another edge.">
                     <Select
