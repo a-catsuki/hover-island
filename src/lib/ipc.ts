@@ -423,7 +423,7 @@ export const DEFAULT_SETTINGS: Settings = {
     manualConfig: { label: 'Custom', used: null, limit: null, unit: 'tokens', resetAt: null },
   },
   transfer: { trustedPhones: false },
-  ambient: { enabled: false, idleMinutes: 5, clock: true, media: true, weather: true, dim: true, takeOverScreensaver: true, softLock: true, lockAfterMinutes: 10 },
+  ambient: { enabled: false, idleMinutes: 5, clock: true, media: true, weather: true, dim: true, takeOverScreensaver: true, softLock: true, lockAfterMinutes: 10, faceRequireBlink: false },
   notifications: { enabled: true, systemListener: true, sound: 'soft' },
   interaction: { hoverOpen: true, openDelayMs: 140, closeDelayMs: 450 },
 }
@@ -587,7 +587,7 @@ export const cmd = {
   faceEnrollStart: () => invoke<void>('face_enroll_start'),
   faceEnrollSave: (templates: number[][]) => invoke<void>('face_enroll_save', { templates }),
   faceReset: () => invoke<void>('face_reset'),
-  faceVerify: (samples: FaceSample[], blinked: boolean) => invoke<FaceVerdict>('face_verify', { samples, blinked }),
+  faceVerify: (samples: FaceSample[], blinked: boolean) => invoke<FaceCheck>('face_verify', { samples, blinked }),
   transferStatus: () => invoke<TransferStatus>('transfer_status'),
   transferStart: () => invoke<TransferStatus>('transfer_start'),
   transferStageDroppedPaths: (paths: string[]) => invoke<TransferStatus>('transfer_stage_dropped_paths', { paths }),
@@ -1061,7 +1061,7 @@ export interface AirDropCapability {
   reason:string
 }
 
-export interface AmbientSettings { enabled: boolean; idleMinutes: number; clock: boolean; media: boolean; weather: boolean; dim: boolean; takeOverScreensaver: boolean; softLock: boolean; lockAfterMinutes: number }
+export interface AmbientSettings { enabled: boolean; idleMinutes: number; clock: boolean; media: boolean; weather: boolean; dim: boolean; takeOverScreensaver: boolean; softLock: boolean; lockAfterMinutes: number; faceRequireBlink: boolean }
 /** `locked`: Windows Hello is not set up, so the real Windows lock took over. */
 export type AmbientUnlockOutcome = 'verified' | 'cancelled' | 'locked'
 export interface FaceStatus { enrolled: boolean; attemptsLeft: number }
@@ -1069,6 +1069,8 @@ export interface FaceStatus { enrolled: boolean; attemptsLeft: number }
 export interface FaceSample { descriptor: number[]; real: number; live: number }
 /** `lockedOut`: too many failed scans; only Windows Hello unlocks until the screen opens again. */
 export type FaceVerdict = 'match' | 'noMatch' | 'lockedOut' | 'notEnrolled'
+/** A verdict with the scan's mean match, anti-spoof and liveness scores (0..1). */
+export interface FaceCheck { verdict: FaceVerdict; score: number; real: number; live: number }
 export interface TransferFile { id:string; name:string; size:number; createdAt:number }
 export interface TransferStatus {
   active:boolean

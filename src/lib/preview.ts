@@ -120,7 +120,7 @@ export async function previewInvoke<T>(command:string,args:Record<string,unknown
     case 'ambient_close':case 'face_enroll_save':case 'face_reset':break
     case 'face_enroll_start':throw new Error('Face unlock setup needs the Windows app.')
     case 'face_status':result={enrolled:new URLSearchParams(location.search).has('face'),attemptsLeft:5};break
-    case 'face_verify':result=new URLSearchParams(location.search).get('face')==='match'?'match':'noMatch';break
+    case 'face_verify':result={verdict:new URLSearchParams(location.search).get('face')==='match'?'match':'noMatch',score:0.42,real:0.8,live:0.9};break
     case 'notifications_get':result=sampleInbox();if(notifyFlag())setTimeout(()=>emit('notifications://popup',samplePopup()),1500);break
     case 'notifications_dismiss':inboxGone.add(String(args.id));emit('notifications://changed',sampleInbox());break
     case 'notifications_clear':sampleCleared=true;emit('notifications://changed',[]);break

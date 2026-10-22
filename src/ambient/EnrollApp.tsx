@@ -15,8 +15,8 @@ const SAMPLE_GAP_MS = 200
 /** Descriptors kept per scan, the most frontal first. */
 const KEEP = 6
 const MIN_KEEP = 3
-const MIN_REAL = 0.55
-const MIN_LIVE = 0.55
+const MIN_REAL = 0.5
+const MIN_LIVE = 0.5
 /** With no face for this long, say why that may be. */
 const NO_FACE_HINT_MS = 6000
 /** Detection failures in a row before the error is shown. */
@@ -73,10 +73,13 @@ export default function EnrollApp() {
     setStep('scan')
     setStatus('')
     running = true
+    // Quick frames drive the ring; a full frame (identity models) only when a sample is due.
+    let full = false
     while (running) {
       let frame: FaceFrame
       try {
-        frame = await camera.read(false)
+        frame = await camera.read({ full, frontalOnly: false })
+        full = false
         failures = 0
         frames++
       } catch (problem) {
@@ -104,6 +107,7 @@ export default function EnrollApp() {
       }
       setPrompt('Move your head slowly to complete the circle.')
       light(frame.yaw, frame.pitch)
+      full = frontal(frame) && Date.now() - lastSample >= SAMPLE_GAP_MS
       const sample = frame.sample
       if (sample && frontal(frame) && sample.real >= MIN_REAL && sample.live >= MIN_LIVE && Date.now() - lastSample >= SAMPLE_GAP_MS) {
         lastSample = Date.now()

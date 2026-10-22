@@ -148,6 +148,8 @@ pub struct AmbientCfg {
     pub soft_lock: bool,
     /// Further minutes away, after the screen appears, before Windows locks for real. 0 = never.
     pub lock_after_minutes: u32,
+    /// Face unlock also waits for a blink, which a held-up photo cannot do. Slower, so opt-in.
+    pub face_require_blink: bool,
 }
 impl Default for AmbientCfg {
     fn default() -> Self {
@@ -161,6 +163,7 @@ impl Default for AmbientCfg {
             take_over_screensaver: true,
             soft_lock: true,
             lock_after_minutes: 10,
+            face_require_blink: false,
         }
     }
 }

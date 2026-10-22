@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
 use crate::ambient::{self, Hello};
+use crate::state::AppState;
 
 const STORE_FILE: &str = "face-unlock.dpapi";
 const STORE_VERSION: u32 = 1;
@@ -27,11 +28,17 @@ const MIN_TEMPLATES: usize = 3;
 const MAX_SAMPLES: usize = 8;
 /// Frames from one scan that must agree before a match counts.
 const MIN_SAMPLES: usize = 2;
-/// Normalized similarity (0..1) of the face model; its authors treat 0.5 as a match, so this is stricter.
-const MATCH_THRESHOLD: f32 = 0.62;
-/// Anti-spoof ("real") and liveness ("live") model scores, 0..1.
-const MIN_REAL: f32 = 0.55;
-const MIN_LIVE: f32 = 0.55;
+/// Normalized similarity (0..1) of the face model, averaged over the scan's frames. Its authors
+/// treat 0.5 as a match; 0.62 rejected real owners in dim, screen-lit rooms.
+const MATCH_THRESHOLD: f32 = 0.55;
+/// Anti-spoof ("real") and liveness ("live") model scores, 0..1, averaged over the scan.
+const MIN_REAL: f32 = 0.5;
+const MIN_LIVE: f32 = 0.5;
+/// Faces learned from successful unlocks, kept beside the enrolled ones (oldest dropped first),
+/// so matching follows lighting, glasses and hair the way Face ID does.
+const MAX_LEARNED: usize = 12;
+/// A matching face this close to a known one adds nothing worth keeping.
+const LEARN_BELOW: f32 = 0.9;
 /// Failed scans before only Windows Hello can unlock, as with Face ID and a passcode.
 const MAX_ATTEMPTS: u32 = 5;
 /// How long the page's check-mark and padlock animation runs after a match.
@@ -45,6 +52,14 @@ static ENROLL_ALLOWED: AtomicBool = AtomicBool::new(false);
 struct Store {
     version: u32,
     templates: Vec<Vec<f32>>,
+    #[serde(default)]
+    learned: Vec<Vec<f32>>,
+}
+
+impl Store {
+    fn known(&self) -> Vec<&[f32]> {
+        self.templates.iter().chain(&self.learned).map(Vec::as_slice).collect()
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -57,6 +72,16 @@ pub struct FaceStatus {
 #[derive(Debug, Clone, Deserialize)]
 pub struct FaceSample {
     descriptor: Vec<f32>,
+    real: f32,
+    live: f32,
+}
+
+/// A verdict and the scan's scores, which the page shows after a miss to help tune lighting.
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FaceCheck {
+    verdict: FaceVerdict,
+    score: f32,
     real: f32,
     live: f32,
 }
@@ -138,21 +163,57 @@ fn similarity(a: &[f32], b: &[f32]) -> f32 {
     norm.clamp(0.0, 1.0) as f32
 }
 
-/// Mean over the scan's frames of each frame's best match against the enrolled templates.
-fn scan_similarity(samples: &[FaceSample], templates: &[Vec<f32>]) -> f32 {
-    let best = |sample: &FaceSample| {
-        templates
-            .iter()
-            .map(|template| similarity(&sample.descriptor, template))
-            .fold(0.0_f32, f32::max)
-    };
-    samples.iter().map(best).sum::<f32>() / samples.len().max(1) as f32
+fn best_match(descriptor: &[f32], known: &[&[f32]]) -> f32 {
+    known.iter().map(|template| similarity(descriptor, template)).fold(0.0_f32, f32::max)
 }
 
-fn verdict(samples: &[FaceSample], templates: &[Vec<f32>]) -> bool {
-    samples.len() >= MIN_SAMPLES
-        && samples.iter().all(|sample| sample.real >= MIN_REAL && sample.live >= MIN_LIVE)
-        && scan_similarity(samples, templates) >= MATCH_THRESHOLD
+#[derive(Debug, Clone, Copy)]
+struct Assessment {
+    /// Mean over the frames of each frame's best match.
+    score: f32,
+    real: f32,
+    live: f32,
+    pass: bool,
+}
+
+fn assess(samples: &[FaceSample], known: &[&[f32]]) -> Assessment {
+    let count = samples.len().max(1) as f32;
+    let mean = |value: &dyn Fn(&FaceSample) -> f32| samples.iter().map(value).sum::<f32>() / count;
+    let score = mean(&|sample| best_match(&sample.descriptor, known));
+    let real = mean(&|sample| sample.real);
+    let live = mean(&|sample| sample.live);
+    let pass = samples.len() >= MIN_SAMPLES && real >= MIN_REAL && live >= MIN_LIVE && score >= MATCH_THRESHOLD;
+    Assessment { score, real, live, pass }
+}
+
+/// After a match, keep the frame least like what is already known, if it adds anything.
+fn learn(store: &mut Store, samples: &[FaceSample]) -> bool {
+    let known = store.known();
+    let newest = samples
+        .iter()
+        .map(|sample| (best_match(&sample.descriptor, &known), sample))
+        .filter(|(score, _)| *score < LEARN_BELOW)
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, sample)| sample.descriptor.clone());
+    let Some(descriptor) = newest else {
+        return false;
+    };
+    if store.templates.first().is_some_and(|first| first.len() != descriptor.len()) {
+        return false;
+    }
+    store.learned.push(descriptor);
+    if store.learned.len() > MAX_LEARNED {
+        store.learned.remove(0);
+    }
+    true
+}
+
+fn require_blink(app: &AppHandle) -> bool {
+    app.state::<AppState>()
+        .settings
+        .lock()
+        .map(|settings| settings.ambient.face_require_blink)
+        .unwrap_or(true)
 }
 
 #[tauri::command]
@@ -188,7 +249,7 @@ pub async fn face_enroll_save(app: AppHandle, templates: Vec<Vec<f32>>) -> Resul
     {
         return Err("The face scan was incomplete. Try again.".into());
     }
-    write_store(&app, &Store { version: STORE_VERSION, templates })?;
+    write_store(&app, &Store { version: STORE_VERSION, templates, learned: Vec::new() })?;
     reset_attempts();
     Ok(())
 }
@@ -205,27 +266,38 @@ pub async fn face_reset(app: AppHandle) -> Result<(), String> {
 /// One scan from the locked page: a few frames' descriptors with their anti-spoof and liveness
 /// scores. Every call that does not match uses up an attempt.
 #[tauri::command]
-pub async fn face_verify(app: AppHandle, samples: Vec<FaceSample>, blinked: bool) -> Result<FaceVerdict, String> {
+pub async fn face_verify(app: AppHandle, samples: Vec<FaceSample>, blinked: bool) -> Result<FaceCheck, String> {
+    let check = |verdict, assessment: Option<Assessment>| FaceCheck {
+        verdict,
+        score: assessment.map_or(0.0, |a| a.score),
+        real: assessment.map_or(0.0, |a| a.real),
+        live: assessment.map_or(0.0, |a| a.live),
+    };
     if !ambient::is_locked() {
         return Err("The screen is not locked.".into());
     }
-    // The page only asks after seeing a blink; refuse anything else outright.
-    if !blinked {
-        return Ok(FaceVerdict::NoMatch);
+    // With the blink setting on, the page only asks after seeing one; refuse anything else.
+    if require_blink(&app) && !blinked {
+        return Ok(check(FaceVerdict::NoMatch, None));
     }
     if attempts_left() == 0 {
-        return Ok(FaceVerdict::LockedOut);
+        return Ok(check(FaceVerdict::LockedOut, None));
     }
-    let store = read_store(&app)?;
+    let mut store = read_store(&app)?;
     if store.templates.is_empty() {
-        return Ok(FaceVerdict::NotEnrolled);
+        return Ok(check(FaceVerdict::NotEnrolled, None));
     }
     let samples: Vec<FaceSample> = samples
         .into_iter()
         .take(MAX_SAMPLES)
         .filter(|sample| valid_descriptor(&sample.descriptor))
         .collect();
-    if verdict(&samples, &store.templates) {
+    let assessment = assess(&samples, &store.known());
+    if assessment.pass {
+        if learn(&mut store, &samples) {
+            // Learning is a bonus; a failed write must not block the unlock.
+            let _ = write_store(&app, &store);
+        }
         // Stay locked while the page plays its unlock animation, then close.
         tauri::async_runtime::spawn(async move {
             tokio::time::sleep(UNLOCK_ANIMATION).await;
@@ -233,10 +305,11 @@ pub async fn face_verify(app: AppHandle, samples: Vec<FaceSample>, blinked: bool
                 ambient::close(&app);
             }
         });
-        return Ok(FaceVerdict::Match);
+        return Ok(check(FaceVerdict::Match, Some(assessment)));
     }
     let used = ATTEMPTS.fetch_add(1, Ordering::AcqRel) + 1;
-    Ok(if used >= MAX_ATTEMPTS { FaceVerdict::LockedOut } else { FaceVerdict::NoMatch })
+    let verdict = if used >= MAX_ATTEMPTS { FaceVerdict::LockedOut } else { FaceVerdict::NoMatch };
+    Ok(check(verdict, Some(assessment)))
 }
 
 #[cfg(test)]
@@ -263,10 +336,21 @@ mod tests {
     #[test]
     fn needs_several_live_frames() {
         let template = vec![0.1_f32; 128];
-        let templates = vec![template.clone()];
-        assert!(!verdict(&[sample(template.clone())], &templates));
-        assert!(verdict(&[sample(template.clone()), sample(template.clone())], &templates));
-        let spoof = FaceSample { descriptor: template.clone(), real: 0.2, live: 0.9 };
-        assert!(!verdict(&[sample(template.clone()), spoof], &templates));
+        let known = vec![template.as_slice()];
+        assert!(!assess(&[sample(template.clone())], &known).pass);
+        assert!(assess(&[sample(template.clone()), sample(template.clone())], &known).pass);
+        let spoof = |real| FaceSample { descriptor: template.clone(), real, live: 0.9 };
+        assert!(!assess(&[spoof(0.1), spoof(0.2)], &known).pass);
+    }
+
+    #[test]
+    fn learns_only_new_looks_and_caps_them() {
+        let mut store = Store { version: STORE_VERSION, templates: vec![vec![0.1_f32; 128]], learned: Vec::new() };
+        assert!(!learn(&mut store, &[sample(vec![0.1_f32; 128])]));
+        for step in 0..20 {
+            let look = (0..128).map(|i| 0.1 + ((i * 7 + step * 5) % 23) as f32 * 0.12).collect();
+            learn(&mut store, &[sample(look)]);
+        }
+        assert_eq!(store.learned.len(), MAX_LEARNED);
     }
 }

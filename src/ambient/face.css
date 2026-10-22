@@ -18,6 +18,7 @@
 .face-hud::before { content: ''; position: fixed; inset: -10%; z-index: -1; background: radial-gradient(circle at center, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.25) 60%); }
 .face-hud__panel { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; width: 172px; height: 172px; border-radius: 36px; background: rgba(36, 36, 38, 0.78); backdrop-filter: blur(30px) saturate(1.6); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5); color: #fff; }
 .face-hud__label { min-height: 18px; margin: 0; padding: 0 12px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; text-align: center; color: rgba(255, 255, 255, 0.92); }
+.face-hud__detail { margin: -10px 0 0; font-size: 12px; font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, 0.5); }
 .face-hud__actions { display: flex; gap: 10px; pointer-events: auto; }
 .face-hud__actions button { height: 36px; padding: 0 18px; border: 0; border-radius: 18px; background: rgba(255, 255, 255, 0.14); backdrop-filter: blur(20px); color: #fff; font: 600 14px 'Inter Variable', Inter, system-ui, sans-serif; cursor: pointer; transition: background 0.2s ease; }
 .face-hud__actions button:hover { background: rgba(255, 255, 255, 0.24); }

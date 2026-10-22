@@ -1,18 +1,22 @@
 import { createSignal, onCleanup, onMount, Show } from 'solid-js'
 import { cmd, type FaceSample } from '../lib/ipc'
+import { settings } from '../state/settings'
 import FaceGlyph, { Padlock, type GlyphState } from './FaceGlyph'
 import { BlinkWatch, FaceCamera, loadFaceEngine, type FaceFrame } from './face'
 
 /** Matches native OPEN_GRACE: the click or key that opened the page is not an unlock attempt. */
 const OPEN_GRACE_MS = 1500
 const HINT_MS = 4000
-const SCAN_MS = 6000
+/** How long a scan looks for a usable face; longer when it must also see a blink. */
+const SCAN_MS = 3000
+const BLINK_SCAN_MS = 6000
 /** Ask for a blink once this much of the scan has gone by without one. */
 const BLINK_PROMPT_MS = 1600
 const ENGINE_WAIT_MS = 15_000
-/** Frames per scan, spaced so they are not near-copies of one another. */
-const SAMPLES = 3
-const SAMPLE_GAP_MS = 90
+/** Identity frames per scan, spaced so they are not near-copies of one another. */
+const SAMPLES = 2
+const SAMPLE_GAP_MS = 60
+/** The failure panel, with the camera still on for an instant retry. */
 const FAIL_HOLD_MS = 6000
 
 type Phase = 'idle' | 'scanning' | 'success' | 'failed' | 'hello'
@@ -35,6 +39,7 @@ const withTimeout = <T,>(promise: Promise<T>, ms: number) => Promise.race([promi
 export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
   const [phase, setPhase] = createSignal<Phase>('idle')
   const [message, setMessage] = createSignal('')
+  const [detail, setDetail] = createSignal('')
   const [awake, setAwake] = createSignal(false)
   const [enrolled, setEnrolled] = createSignal(false)
   const [lockedOut, setLockedOut] = createSignal(false)
@@ -42,28 +47,47 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
   const openedAt = Date.now()
   let failTimer: ReturnType<typeof setTimeout> | undefined
   let hintTimer: ReturnType<typeof setTimeout> | undefined
+  /** One automatic scan per wake-up, like raising a phone; after that a key or click retries. */
+  let autoScanned = false
 
   const busy = () => phase() === 'scanning' || phase() === 'success' || phase() === 'hello'
   const useFace = () => enrolled() && !lockedOut()
+  const requireBlink = () => settings.ambient.faceRequireBlink
+  const settled = () => Date.now() - openedAt >= OPEN_GRACE_MS
+
+  const toIdle = () => {
+    setPhase('idle')
+    setDetail('')
+    camera.stop()
+  }
 
   const wake = () => {
     setAwake(true)
     props.onAwake(true)
     clearTimeout(hintTimer)
-    hintTimer = setTimeout(() => { setAwake(false); props.onAwake(false) }, HINT_MS)
+    hintTimer = setTimeout(() => { setAwake(false); props.onAwake(false); autoScanned = false }, HINT_MS)
+    // Moving the mouse is enough: start looking straight away.
+    if (useFace() && phase() === 'idle' && !autoScanned && settled()) {
+      autoScanned = true
+      void scan(true)
+    }
   }
 
-  const fail = (text: string) => {
+  const fail = (text: string, why = '') => {
     setPhase('failed')
     setMessage(text)
-    wake()
+    setDetail(why)
+    setAwake(true)
+    props.onAwake(true)
     clearTimeout(failTimer)
-    failTimer = setTimeout(() => setPhase(current => current === 'failed' ? 'idle' : current), FAIL_HOLD_MS)
+    failTimer = setTimeout(() => { if (phase() === 'failed') toIdle() }, FAIL_HOLD_MS)
   }
 
   const hello = async () => {
+    camera.stop()
     setPhase('hello')
     setMessage('')
+    setDetail('')
     try {
       // On success, or when Windows locks for real instead, native code closes this window.
       const outcome = await cmd.ambientUnlock()
@@ -73,77 +97,93 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
     }
   }
 
-  /** Frames until it has enough open-eyed samples and has seen a blink, or time runs out. */
+  /**
+   * Quick frames (face, pose, eyes) until one is usable, then a full frame for identity, until it
+   * has enough samples (and a blink, if required) or time runs out.
+   */
   const collect = async () => {
     const samples: FaceSample[] = []
     const blink = new BlinkWatch()
+    const blinkNeeded = requireBlink()
+    const limit = blinkNeeded ? BLINK_SCAN_MS : SCAN_MS
     let problem = ''
+    let sawFace = false
     let lastSample = 0
+    let full = false
     // Count from the first frame, so a slow camera start does not eat the scan.
     let started = 0
-    while (!started || (Date.now() - started < SCAN_MS && !(blink.seen && samples.length >= SAMPLES))) {
+    const done = () => samples.length >= SAMPLES && (!blinkNeeded || blink.seen)
+    while (!started || (Date.now() - started < limit && !done())) {
       let frame: FaceFrame
       try {
-        frame = await camera.read()
+        frame = await camera.read({ full })
       } catch {
         started ||= Date.now()
-        await delay(200)
+        full = false
+        await delay(100)
         continue
       }
       started ||= Date.now()
       blink.push(frame.eyes)
-      if (frame.sample && blink.eyesOpen(frame.eyes)) {
-        if (samples.length < SAMPLES && Date.now() - lastSample >= SAMPLE_GAP_MS) {
-          samples.push(frame.sample)
-          lastSample = Date.now()
-        }
+      if (frame.problem !== null) sawFace = true
+      const usable = frame.problem === 'none' && blink.eyesOpen(frame.eyes)
+      if (frame.sample && usable && samples.length < SAMPLES && Date.now() - lastSample >= SAMPLE_GAP_MS) {
+        samples.push(frame.sample)
+        lastSample = Date.now()
+      }
+      if (usable) {
         problem = ''
-        setMessage(!blink.seen && Date.now() - started > BLINK_PROMPT_MS ? 'Blink to unlock' : '')
+        setMessage(blinkNeeded && !blink.seen && Date.now() - started > BLINK_PROMPT_MS ? 'Blink to unlock' : '')
       } else if (frame.problem) {
         problem = PROBLEMS[frame.problem]
         setMessage(problem)
       }
+      // Run the heavy models only on frames that are worth it.
+      full = usable && samples.length < SAMPLES
     }
-    if (!blink.seen && samples.length >= 2) problem = 'Blink to unlock'
-    return { samples, blinked: blink.seen, problem }
+    if (blinkNeeded && !blink.seen && samples.length >= SAMPLES) problem = 'Blink to unlock'
+    return { samples, blinked: blink.seen, problem, sawFace }
   }
 
-  const scan = async () => {
+  /** `auto` scans start from a mouse move; with nobody in front of the camera they end quietly. */
+  const scan = async (auto = false) => {
     setPhase('scanning')
     setMessage('')
+    setDetail('')
     clearTimeout(failTimer)
     try {
-      await withTimeout(loadFaceEngine(), ENGINE_WAIT_MS)
-      await camera.start()
+      // The camera and the models start together; the camera is usually the slower one.
+      await Promise.all([withTimeout(loadFaceEngine(), ENGINE_WAIT_MS), camera.start()])
     } catch {
       camera.stop()
-      return hello()
+      return auto ? toIdle() : hello()
     }
-    let result: Awaited<ReturnType<typeof collect>>
-    try {
-      result = await collect()
-    } finally {
-      camera.stop()
-    }
+    const result = await collect()
     // Not enough of a face to judge: not counted as an attempt.
-    if (result.samples.length < 2 || !result.blinked) return fail(result.problem || 'No Face Found')
-    const verdict = await cmd.faceVerify(result.samples, result.blinked).catch(() => 'noMatch' as const)
-    if (verdict === 'match') {
+    if (result.samples.length < SAMPLES || (requireBlink() && !result.blinked)) {
+      if (auto && !result.sawFace) return toIdle()
+      return fail(result.problem || 'No Face Found')
+    }
+    const check = await cmd.faceVerify(result.samples, result.blinked).catch(() => null)
+    const scores = check ? `Match ${Math.round(check.score * 100)}% (needs 55) · real ${Math.round(check.real * 100)} · live ${Math.round(check.live * 100)}` : ''
+    if (check?.verdict === 'match') {
+      camera.stop()
       setPhase('success')
       setMessage('')
-    } else if (verdict === 'lockedOut') {
+    } else if (check?.verdict === 'lockedOut') {
       setLockedOut(true)
-      fail('Use your PIN to unlock')
-    } else if (verdict === 'notEnrolled') {
+      camera.stop()
+      fail('Use your PIN to unlock', scores)
+    } else if (check?.verdict === 'notEnrolled') {
       setEnrolled(false)
       void hello()
     } else {
-      fail('Face Not Recognized')
+      fail('Face Not Recognized', scores)
     }
   }
 
   const attempt = () => {
-    if (busy() || Date.now() - openedAt < OPEN_GRACE_MS) return
+    if (busy() || !settled()) return
     void (useFace() ? scan() : hello())
   }
 
@@ -173,7 +213,7 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
 
   const glyph = (): GlyphState => phase() === 'scanning' ? 'scanning' : phase() === 'success' ? 'success' : phase() === 'failed' ? 'fail' : 'face'
   const hud = () => phase() === 'scanning' || phase() === 'success' || phase() === 'failed'
-  const pillLabel = () => phase() === 'hello' ? 'Windows Hello' : useFace() ? 'Press any key to use Face Unlock' : 'Press any key to unlock'
+  const pillLabel = () => phase() === 'hello' ? 'Windows Hello' : useFace() ? 'Look at your PC to unlock' : 'Press any key to unlock'
 
   return (
     <>
@@ -188,6 +228,9 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
             <p class="face-hud__label">{message() || 'Face Unlock'}</p>
           </Show>
         </div>
+        <Show when={phase() === 'failed' && detail()}>
+          <p class="face-hud__detail">{detail()}</p>
+        </Show>
         <Show when={phase() === 'failed'}>
           <div class="face-hud__actions">
             <Show when={useFace()}>

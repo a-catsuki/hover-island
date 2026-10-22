@@ -12,6 +12,9 @@ const MIN_FACE_WIDTH = 0.18
 const EYES = [[33, 133, 159, 145], [362, 263, 386, 374]] as const
 /** A frame that takes longer than this has hung the GPU backend. */
 const FRAME_TIMEOUT_MS = 10_000
+/** The first frames also compile GPU shaders, which slow GPUs take a while over. */
+const FIRST_FRAME_TIMEOUT_MS = 30_000
+let framesDone = 0
 /** Backend failures in a row before switching to the slower CPU backend. */
 const GPU_FAILURES = 2
 
@@ -41,6 +44,10 @@ const CONFIG: Partial<Config> = {
   segmentation: { enabled: false },
 }
 
+/** Detector and mesh only: enough to find the face, its pose and its eyes, several times faster. */
+const QUICK: Partial<Config> = { face: { description: { enabled: false }, antispoof: { enabled: false }, liveness: { enabled: false } } }
+const FULL: Partial<Config> = { face: { description: { enabled: true }, antispoof: { enabled: true }, liveness: { enabled: true } } }
+
 let engine: Promise<Human> | null = null
 let backend: 'webgl' | 'cpu' = 'webgl'
 let gpuFailures = 0
@@ -48,16 +55,64 @@ let gpuFailures = 0
 const timeout = <T,>(promise: Promise<T>, ms: number, what: string) =>
   Promise.race([promise, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${what} timed out`)), ms))])
 
+/**
+ * Runs every loaded model once on zeros. The first run of a model compiles its GPU shaders,
+ * which takes seconds; doing it while the screen sits idle makes the first scan as fast as the
+ * rest. (Human's own warmup fetches a data: URL, which the app's content security policy blocks.)
+ */
+function compileModels(human: Human): void {
+  const tf = human.tf
+  for (const model of Object.values(human.models.models)) {
+    const shape = model?.inputs?.[0]?.shape
+    if (!model || !shape) continue
+    try {
+      tf.tidy(() => {
+        const input = tf.zeros(shape.map((size: number) => (size > 0 ? size : 1)))
+        const output = model.execute(input)
+        // Read one value so the GPU actually runs the graph now.
+        const first = Array.isArray(output) ? output[0] : output
+        first.dataSync()
+      })
+    } catch (error) {
+      // Only a speed-up; the model still compiles on its first real frame.
+      console.warn('Face unlock: could not precompile a model', error)
+    }
+  }
+}
+
+/**
+ * One full detection on a sample face at the camera's frame size, so the crop and resize steps
+ * around the models are compiled too and the first real frame is as fast as the rest.
+ */
+async function warmUp(human: Human): Promise<void> {
+  try {
+    const image = new Image()
+    image.src = `${CONFIG.modelBasePath}warmup.jpg`
+    await image.decode()
+    const canvas = document.createElement('canvas')
+    canvas.width = 640
+    canvas.height = 480
+    const context = canvas.getContext('2d')
+    if (!context) return
+    context.fillStyle = '#000'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    const size = Math.min(canvas.height, image.naturalHeight * (canvas.height / image.naturalHeight))
+    context.drawImage(image, (canvas.width - size) / 2, 0, size, size)
+    await timeout(human.detect(canvas, FULL), FIRST_FRAME_TIMEOUT_MS, 'Face models')
+    framesDone = 3
+  } catch (error) {
+    // Only a speed-up; the first real frame compiles whatever is left.
+    console.warn('Face unlock: warmup failed', error)
+  }
+}
+
 async function createEngine(kind: 'webgl' | 'cpu'): Promise<Human> {
   const { Human } = await import('@vladmandic/human')
   const human = new Human({ ...CONFIG, backend: kind })
   await human.load()
-  // Runs the models once now, so the first real scan starts faster and a broken GPU shows up
-  // here. Human's own warmup fetches a data: URL, which the app's content security policy blocks.
-  const blank = document.createElement('canvas')
-  blank.width = blank.height = 128
-  const result = await timeout(human.detect(blank), FRAME_TIMEOUT_MS * 3, 'Face models')
-  if (result.error) throw new Error(result.error)
+  await timeout(human.tf.ready(), FRAME_TIMEOUT_MS, 'Face models')
+  compileModels(human)
+  await warmUp(human)
   return human
 }
 
@@ -76,10 +131,12 @@ export function loadFaceEngine(): Promise<Human> {
 export const faceBackend = () => backend
 
 /** One detection. Repeated backend failures switch to the CPU backend for the next frame. */
-async function detect(video: HTMLVideoElement): Promise<Result> {
+async function detect(video: HTMLVideoElement, full: boolean): Promise<Result> {
   const human = await loadFaceEngine()
   try {
-    const result = await timeout(human.detect(video), FRAME_TIMEOUT_MS, 'Face detection')
+    const limit = framesDone < 3 ? FIRST_FRAME_TIMEOUT_MS : FRAME_TIMEOUT_MS
+    const result = await timeout(human.detect(video, full ? FULL : QUICK), limit, 'Face detection')
+    framesDone++
     gpuFailures = 0
     // A soft error, such as the video not being ready yet; the next frame may be fine.
     if (result.error) throw new Error(result.error)
@@ -89,6 +146,7 @@ async function detect(video: HTMLVideoElement): Promise<Result> {
       console.error('Face unlock: GPU detection keeps failing, using CPU', error)
       backend = 'cpu'
       engine = null
+      framesDone = 0
     }
     throw error
   }
@@ -102,18 +160,28 @@ export interface FaceFrame {
   pitch: number
   /** Eye openness: lid gap over eye width, averaged over both eyes. Drops sharply in a blink. */
   eyes: number | null
+  /** Only on full reads of a usable face. */
   sample: FaceSample | null
 }
 
 export class FaceCamera {
   readonly video = document.createElement('video')
   private stream: MediaStream | null = null
+  private starting: Promise<void> | null = null
 
-  async start(): Promise<void> {
+  /** Starts the camera, or joins a start already under way. */
+  start(): Promise<void> {
+    this.starting ??= this.open().finally(() => { this.starting = null })
+    return this.starting
+  }
+
+  private async open(): Promise<void> {
+    if (this.stream) return
     this.video.muted = true
     this.video.playsInline = true
-    this.stream = await navigator.mediaDevices.getUserMedia({ video: CAMERA, audio: false })
-    this.video.srcObject = this.stream
+    const stream = await navigator.mediaDevices.getUserMedia({ video: CAMERA, audio: false })
+    this.stream = stream
+    this.video.srcObject = stream
     await this.video.play()
     // Detection skips a video that has no current frame yet.
     if (this.video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
@@ -128,25 +196,29 @@ export class FaceCamera {
     this.video.srcObject = null
   }
 
-  /** Reads one frame. Throws when detection itself fails, so callers can say so. */
-  async read(frontalOnly = true): Promise<FaceFrame> {
-    const result = await detect(this.video)
+  /**
+   * Reads one frame. A quick read finds the face, pose and eyes; a full read also runs the
+   * identity, anti-spoof and liveness models. Throws when detection itself fails.
+   */
+  async read(options: { full?: boolean; frontalOnly?: boolean } = {}): Promise<FaceFrame> {
+    const full = options.full ?? true
+    const result = await detect(this.video, full)
     const faces = result.face.filter(face => face.score >= 0.5)
     if (faces.length === 0) return { problem: null, yaw: 0, pitch: 0, eyes: null, sample: null }
     if (faces.length > 1) return { problem: 'many', yaw: 0, pitch: 0, eyes: null, sample: null }
-    return toFrame(faces[0], this.video.videoWidth || 640, frontalOnly)
+    return toFrame(faces[0], this.video.videoWidth || 640, full, options.frontalOnly ?? true)
   }
 }
 
-function toFrame(face: FaceResult, frameWidth: number, frontalOnly: boolean): FaceFrame {
+function toFrame(face: FaceResult, frameWidth: number, full: boolean, frontalOnly: boolean): FaceFrame {
   const angle = face.rotation?.angle
   // The preview is mirrored, so flip yaw to match what the user sees.
   const yaw = -(angle?.yaw ?? 0)
   const pitch = -(angle?.pitch ?? 0)
   const base = { yaw, pitch, eyes: eyeOpenness(face) }
   if (face.box[2] / frameWidth < MIN_FACE_WIDTH) return { ...base, problem: 'far', sample: null }
-  if (!face.embedding || face.embedding.length < 64) return { ...base, problem: 'none', sample: null }
   if (frontalOnly && Math.hypot(yaw, pitch) > FRONTAL) return { ...base, problem: 'turned', sample: null }
+  if (!full || !face.embedding || face.embedding.length < 64) return { ...base, problem: 'none', sample: null }
   return { ...base, problem: 'none', sample: { descriptor: Array.from(face.embedding), real: face.real ?? 0, live: face.live ?? 0 } }
 }
 
@@ -162,7 +234,7 @@ function eyeOpenness(face: FaceResult): number | null {
 
 /**
  * Watches eye openness for one blink: open, clearly closed, open again. A printed photo cannot
- * blink, so a scan only counts once this has seen one.
+ * blink, so with the blink setting on a scan only counts once this has seen one.
  */
 export class BlinkWatch {
   private open = 0
