@@ -151,3 +151,61 @@ test('hiding ambient cancels a pending first-frame wait and removes its listener
   assert.equal(listeners.size, 0)
   assert.equal(stopped, 1)
 })
+
+async function cameraFixture(faces, dimensions = [640, 480]) {
+  const calls = [], captures = []
+  const context = { fillRect() {}, drawImage: (...args) => captures.push(args) }
+  const video = { videoWidth: dimensions[0], videoHeight: dimensions[1] }
+  class Human {
+    tf = { ready: async () => {} }
+    async load() {}
+    async detect(input, config) { calls.push({ input, config }); return { face: faces } }
+  }
+  const api = await load('ambient/face.ts', {
+    require: () => ({ Human }),
+    Image: class { naturalHeight = 480; async decode() {} },
+    document: { createElement: tag => tag === 'video' ? video : { width: 0, height: 0, getContext: () => context } },
+  })
+  await api.loadFaceEngine()
+  calls.length = captures.length = 0
+  return { camera: new api.FaceCamera(), calls, captures }
+}
+
+const usableFace = () => ({ score: .99, box: [0, 0, 300, 300], rotation: { angle: { yaw: 0, pitch: 0 } }, embedding: Array(128).fill(.1), real: .9, live: .95 })
+
+test('unusable camera frames skip identity and liveness inference', async () => {
+  for (const [faces, problem] of [
+    [[], null], [[usableFace(), usableFace()], 'many'],
+    [[{ ...usableFace(), box: [0, 0, 20, 20] }], 'far'],
+    [[{ ...usableFace(), rotation: { angle: { yaw: 1, pitch: 0 } } }], 'turned'],
+  ]) {
+    const { camera, calls } = await cameraFixture(faces)
+    const frame = await camera.read()
+    assert.equal(frame.problem, problem)
+    assert.equal(frame.sample, null)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].config.face.description.enabled, false)
+    assert.equal(calls[0].config.face.antispoof.enabled, false)
+    assert.equal(calls[0].config.face.liveness.enabled, false)
+    camera.stop()
+  }
+})
+
+test('a high-resolution camera uses one bounded frame for full identity and liveness scoring', async () => {
+  const { camera, calls, captures } = await cameraFixture([usableFace()], [7680, 4320])
+  const frame = await camera.read()
+  assert.equal(frame.problem, 'none')
+  assert.equal(frame.sample.descriptor.length, 128)
+  assert.equal(frame.sample.real, .9)
+  assert.equal(frame.sample.live, .95)
+  assert.equal(calls.length, 2)
+  assert.equal(captures.length, 1)
+  assert.equal(calls[0].input, calls[1].input, 'both passes score the same captured image')
+  assert.equal(calls[0].input.width, 640)
+  assert.equal(calls[0].input.height, 360)
+  assert.equal(calls[1].config.face.description.enabled, true)
+  assert.equal(calls[1].config.face.antispoof.enabled, true)
+  assert.equal(calls[1].config.face.liveness.enabled, true)
+  camera.stop()
+  assert.equal(calls[0].input.width * calls[0].input.height, 0, 'stopping releases the capture backing store')
+})

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 const { chromium } = createRequire(import.meta.url)(process.env.PLAYWRIGHT_MODULE_PATH ?? join(homedir(), '.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'))
 const base = join(process.env.LOCALAPPDATA, 'ms-playwright')
 const executablePath = existsSync(chromium.executablePath()) ? undefined : readdirSync(base).filter(n => /^chromium-\d+$/.test(n)).sort((a,b) => +b.split('-')[1] - +a.split('-')[1]).map(n => join(base,n,'chrome-win64/chrome.exe')).find(existsSync)
-const browser = await chromium.launch({ headless: true, executablePath })
+const browser = await chromium.launch({ headless: true, executablePath, args: ['--disable-gpu'] })
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
 const errors = [], results = []
 page.on('pageerror', error => { errors.push(error.message); console.error('Browser error:', error.message) })
@@ -125,7 +125,28 @@ try {
   await page.waitForTimeout(150)
   assert.equal(await page.locator('.ambient__canvas').evaluate(node => node.toDataURL()), still, 'reduced motion keeps the canvas still')
   results.push({ flow: 'All five scenes and four clocks render; reduced motion stops canvas animation' })
-  await page.screenshot({ path: 'docs/verification/instant-unlock-ambient.png' })
+  const allocations = await page.evaluate(async () => {
+    const originalWidth = Object.getOwnPropertyDescriptor(window,'innerWidth')
+    const originalHeight = Object.getOwnPropertyDescriptor(window,'innerHeight')
+    const readings = []
+    try {
+      for (const [width,height] of [[1920,1080],[3840,2160],[7680,4320],[1080,7680]]) {
+        Object.defineProperty(window,'innerWidth',{configurable:true,value:width})
+        Object.defineProperty(window,'innerHeight',{configurable:true,value:height})
+        window.dispatchEvent(new Event('resize'))
+        await new Promise(requestAnimationFrame)
+        readings.push({width,height,backdrop:[...document.querySelectorAll('.ambient__backdrop')].map(c=>c.width*c.height*4),scene:[...document.querySelectorAll('.ambient__canvas')].map(c=>c.width*c.height*4)})
+      }
+    } finally {
+      if(originalWidth)Object.defineProperty(window,'innerWidth',originalWidth);else delete window.innerWidth
+      if(originalHeight)Object.defineProperty(window,'innerHeight',originalHeight);else delete window.innerHeight
+      window.dispatchEvent(new Event('resize'))
+    }
+    return readings
+  })
+  assert.ok(allocations.every(r=>r.backdrop.length===1 && r.backdrop[0]<=655360 && r.scene.length===1 && r.scene[0]<=2304000))
+  results.push({ flow: 'Backdrop and scene bitmap allocations stay bounded across landscape, portrait and simulated 8K logical viewports', allocations })
+  await page.screenshot({ path: process.env.FACE_SMOKE_SCREENSHOT ?? 'docs/verification/instant-unlock-ambient.png' })
   await page.evaluate(async () => {
     const { patchSettings, settings, flushSettings } = await import('/src/state/settings.ts')
     patchSettings({ ambient: { ...settings.ambient, faceCameraReady: true } })
@@ -138,12 +159,14 @@ try {
   })
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.waitForFunction(() => (window.modelLoads || 0) > 0)
+  assert.equal(await page.locator('canvas').count(), 0, 'a prepared page allocates no visual backing bitmaps')
   assert.equal(await page.evaluate(() => window.cameraStarts || 0), 0, 'prewarm must never switch the webcam on, even with keep-ready enabled')
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('ambient://shown')))
   await page.waitForFunction(() => (window.cameraStarts || 0) > 0)
   const beforeHide = await page.evaluate(() => window.cameraStops || 0)
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('ambient://hidden')))
   assert.ok(await page.evaluate(() => window.cameraStops || 0) > beforeHide)
+  assert.equal(await page.locator('canvas').count(), 0, 'hiding releases every scene and backdrop canvas')
   results.push({ flow: 'Hidden prewarm loads models without the webcam; keep-ready opens only when shown and stops on hide' })
   assert.deepEqual(errors, [])
   await writeFile(process.env.FACE_SMOKE_RECORD ?? 'docs/verification/instant-unlock-smoke.json', JSON.stringify({ boundary: 'Actual Solid ambient UI, simulated camera/models/native responses. Does not measure physical webcam recognition.', results, errors }, null, 2) + '\n')

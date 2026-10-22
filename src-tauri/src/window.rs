@@ -254,6 +254,7 @@ pub fn main_hidden_by_user() -> bool {
 
 pub fn show_main(app: &AppHandle) -> tauri::Result<()> {
     MAIN_HIDDEN_BY_USER.store(false, Ordering::Relaxed);
+    if crate::runtime_memory::ambient_covering() { return Ok(()); }
     if let Some(win) = app.get_webview_window("main") {
         win.show()?;
         win.set_focus()?;

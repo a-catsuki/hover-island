@@ -1,6 +1,7 @@
 mod agent_events;
 mod airdrop;
 mod apps;
+mod app_inventory;
 mod audio;
 mod awake;
 mod awake_core;
@@ -28,6 +29,8 @@ mod reminder_core;
 mod reminders;
 mod reset_watch;
 mod runtime_memory;
+mod runtime_audit;
+mod bounded_cache;
 mod settings;
 mod sound;
 mod spotlight;
@@ -642,6 +645,9 @@ fn configure_process_resources() {
             "--disable-background-networking ",
             "--disable-breakpad ",
             "--disable-gpu-shader-disk-cache ",
+            // This small 2D surface does not need a driver-sized raster cache.
+            // Keep face inference on SIMD WASM and avoid the measured D3D spikes.
+            "--disable-gpu ",
             "--no-pings ",
             "--js-flags=\"--max-old-space-size=96 --max-semi-space-size=4\""
         );
@@ -743,6 +749,7 @@ pub fn run() {
             system_events::spawn(app.handle().clone());
             awake::spawn(app.handle().clone());
             reminders::spawn(app.handle().clone());
+            runtime_audit::start(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

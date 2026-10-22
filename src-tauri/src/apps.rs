@@ -1,7 +1,6 @@
 use crate::state::AppState;
 use crate::types::InstalledApp;
 use serde::Serialize;
-use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -13,10 +12,10 @@ use tauri_plugin_opener::OpenerExt;
 
 const MAX_APPS: usize = 1500;
 const CACHE_TTL: Duration = Duration::from_secs(60);
-const INVENTORY_TIMEOUT: Duration = Duration::from_secs(12);
 const ICON_TIMEOUT: Duration = Duration::from_secs(5);
 const ICON_MISS_RETRY: Duration = Duration::from_secs(300);
-const MAX_ICON_CACHE: usize = 512;
+const MAX_ICON_CACHE: usize = 96;
+const MAX_ICON_CACHE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_ICON_WORKERS: usize = 4;
 
 /* ------------------------------ small helpers ---------------------------- */
@@ -226,24 +225,6 @@ fn start_menu_apps() -> Vec<(InstalledApp, Option<String>)> {
         .collect()
 }
 
-const INVENTORY_SCRIPT: &str = "$ErrorActionPreference='SilentlyContinue';[Console]::OutputEncoding=[Text.Encoding]::UTF8;\
-$u=@(Get-StartApps | Where-Object { $_.AppID -match '!' } | ForEach-Object { @{n=$_.Name;i=$_.AppID} });\
-$k='HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*';\
-$r=@(Get-ItemProperty $k | Where-Object { $_.DisplayName -and -not $_.SystemComponent -and -not $_.ParentKeyName } | ForEach-Object { @{n=$_.DisplayName;i=$_.DisplayIcon;l=$_.InstallLocation} });\
-@{u=$u;r=$r} | ConvertTo-Json -Compress -Depth 4";
-
-fn json_list(value: Option<&Value>) -> Vec<&Value> {
-    match value {
-        Some(Value::Array(items)) => items.iter().collect(),
-        Some(object @ Value::Object(_)) => vec![object],
-        _ => Vec::new(),
-    }
-}
-
-fn json_str<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
-    value.get(key)?.as_str().map(str::trim).filter(|s| !s.is_empty())
-}
-
 /// Executable named by a registry `DisplayIcon` value (`"C:\\x\\a.exe",0`), if it exists.
 fn exe_from_display_icon(value: &str) -> Option<String> {
     let trimmed = value.trim();
@@ -267,36 +248,23 @@ fn noisy_registry_name(name: &str) -> bool {
 }
 
 /// Packaged (UWP/MSIX) apps from the Start menu and installed desktop programs from the registry.
-fn powershell_inventory() -> (Vec<(String, String)>, Vec<(String, String)>) {
-    let mut command = hidden_command("powershell.exe");
-    command.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", INVENTORY_SCRIPT]);
-    let Some(stdout) = run_with_timeout(command, INVENTORY_TIMEOUT) else {
-        return (Vec::new(), Vec::new());
-    };
-    let text = String::from_utf8_lossy(&stdout);
-    let Ok(root) = serde_json::from_str::<Value>(text.trim().trim_start_matches('\u{feff}')) else {
-        return (Vec::new(), Vec::new());
-    };
-    let uwp = json_list(root.get("u"))
-        .into_iter()
-        .filter_map(|item| Some((json_str(item, "n")?.to_string(), json_str(item, "i")?.to_string())))
+fn native_inventory() -> (Vec<(String, String)>, Vec<(String, String)>) {
+    let inventory = crate::app_inventory::read();
+    let uwp = inventory.packaged.into_iter()
         .filter(|(_, id)| looks_like_aumid(id))
         .collect();
-    let registry = json_list(root.get("r"))
-        .into_iter()
-        .filter_map(|item| {
-            let name = json_str(item, "n")?;
-            if noisy_registry_name(name) {
+    let registry = inventory.desktop.into_iter()
+        .filter_map(|(name, icon, location)| {
+            if noisy_registry_name(&name) {
                 return None;
             }
-            let exe = json_str(item, "i")
-                .and_then(exe_from_display_icon)
+            let exe = exe_from_display_icon(&icon)
                 .or_else(|| {
                     // No usable DisplayIcon: accept <InstallLocation>\<DisplayName>.exe.
-                    let guess = Path::new(json_str(item, "l")?).join(format!("{name}.exe"));
+                    let guess = Path::new(&location).join(format!("{name}.exe"));
                     guess.is_file().then(|| guess.to_string_lossy().to_string())
                 })?;
-            Some((name.to_string(), exe))
+            Some((name, exe))
         })
         .collect();
     (uwp, registry)
@@ -324,7 +292,7 @@ pub fn list() -> Vec<InstalledApp> {
         }
         apps.push(app);
     }
-    let (uwp, registry) = powershell_inventory();
+    let (uwp, registry) = native_inventory();
     for (name, aumid) in uwp {
         if skip_name(&name) || !seen_names.insert(norm(&name)) {
             continue;
@@ -646,7 +614,7 @@ enum IconEntry {
     Miss(Instant),
 }
 
-static ICONS: Mutex<Option<HashMap<String, IconEntry>>> = Mutex::new(None);
+static ICONS: Mutex<Option<crate::bounded_cache::BoundedCache<IconEntry>>> = Mutex::new(None);
 static ICON_WORKERS: AtomicUsize = AtomicUsize::new(0);
 
 struct IconSlot;
@@ -681,8 +649,8 @@ fn icon_px(requested: u32) -> i32 {
 
 fn icon_for(app: &InstalledApp, px: i32) -> Option<String> {
     let key = format!("{}|{}", app.id, px);
-    if let Ok(guard) = ICONS.lock() {
-        match guard.as_ref().and_then(|cache| cache.get(&key)) {
+    if let Ok(mut guard) = ICONS.lock() {
+        match guard.as_mut().and_then(|cache| cache.get(&key)) {
             Some(IconEntry::Hit(icon)) => return Some(icon.clone()),
             Some(IconEntry::Miss(at)) if at.elapsed() < ICON_MISS_RETRY => return None,
             _ => {}
@@ -696,16 +664,14 @@ fn icon_for(app: &InstalledApp, px: i32) -> Option<String> {
     let icon = IconSlot::acquire()
         .and_then(|_slot| crate::notification_icon::shell_icon_sized(&parsing_name, px, ICON_TIMEOUT));
     if let Ok(mut guard) = ICONS.lock() {
-        let cache = guard.get_or_insert_with(HashMap::new);
-        if cache.len() >= MAX_ICON_CACHE {
-            cache.clear();
-        }
+        let cache = guard.get_or_insert_with(||crate::bounded_cache::BoundedCache::new(MAX_ICON_CACHE,MAX_ICON_CACHE_BYTES));
         cache.insert(
             key,
             match &icon {
                 Some(icon) => IconEntry::Hit(icon.clone()),
                 None => IconEntry::Miss(Instant::now()),
             },
+            icon.as_ref().map_or(0,String::capacity),
         );
     }
     icon

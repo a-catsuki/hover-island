@@ -1,4 +1,5 @@
 import { onCleanup, onMount } from 'solid-js'
+import { ambientSurfaceSize } from '../lib/ambientSurface'
 
 /** What a canvas scene reads each frame: its colours and how loud the music is right now. */
 export interface SceneInput {
@@ -19,8 +20,10 @@ function useCanvas(draw: (context: CanvasRenderingContext2D, width: number, heig
     let width = 0
     let height = 0
     const resize = () => {
-      width = canvas!.width = window.innerWidth
-      height = canvas!.height = window.innerHeight
+      width = window.innerWidth; height = window.innerHeight
+      const size = ambientSurfaceSize(width,height,960,600)
+      canvas!.width = size.width; canvas!.height = size.height
+      context.setTransform(size.width/width,0,0,size.height/height,0,0)
     }
     resize()
     window.addEventListener('resize', resize)
@@ -28,6 +31,7 @@ function useCanvas(draw: (context: CanvasRenderingContext2D, width: number, heig
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
     let frame = 0
     const loop = (now: number) => {
+      if (!reduced.matches && now-last < 50) { frame = requestAnimationFrame(loop); return }
       // The first frame time can be a little before `last`.
       const dt = Math.max(0, Math.min(0.1, (now - last) / 1000))
       last = now
@@ -38,7 +42,7 @@ function useCanvas(draw: (context: CanvasRenderingContext2D, width: number, heig
     repaint()
     reduced.addEventListener('change', repaint)
     window.addEventListener('resize', repaint)
-    onCleanup(() => { cancelAnimationFrame(frame); reduced.removeEventListener('change', repaint); window.removeEventListener('resize', repaint); window.removeEventListener('resize', resize) })
+    onCleanup(() => { cancelAnimationFrame(frame); reduced.removeEventListener('change', repaint); window.removeEventListener('resize', repaint); window.removeEventListener('resize', resize); canvas!.width = canvas!.height = 1 })
   })
   return <canvas class="ambient__canvas" ref={canvas} aria-hidden="true" />
 }

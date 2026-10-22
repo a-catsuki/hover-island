@@ -1,0 +1,88 @@
+{
+  "boundary": "Actual Solid ambient UI, simulated camera/models/native responses. Does not measure physical webcam recognition.",
+  "results": [
+    {
+      "flow": "Camera readiness starts as soon as enrolled ambient becomes visible, before unlock input"
+    },
+    {
+      "flow": "First good frame unlocks without waiting for a second frame",
+      "fixtureMs": 20
+    },
+    {
+      "flow": "camera-hang reaches PIN fallback",
+      "fixtureMs": 2943
+    },
+    {
+      "flow": "models-hang reaches PIN fallback",
+      "fixtureMs": 2936
+    },
+    {
+      "flow": "frame-hang reaches PIN fallback",
+      "fixtureMs": 2926
+    },
+    {
+      "flow": "A clear mismatch finishes promptly with one counted final check"
+    },
+    {
+      "flow": "PIN is available while scanning and cancels a late face result"
+    },
+    {
+      "flow": "Hiding a warm ambient page stops the camera and discards an in-flight scan"
+    },
+    {
+      "flow": "A reused warm page unlocks again after cancellation"
+    },
+    {
+      "flow": "All five scenes and four clocks render; reduced motion stops canvas animation"
+    },
+    {
+      "flow": "Backdrop and scene bitmap allocations stay bounded across landscape, portrait and simulated 8K logical viewports",
+      "allocations": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "backdrop": [
+            589824
+          ],
+          "scene": [
+            2073600
+          ]
+        },
+        {
+          "width": 3840,
+          "height": 2160,
+          "backdrop": [
+            589824
+          ],
+          "scene": [
+            2073600
+          ]
+        },
+        {
+          "width": 7680,
+          "height": 4320,
+          "backdrop": [
+            589824
+          ],
+          "scene": [
+            2073600
+          ]
+        },
+        {
+          "width": 1080,
+          "height": 7680,
+          "backdrop": [
+            57600
+          ],
+          "scene": [
+            201600
+          ]
+        }
+      ]
+    },
+    {
+      "flow": "Hidden prewarm loads models without the webcam; keep-ready opens only when shown and stops on hide"
+    }
+  ],
+  "errors": []
+}

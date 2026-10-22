@@ -13,7 +13,7 @@
 //! the caller gets `None` and the interface draws a coloured letter tile.
 
 use base64::Engine;
-use std::collections::HashMap;
+use crate::bounded_cache::BoundedCache;
 use std::io::Write;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -22,19 +22,20 @@ const ICON_PX: i32 = 96;
 const MAX_ICON_BYTES: usize = 256 * 1024;
 const MISS_RETRY: Duration = Duration::from_secs(300);
 const SHELL_TIMEOUT: Duration = Duration::from_secs(3);
-const MAX_CACHE_ENTRIES: usize = 256;
+const MAX_CACHE_ENTRIES: usize = 64;
+const MAX_CACHE_BYTES: usize = 1024 * 1024;
 
 enum Entry {
     Hit(String),
     Miss(Instant),
 }
 
-static CACHE: Mutex<Option<HashMap<String, Entry>>> = Mutex::new(None);
+static CACHE: Mutex<Option<BoundedCache<Entry>>> = Mutex::new(None);
 
 /// Icon for one app, cached by AppUserModelId (or display name when Windows gave no id).
 pub fn resolve(app_key: &str, info: Option<&windows::ApplicationModel::AppInfo>) -> Option<String> {
-    if let Ok(guard) = CACHE.lock() {
-        match guard.as_ref().and_then(|cache| cache.get(app_key)) {
+    if let Ok(mut guard) = CACHE.lock() {
+        match guard.as_mut().and_then(|cache| cache.get(app_key)) {
             Some(Entry::Hit(icon)) => return Some(icon.clone()),
             Some(Entry::Miss(when)) if when.elapsed() < MISS_RETRY => return None,
             _ => {}
@@ -44,16 +45,14 @@ pub fn resolve(app_key: &str, info: Option<&windows::ApplicationModel::AppInfo>)
         .and_then(|info| package_logo(info).ok().flatten())
         .or_else(|| shell_icon(app_key));
     if let Ok(mut guard) = CACHE.lock() {
-        let cache = guard.get_or_insert_with(HashMap::new);
-        if cache.len() >= MAX_CACHE_ENTRIES {
-            cache.clear();
-        }
+        let cache = guard.get_or_insert_with(||BoundedCache::new(MAX_CACHE_ENTRIES,MAX_CACHE_BYTES));
         cache.insert(
             app_key.to_string(),
             match &icon {
                 Some(icon) => Entry::Hit(icon.clone()),
                 None => Entry::Miss(Instant::now()),
             },
+            icon.as_ref().map_or(0,String::capacity),
         );
     }
     icon

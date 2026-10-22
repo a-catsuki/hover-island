@@ -3,7 +3,7 @@ import { cmd, type InstalledApp } from './ipc'
 /**
  * Shared logo pipeline for app lists. Installed apps are read once, logos are
  * fetched lazily (a few at a time) through `cmd.appsIcon` when the native side
- * provides it, and every result is cached in memory for the life of the window.
+ * provides it. Both resolved logos and queued work have explicit budgets.
  */
 type IconCommand = (id: string, size: number) => Promise<string | null | undefined>
 const iconCommand = (): IconCommand | undefined => (cmd as unknown as { appsIcon?: IconCommand }).appsIcon
@@ -11,7 +11,12 @@ const iconCommand = (): IconCommand | undefined => (cmd as unknown as { appsIcon
 let installedPromise: Promise<InstalledApp[]> | null = null
 let byName: Map<string, InstalledApp> | null = null
 let installedList: InstalledApp[] = []
-const icons = new Map<string, Promise<string | null>>()
+const icons = new Map<string, string | null>()
+const pendingIcons = new Map<string, Promise<string | null>>()
+const MAX_ICONS = 96
+const MAX_ICON_BYTES = 2 * 1024 * 1024
+let iconBytes = 0
+let cacheGeneration = 0
 const queue: (() => void)[] = []
 let running = 0
 const LIMIT = 4
@@ -68,18 +73,38 @@ export function loadAppIcon(app: Pick<InstalledApp, 'id' | 'icon'>, size = 64): 
   const command = iconCommand()
   if (!command) return Promise.resolve(null)
   const key = `${app.id}:${size}`
-  let pending = icons.get(key)
+  if (icons.has(key)) {
+    const icon = icons.get(key)!
+    icons.delete(key); icons.set(key, icon)
+    return Promise.resolve(icon)
+  }
+  let pending = pendingIcons.get(key)
   if (!pending) {
+    // A fast scroll cannot queue the entire installed app catalogue.
+    if (pendingIcons.size >= MAX_ICONS) return Promise.resolve(null)
+    const generation = cacheGeneration
     pending = new Promise<string | null>(resolve => {
       queue.push(() => {
-        command(app.id, size).then(value => resolve(value && value.length > 32 ? value : null), () => resolve(null)).finally(() => { running--; pump() })
+        Promise.resolve().then(() => command(app.id, size)).then(value => {
+          const icon = value && value.length > 32 ? value : null
+          const weight = (key.length + (icon?.length ?? 0)) * 2 + 128
+          if (generation === cacheGeneration && weight <= MAX_ICON_BYTES) {
+            while (icons.size && (icons.size >= MAX_ICONS || iconBytes + weight > MAX_ICON_BYTES)) {
+              const oldest = icons.keys().next().value!
+              iconBytes -= (oldest.length + (icons.get(oldest)?.length ?? 0)) * 2 + 128
+              icons.delete(oldest)
+            }
+            icons.set(key, icon); iconBytes += weight
+          }
+          pendingIcons.delete(key); resolve(icon)
+        }, () => { pendingIcons.delete(key); resolve(null) }).finally(() => { running--; pump() })
       })
       pump()
     })
-    icons.set(key, pending)
+    pendingIcons.set(key, pending)
   }
   return pending
 }
 
 /** Test and refresh hook: forget cached logos. */
-export function clearAppIconCache() { icons.clear() }
+export function clearAppIconCache() { icons.clear(); iconBytes = 0; cacheGeneration++ }
