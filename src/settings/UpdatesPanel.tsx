@@ -1,6 +1,6 @@
 import { createSignal, onCleanup, onMount, Show } from 'solid-js'
 import { browserPreview, cmd, listen, type UpdateStatus } from '../lib/ipc'
-import { patchSettings, settings } from '../state/settings'
+import { flushSettings, patchSettings, settings } from '../state/settings'
 import { Field, Group, Toggle } from './controls'
 
 /** Check for a newer build and install it in place. Settings and data stay as they are. */
@@ -34,6 +34,7 @@ export default function UpdatesPanel() {
     setProblem('')
     try {
       if (browserPreview) return
+      await flushSettings()
       await cmd.updateInstall()
       // Windows replaces the app and reopens it; this window goes away with it.
     } catch (error) {

@@ -150,13 +150,18 @@ pub struct AmbientCfg {
     pub lock_after_minutes: u32,
     /// Face unlock also waits for a blink, which a held-up photo cannot do. Slower, so opt-in.
     pub face_require_blink: bool,
-    /// Backdrop: aurora, album, stars, flow or minimal.
+    /// Keep the webcam on while the soft lock shows, so face unlock starts with no camera delay.
+    pub face_camera_ready: bool,
+    /// Background: aurora, stars, artwork, ripples or black.
     pub scene: String,
-    /// Clock face: thin, bold, outline or stacked.
+    /// Clock face: classic, stacked, analog or words.
     pub clock_style: String,
     /// Colours: auto (album art, else time of day) or a fixed palette.
     pub palette: String,
-    pub show_seconds: bool,
+    /// The background moves with the music that is playing.
+    pub music_reactive: bool,
+    /// A short note shown under the clock, such as "Back in 5". Empty = none.
+    pub note: String,
 }
 impl Default for AmbientCfg {
     fn default() -> Self {
@@ -171,10 +176,12 @@ impl Default for AmbientCfg {
             soft_lock: true,
             lock_after_minutes: 10,
             face_require_blink: false,
+            face_camera_ready: false,
             scene: "aurora".into(),
-            clock_style: "thin".into(),
+            clock_style: "classic".into(),
             palette: "auto".into(),
-            show_seconds: false,
+            music_reactive: true,
+            note: String::new(),
         }
     }
 }
@@ -749,6 +756,24 @@ impl Settings {
         self.ai_toast_providers.truncate(32);
         self.ambient.idle_minutes = self.ambient.idle_minutes.clamp(1, 120);
         self.ambient.lock_after_minutes = self.ambient.lock_after_minutes.min(240);
+        // Carry forward the look choices from the earlier ambient preview build.
+        self.ambient.scene = match self.ambient.scene.as_str() {
+            "album" => "artwork".into(), "flow" => "ripples".into(), "minimal" => "black".into(),
+            _ => self.ambient.scene.clone(),
+        };
+        self.ambient.palette = match self.ambient.palette.as_str() {
+            "ember" => "sunset".into(), "dusk" => "neon".into(), _ => self.ambient.palette.clone(),
+        };
+        if !matches!(self.ambient.scene.as_str(), "aurora" | "stars" | "artwork" | "ripples" | "black") {
+            self.ambient.scene = "aurora".into();
+        }
+        if !matches!(self.ambient.clock_style.as_str(), "classic" | "stacked" | "analog" | "words") {
+            self.ambient.clock_style = "classic".into();
+        }
+        if !matches!(self.ambient.palette.as_str(), "auto" | "sunset" | "ocean" | "forest" | "neon" | "mono") {
+            self.ambient.palette = "auto".into();
+        }
+        self.ambient.note = self.ambient.note.trim().chars().filter(|ch| !ch.is_control()).take(80).collect();
         if !matches!(self.cover_style.as_str(), "classic" | "vinyl" | "cd" | "polaroid" | "stack" | "float") {
             self.cover_style = "classic".into();
         }
@@ -1552,5 +1577,17 @@ mod tests {
         }
         .validated();
         assert_eq!(rings.visualizer.style, "halo");
+    }
+
+    #[test]
+    fn ambient_preview_choices_migrate_and_new_fields_keep_defaults() {
+        let settings = merge_patch(&Settings::default(), serde_json::json!({
+            "ambient": { "scene": "album", "clockStyle": "thin", "palette": "ember" }
+        }));
+        assert_eq!(settings.ambient.scene, "artwork");
+        assert_eq!(settings.ambient.clock_style, "classic");
+        assert_eq!(settings.ambient.palette, "sunset");
+        assert!(!settings.ambient.face_camera_ready);
+        assert!(settings.ambient.music_reactive);
     }
 }

@@ -1169,10 +1169,13 @@ mod tests {
         )
         .unwrap();
         let dirs = dirs_for(&home);
+        assert_eq!(claude_stats(&dirs, now).unwrap().tokens_7d, 2000);
         let snaps = snapshots_in(spec_for("claude-code").unwrap(), &dirs, now);
         let snap = &snaps[0];
         assert_eq!(snap.status, "ok");
-        assert_eq!(snap.used, Some(2000));
+        // Claude rows show provider-reported plan limits; local token totals stay diagnostic.
+        assert_eq!(snap.used, None);
+        assert_eq!(snap.unit, None);
         assert_eq!(snap.window.as_deref(), Some("7d"));
         assert_eq!(snap.activity.as_ref().unwrap().sessions_7d, 3);
         let _ = fs::remove_dir_all(home);

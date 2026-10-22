@@ -224,7 +224,7 @@ fn script_for(package: &std::path::Path) -> String {
     format!(
         "Start-Sleep -Seconds 2\r\n\
          $ErrorActionPreference = 'Stop'\r\n\
-         try {{ Add-AppxPackage -Path '{package}' -ForceUpdateFromAnyVersion }}\r\n\
+         try {{ Add-AppxPackage -Path '{package}' -ForceUpdateFromAnyVersion -ForceApplicationShutdown }}\r\n\
          catch {{ $_.Exception.Message | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'last-error.txt') }}\r\n\
          $p = Get-AppxPackage -Name com.hoverisland.app | Select-Object -First 1\r\n\
          if ($p) {{ Start-Process explorer.exe ('shell:AppsFolder\\' + $p.PackageFamilyName + '!HoverIsland') }}\r\n\
@@ -372,5 +372,6 @@ mod tests {
         let script = script_for(std::path::Path::new("C:\\Users\\O'Neil\\x.msix"));
         assert!(script.contains("O''Neil"));
         assert!(script.contains("Add-AppxPackage"));
+        assert!(script.contains("-ForceApplicationShutdown"));
     }
 }

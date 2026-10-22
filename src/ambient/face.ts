@@ -3,7 +3,7 @@ import type { FaceSample } from '../lib/ipc'
 
 /** Face models run in this page on the GPU, offline. Only descriptors reach native code, which matches them. */
 
-const CAMERA = { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } as const
+const CAMERA = { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } } as const
 /** Head turned further than this (radians) is too far off-axis for a reliable descriptor. */
 const FRONTAL = 0.32
 /** A face narrower than this share of the frame is too far away to trust. */
@@ -51,9 +51,14 @@ const FULL: Partial<Config> = { face: { description: { enabled: true }, antispoo
 let engine: Promise<Human> | null = null
 let backend: 'webgl' | 'cpu' = 'webgl'
 let gpuFailures = 0
+/** A timeout cannot cancel TensorFlow. Never start another detection on a busy engine. */
+let detecting = false
 
-const timeout = <T,>(promise: Promise<T>, ms: number, what: string) =>
-  Promise.race([promise, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${what} timed out`)), ms))])
+const timeout = <T,>(promise: Promise<T>, ms: number, what: string): Promise<T> =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${what} timed out`)), ms)
+    promise.then(value => { clearTimeout(timer); resolve(value) }, error => { clearTimeout(timer); reject(error) })
+  })
 
 /**
  * Runs every loaded model once on zeros. The first run of a model compiles its GPU shaders,
@@ -133,9 +138,13 @@ export const faceBackend = () => backend
 /** One detection. Repeated backend failures switch to the CPU backend for the next frame. */
 async function detect(video: HTMLVideoElement, full: boolean): Promise<Result> {
   const human = await loadFaceEngine()
+  if (detecting) throw new Error('Face detection is still finishing')
+  detecting = true
+  const pending = Promise.resolve().then(() => human.detect(video, full ? FULL : QUICK))
+  void pending.finally(() => { detecting = false }).catch(() => {})
   try {
     const limit = framesDone < 3 ? FIRST_FRAME_TIMEOUT_MS : FRAME_TIMEOUT_MS
-    const result = await timeout(human.detect(video, full ? FULL : QUICK), limit, 'Face detection')
+    const result = await timeout(pending, limit, 'Face detection')
     framesDone++
     gpuFailures = 0
     // A soft error, such as the video not being ready yet; the next frame may be fine.
@@ -168,29 +177,53 @@ export class FaceCamera {
   readonly video = document.createElement('video')
   private stream: MediaStream | null = null
   private starting: Promise<void> | null = null
+  private generation = 0
+
+  /** True once frames are flowing. */
+  get running(): boolean {
+    return this.stream !== null && !this.starting
+  }
 
   /** Starts the camera, or joins a start already under way. */
   start(): Promise<void> {
-    this.starting ??= this.open().finally(() => { this.starting = null })
+    if (this.running) return Promise.resolve()
+    if (this.starting) return this.starting
+    const generation = this.generation
+    const pending = this.open(generation).catch(error => {
+      if (generation === this.generation) this.stop()
+      throw error
+    }).finally(() => {
+      if (this.starting === pending) this.starting = null
+    })
+    this.starting = pending
     return this.starting
   }
 
-  private async open(): Promise<void> {
-    if (this.stream) return
+  private async open(generation: number): Promise<void> {
     this.video.muted = true
     this.video.playsInline = true
     const stream = await navigator.mediaDevices.getUserMedia({ video: CAMERA, audio: false })
+    if (generation !== this.generation) {
+      stream.getTracks().forEach(track => track.stop())
+      throw new Error('Camera start cancelled')
+    }
     this.stream = stream
     this.video.srcObject = stream
     await this.video.play()
+    if (generation !== this.generation) throw new Error('Camera start cancelled')
     // Detection skips a video that has no current frame yet.
     if (this.video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
-      await new Promise(resolve => this.video.addEventListener('canplay', resolve, { once: true }))
+      await timeout(new Promise(resolve => this.video.addEventListener('canplay', resolve, { once: true })), 2500, 'Camera')
     }
+    if (generation !== this.generation) throw new Error('Camera start cancelled')
+    // Stopped while starting: make sure the light goes off.
+    if (this.stream !== stream) stream.getTracks().forEach(track => track.stop())
   }
 
   /** Turns the camera (and its light) off straight away. */
   stop(): void {
+    this.generation++
+    this.starting = null
     this.stream?.getTracks().forEach(track => track.stop())
     this.stream = null
     this.video.srcObject = null

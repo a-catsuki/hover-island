@@ -8,7 +8,7 @@
 //! is enrolled the page tries webcam face unlock first (see `face.rs`) and keeps Hello as the
 //! fallback, like a passcode.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -80,6 +80,7 @@ fn spawn_display_holder() {}
 
 /// The open page needs Windows Hello before it closes.
 static LOCKED: AtomicBool = AtomicBool::new(false);
+static LOCK_SESSION: AtomicU64 = AtomicU64::new(0);
 /// A Hello prompt is showing, so a second key press must not open another.
 static VERIFYING: AtomicBool = AtomicBool::new(false);
 /// The page is the face enrollment flow: input never closes it and it never locks.
@@ -250,6 +251,10 @@ pub(crate) fn is_locked() -> bool {
     LOCKED.load(Ordering::Acquire)
 }
 
+pub(crate) fn lock_session() -> u64 {
+    LOCK_SESSION.load(Ordering::Acquire)
+}
+
 pub(crate) fn is_enrolling() -> bool {
     ENROLLING.load(Ordering::Acquire)
 }
@@ -278,6 +283,7 @@ fn open(app: &AppHandle, mode: Mode) -> Result<(), String> {
             let _ = window.destroy();
         }
     }
+    LOCK_SESSION.fetch_add(1, Ordering::AcqRel);
     LOCKED.store(matches!(mode, Mode::Ambient { soft_lock: true }), Ordering::Release);
     ENROLLING.store(mode == Mode::Enroll, Ordering::Release);
     crate::face::reset_attempts();
@@ -298,6 +304,7 @@ fn open(app: &AppHandle, mode: Mode) -> Result<(), String> {
 }
 
 pub(crate) fn close(app: &AppHandle) {
+    LOCK_SESSION.fetch_add(1, Ordering::AcqRel);
     LOCKED.store(false, Ordering::Release);
     let was_enrolling = ENROLLING.swap(false, Ordering::AcqRel);
     SHOWN.store(false, Ordering::Release);
@@ -408,6 +415,8 @@ pub(crate) fn open_enroll(app: &AppHandle) -> Result<(), String> {
 pub async fn ambient_mode() -> &'static str {
     if is_enrolling() {
         "enroll"
+    } else if !SHOWN.load(Ordering::Acquire) {
+        "prewarm"
     } else {
         "ambient"
     }

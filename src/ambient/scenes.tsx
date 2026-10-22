@@ -1,183 +1,156 @@
 import { onCleanup, onMount } from 'solid-js'
 
-/** Generative ambient backdrops. Both draw at 30 fps or less and stop with the page. */
+/** What a canvas scene reads each frame: its colours and how loud the music is right now. */
+export interface SceneInput {
+  colors: () => [string, string, string]
+  /** 0..1, smoothed. */
+  energy: () => number
+  /** Changes on each detected beat. */
+  beat: () => number
+  dim: () => boolean
+}
 
-type Colors = () => [string, string, string]
-interface SceneProps { colors: Colors; dim: () => boolean }
-
-const FRAME_MS = 1000 / 30
-
-/** Sizes a canvas to its box at up to 1.5x, runs `draw` at 30 fps, and cleans up after itself. */
-function useCanvas(canvas: () => HTMLCanvasElement | undefined, setup: (width: number, height: number) => void, draw: (context: CanvasRenderingContext2D, time: number, width: number, height: number) => void) {
+/** Full-screen canvas at CSS pixel size (ambient scenes are soft; device pixels would only cost GPU time). */
+function useCanvas(draw: (context: CanvasRenderingContext2D, width: number, height: number, dt: number, time: number) => void) {
+  let canvas: HTMLCanvasElement | undefined
   onMount(() => {
-    const element = canvas()
-    const context = element?.getContext('2d', { alpha: false })
-    if (!element || !context) return
+    const context = canvas!.getContext('2d')
+    if (!context) return
     let width = 0
     let height = 0
     const resize = () => {
-      const scale = Math.min(window.devicePixelRatio || 1, 1.5)
-      width = Math.max(1, Math.round(element.clientWidth * scale))
-      height = Math.max(1, Math.round(element.clientHeight * scale))
-      element.width = width
-      element.height = height
-      setup(width, height)
+      width = canvas!.width = window.innerWidth
+      height = canvas!.height = window.innerHeight
     }
     resize()
+    window.addEventListener('resize', resize)
+    let last = performance.now()
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
     let frame = 0
-    let last = 0
-    const loop = (time: number) => {
-      frame = requestAnimationFrame(loop)
-      if (time - last < FRAME_MS) return
-      last = time
-      draw(context, time, width, height)
+    const loop = (now: number) => {
+      // The first frame time can be a little before `last`.
+      const dt = Math.max(0, Math.min(0.1, (now - last) / 1000))
+      last = now
+      draw(context, width, height, reduced.matches ? 0 : dt, reduced.matches ? 0 : now / 1000)
+      if (!reduced.matches) frame = requestAnimationFrame(loop)
     }
-    frame = requestAnimationFrame(loop)
-    const observer = new ResizeObserver(resize)
-    observer.observe(element)
-    onCleanup(() => { cancelAnimationFrame(frame); observer.disconnect() })
+    const repaint = () => { cancelAnimationFrame(frame); last = performance.now(); frame = requestAnimationFrame(loop) }
+    repaint()
+    reduced.addEventListener('change', repaint)
+    window.addEventListener('resize', repaint)
+    onCleanup(() => { cancelAnimationFrame(frame); reduced.removeEventListener('change', repaint); window.removeEventListener('resize', repaint); window.removeEventListener('resize', resize) })
   })
+  return <canvas class="ambient__canvas" ref={canvas} aria-hidden="true" />
 }
 
-const rgb = (hex: string): [number, number, number] => {
-  const value = hex.replace('#', '')
-  const full = value.length === 3 ? value.split('').map(part => part + part).join('') : value.padEnd(6, '0')
-  return [0, 2, 4].map(start => parseInt(full.slice(start, start + 2), 16) || 0) as [number, number, number]
-}
-const rgba = (hex: string, alpha: number) => `rgba(${rgb(hex).join(',')},${alpha})`
+interface Star { x: number; y: number; z: number; twinkle: number; tint: number }
 
-interface Star { angle: number; radius: number; size: number; phase: number; speed: number; warm: boolean }
-interface Meteor { x: number; y: number; dx: number; dy: number; start: number }
-
-/**
- * A night sky turning slowly about a point above the screen, like a long exposure, with a faint
- * nebula in the palette colours and the odd shooting star.
- */
-export function StarsScene(props: SceneProps) {
-  let canvas: HTMLCanvasElement | undefined
-  let stars: Star[] = []
-  let meteor: Meteor | null = null
-  let nextMeteor = 6000
-  useCanvas(() => canvas, (width, height) => {
-    const reach = Math.hypot(width, height)
-    const count = Math.round(Math.min(520, (width * height) / 5200))
-    stars = Array.from({ length: count }, () => ({
-      angle: Math.random() * Math.PI * 2,
-      radius: Math.sqrt(Math.random()) * reach,
-      size: Math.random() < 0.08 ? 1.4 + Math.random() * 1.2 : 0.5 + Math.random() * 0.9,
-      phase: Math.random() * Math.PI * 2,
-      speed: 0.0006 + Math.random() * 0.0018,
-      warm: Math.random() < 0.18,
-    }))
-  }, (context, time, width, height) => {
+/** A slow drift through a star field that speeds up with the music, and the odd shooting star. */
+export function Starfield(props: SceneInput) {
+  const stars: Star[] = []
+  let width = window.innerWidth
+  let height = window.innerHeight
+  /** Places a star at a random point on screen, at a random depth, or far away to drift in. */
+  const spawn = (star: Star, far: boolean) => {
+    star.z = far ? 0.7 + Math.random() * 0.3 : 0.08 + Math.random() * 0.92
+    const scale = Math.max(width, height) * 0.5
+    star.x = ((Math.random() - 0.5) * width / scale) * star.z
+    star.y = ((Math.random() - 0.5) * height / scale) * star.z
+    star.twinkle = Math.random() * Math.PI * 2
+    star.tint = Math.random()
+  }
+  for (let index = 0; index < 600; index++) {
+    const star = { x: 0, y: 0, z: 0, twinkle: 0, tint: 0 }
+    spawn(star, false)
+    stars.push(star)
+  }
+  let comet: { x: number; y: number; vx: number; vy: number; life: number } | null = null
+  let nextComet = 6 + Math.random() * 10
+  return useCanvas((context, w, h, dt, time) => {
+    width = w
+    height = h
     const [c1, c2] = props.colors()
-    const dim = props.dim() ? 0.7 : 1
-    context.fillStyle = '#03040a'
-    context.fillRect(0, 0, width, height)
-    // Nebula: two soft clouds that drift over minutes.
-    for (const [color, ox, oy, size] of [[c1, 0.28, 0.35, 0.6], [c2, 0.74, 0.62, 0.55]] as const) {
-      const x = width * (ox + Math.sin(time / 41000 + ox * 9) * 0.06)
-      const y = height * (oy + Math.cos(time / 53000 + oy * 7) * 0.05)
-      const radius = Math.max(width, height) * size
-      const cloud = context.createRadialGradient(x, y, 0, x, y, radius)
-      cloud.addColorStop(0, rgba(color, 0.2 * dim))
-      cloud.addColorStop(1, rgba(color, 0))
-      context.fillStyle = cloud
-      context.fillRect(0, 0, width, height)
-    }
-    // The sky turns about a pole above the top of the screen.
-    const poleX = width * 0.5
-    const poleY = -height * 0.35
-    const turn = time * 0.0000035
+    const speed = (props.dim() ? 0.012 : 0.02) + props.energy() * 0.22
+    const scale = Math.max(width, height) * 0.5
+    context.clearRect(0, 0, width, height)
     for (const star of stars) {
-      const angle = star.angle + turn
-      const x = poleX + Math.cos(angle) * star.radius
-      const y = poleY + Math.sin(angle) * star.radius
-      if (x < -4 || y < -4 || x > width + 4 || y > height + 4) continue
-      const twinkle = 0.55 + 0.45 * Math.sin(time * star.speed + star.phase)
-      context.fillStyle = star.warm ? `rgba(255,214,170,${twinkle * dim})` : `rgba(235,242,255,${twinkle * dim})`
+      star.z -= speed * dt
+      if (star.z <= 0.04) spawn(star, true)
+      const sx = width / 2 + (star.x / star.z) * scale
+      const sy = height / 2 + (star.y / star.z) * scale
+      if (sx < -10 || sx > width + 10 || sy < -10 || sy > height + 10) { spawn(star, true); continue }
+      const near = 1 - star.z
+      const glow = 0.55 + 0.45 * Math.sin(time * (1.2 + star.tint * 2) + star.twinkle)
+      context.globalAlpha = Math.min(1, 0.3 + near) * glow
+      context.fillStyle = star.tint > 0.86 ? c1 : star.tint > 0.72 ? c2 : '#fff'
+      const size = 0.6 + near * near * 2.6
       context.beginPath()
-      context.arc(x, y, star.size, 0, Math.PI * 2)
+      context.arc(sx, sy, size, 0, Math.PI * 2)
       context.fill()
     }
-    // A shooting star every so often.
-    if (!meteor && time > nextMeteor) {
-      const fromLeft = Math.random() < 0.5
-      meteor = { x: width * (fromLeft ? 0.1 + Math.random() * 0.4 : 0.5 + Math.random() * 0.4), y: height * Math.random() * 0.4, dx: (fromLeft ? 1 : -1) * width * 0.0011, dy: height * 0.0006, start: time }
+    nextComet -= dt
+    if (!comet && nextComet <= 0) {
+      const angle = Math.PI * (0.15 + Math.random() * 0.2)
+      comet = { x: Math.random() * width * 0.7, y: Math.random() * height * 0.3, vx: Math.cos(angle) * width * 0.9, vy: Math.sin(angle) * width * 0.9, life: 1 }
+      nextComet = 8 + Math.random() * 16
     }
-    if (meteor) {
-      const age = time - meteor.start
-      if (age > 1100) {
-        meteor = null
-        nextMeteor = time + 7000 + Math.random() * 12000
-      } else {
-        const fade = Math.sin((age / 1100) * Math.PI)
-        const headX = meteor.x + meteor.dx * age
-        const headY = meteor.y + meteor.dy * age
-        const tail = context.createLinearGradient(headX, headY, headX - meteor.dx * 220, headY - meteor.dy * 220)
-        tail.addColorStop(0, `rgba(255,255,255,${0.9 * fade * dim})`)
-        tail.addColorStop(1, 'rgba(255,255,255,0)')
-        context.strokeStyle = tail
-        context.lineWidth = 1.6
-        context.beginPath()
-        context.moveTo(headX, headY)
-        context.lineTo(headX - meteor.dx * 220, headY - meteor.dy * 220)
-        context.stroke()
-      }
+    if (comet) {
+      comet.life -= dt * 1.4
+      comet.x += comet.vx * dt
+      comet.y += comet.vy * dt
+      const gradient = context.createLinearGradient(comet.x, comet.y, comet.x - comet.vx * 0.12, comet.y - comet.vy * 0.12)
+      gradient.addColorStop(0, '#fff')
+      gradient.addColorStop(1, 'transparent')
+      context.globalAlpha = Math.max(0, comet.life)
+      context.strokeStyle = gradient
+      context.lineWidth = 1.6
+      context.beginPath()
+      context.moveTo(comet.x, comet.y)
+      context.lineTo(comet.x - comet.vx * 0.12, comet.y - comet.vy * 0.12)
+      context.stroke()
+      if (comet.life <= 0) comet = null
     }
+    context.globalAlpha = 1
   })
-  return <canvas ref={canvas} class="ambient__canvas" aria-hidden="true" />
 }
 
-interface Particle { x: number; y: number; life: number; tint: number }
-
-/** Silky lines that follow a slowly changing current, in the palette colours. */
-export function FlowScene(props: SceneProps) {
-  let canvas: HTMLCanvasElement | undefined
-  let particles: Particle[] = []
-  let cleared = false
-  let frames = 0
-  const spawn = (width: number, height: number): Particle => ({ x: Math.random() * width, y: Math.random() * height, life: 200 + Math.random() * 400, tint: Math.floor(Math.random() * 3) })
-  useCanvas(() => canvas, (width, height) => {
-    const count = Math.round(Math.min(700, (width * height) / 3600))
-    particles = Array.from({ length: count }, () => spawn(width, height))
-    cleared = false
-  }, (context, time, width, height) => {
+/** Rings of light that spread from the middle: one on each beat while music plays, a slow breath otherwise. */
+export function Ripples(props: SceneInput) {
+  const rings: { radius: number; strength: number; color: number }[] = []
+  let lastBeat = props.beat()
+  let sinceRing = 99
+  let color = 0
+  return useCanvas((context, width, height, dt) => {
     const colors = props.colors()
-    const dim = props.dim() ? 0.8 : 1
-    if (!cleared) {
-      context.fillStyle = '#04050a'
-      context.fillRect(0, 0, width, height)
-      cleared = true
+    const energy = props.energy()
+    const beat = props.beat()
+    sinceRing += dt
+    const onBeat = beat !== lastBeat && sinceRing > 0.32
+    lastBeat = beat
+    if (onBeat || sinceRing > (props.dim() ? 3.4 : 2.6)) {
+      rings.push({ radius: 0, strength: onBeat ? 0.55 + energy * 0.45 : 0.45, color: color++ % 2 })
+      sinceRing = 0
     }
-    // Fade old strokes slowly, so each line leaves a long, soft trail.
-    if (++frames % 2 === 0) {
-      context.fillStyle = 'rgba(4,5,10,0.03)'
-      context.fillRect(0, 0, width, height)
-    }
-    const scale = 1 / Math.max(width, height)
-    const t = time * 0.00005
-    context.lineWidth = 1.1
-    for (const tint of [0, 1, 2]) {
-      context.strokeStyle = rgba(tint === 2 ? '#ffffff' : colors[tint], (tint === 2 ? 0.18 : 0.42) * dim)
+    const reach = Math.hypot(width, height) / 2
+    context.clearRect(0, 0, width, height)
+    context.globalCompositeOperation = 'lighter'
+    for (let index = rings.length - 1; index >= 0; index--) {
+      const ring = rings[index]
+      ring.radius += dt * reach * (0.16 + energy * 0.12)
+      const fade = 1 - ring.radius / reach
+      if (fade <= 0) { rings.splice(index, 1); continue }
+      context.strokeStyle = colors[ring.color]
+      // A wide faint stroke under a thin bright one reads as glow without a costly blur.
+      context.globalAlpha = fade * fade * ring.strength * 0.18
+      context.lineWidth = 26
       context.beginPath()
-      for (const particle of particles) {
-        if (particle.tint !== tint) continue
-        const nx = particle.x * scale
-        const ny = particle.y * scale
-        // A broad, slowly shifting current: low frequencies give long, sweeping curves.
-        const angle = (Math.sin(nx * 2.4 + t * 2.1) + Math.cos(ny * 2.1 - t * 1.7) + Math.sin((nx - ny) * 1.3 + t)) * 1.1
-        const x = particle.x + Math.cos(angle) * 2.4
-        const y = particle.y + Math.sin(angle) * 2.4
-        context.moveTo(particle.x, particle.y)
-        context.lineTo(x, y)
-        particle.x = x
-        particle.y = y
-        particle.life -= 1
-        if (particle.life <= 0 || x < 0 || y < 0 || x > width || y > height) Object.assign(particle, spawn(width, height))
-      }
+      context.arc(width / 2, height / 2, ring.radius, 0, Math.PI * 2)
+      context.stroke()
+      context.globalAlpha = fade * ring.strength * 0.7
+      context.lineWidth = 1.5 + ring.strength * 1.5
       context.stroke()
     }
+    context.globalCompositeOperation = 'source-over'
+    context.globalAlpha = 1
   })
-  return <canvas ref={canvas} class="ambient__canvas" aria-hidden="true" />
 }

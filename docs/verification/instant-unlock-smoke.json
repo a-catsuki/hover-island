@@ -1,0 +1,37 @@
+{
+  "boundary": "Actual Solid ambient UI, simulated camera/models/native responses. Does not measure physical webcam recognition.",
+  "results": [
+    {
+      "flow": "First good frame unlocks without waiting for a second frame",
+      "fixtureMs": 105
+    },
+    {
+      "flow": "camera-hang reaches PIN fallback",
+      "fixtureMs": 2927
+    },
+    {
+      "flow": "models-hang reaches PIN fallback",
+      "fixtureMs": 2915
+    },
+    {
+      "flow": "frame-hang reaches PIN fallback",
+      "fixtureMs": 2894
+    },
+    {
+      "flow": "A clear mismatch finishes promptly with one counted final check"
+    },
+    {
+      "flow": "PIN is available while scanning and cancels a late face result"
+    },
+    {
+      "flow": "Hiding a warm ambient page stops the camera and discards an in-flight scan"
+    },
+    {
+      "flow": "A reused warm page unlocks again after cancellation"
+    },
+    {
+      "flow": "All five scenes and four clocks render; reduced motion stops canvas animation"
+    }
+  ],
+  "errors": []
+}

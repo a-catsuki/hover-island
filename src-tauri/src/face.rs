@@ -26,11 +26,12 @@ const MAX_DESCRIPTOR: usize = 2048;
 const MAX_TEMPLATES: usize = 24;
 const MIN_TEMPLATES: usize = 3;
 const MAX_SAMPLES: usize = 8;
-/// Frames from one scan that must agree before a match counts.
-const MIN_SAMPLES: usize = 2;
 /// Normalized similarity (0..1) of the face model, averaged over the scan's frames. Its authors
 /// treat 0.5 as a match; 0.62 rejected real owners in dim, screen-lit rooms.
 const MATCH_THRESHOLD: f32 = 0.55;
+/// A single frame is noisier than an average, so it alone must clear a higher bar. Matching on
+/// the first good frame is what makes an unlock feel instant.
+const SINGLE_FRAME_THRESHOLD: f32 = 0.58;
 /// Anti-spoof ("real") and liveness ("live") model scores, 0..1, averaged over the scan.
 const MIN_REAL: f32 = 0.5;
 const MIN_LIVE: f32 = 0.5;
@@ -41,10 +42,14 @@ const MAX_LEARNED: usize = 12;
 const LEARN_BELOW: f32 = 0.9;
 /// Failed scans before only Windows Hello can unlock, as with Face ID and a passcode.
 const MAX_ATTEMPTS: u32 = 5;
-/// How long the page's check-mark and padlock animation runs after a match.
+/// Misses inside one scan that are not yet counted as a failed attempt. The page checks each good
+/// frame as it arrives and only the scan's last check counts, but this caps the free ones.
+const MAX_PROBES: u32 = 4;
+/// How long the page's check-mark and unlock animation runs after a match.
 const UNLOCK_ANIMATION: Duration = Duration::from_millis(560);
 
 static ATTEMPTS: AtomicU32 = AtomicU32::new(0);
+static PROBES: AtomicU32 = AtomicU32::new(0);
 /// Set once Hello confirms the user in Settings; one enrollment may then be saved.
 static ENROLL_ALLOWED: AtomicBool = AtomicBool::new(false);
 
@@ -99,6 +104,7 @@ pub enum FaceVerdict {
 
 pub(crate) fn reset_attempts() {
     ATTEMPTS.store(0, Ordering::Release);
+    PROBES.store(0, Ordering::Release);
 }
 
 fn attempts_left() -> u32 {
@@ -182,7 +188,8 @@ fn assess(samples: &[FaceSample], known: &[&[f32]]) -> Assessment {
     let score = mean(&|sample| best_match(&sample.descriptor, known));
     let real = mean(&|sample| sample.real);
     let live = mean(&|sample| sample.live);
-    let pass = samples.len() >= MIN_SAMPLES && real >= MIN_REAL && live >= MIN_LIVE && score >= MATCH_THRESHOLD;
+    let threshold = if samples.len() >= 2 { MATCH_THRESHOLD } else { SINGLE_FRAME_THRESHOLD };
+    let pass = !samples.is_empty() && real >= MIN_REAL && live >= MIN_LIVE && score >= threshold;
     Assessment { score, real, live, pass }
 }
 
@@ -216,7 +223,6 @@ fn require_blink(app: &AppHandle) -> bool {
         .unwrap_or(true)
 }
 
-/// A face is enrolled, so the locked page will run face unlock.
 pub(crate) fn is_enrolled(app: &AppHandle) -> bool {
     read_store(app).map(|store| !store.templates.is_empty()).unwrap_or(false)
 }
@@ -269,9 +275,9 @@ pub async fn face_reset(app: AppHandle) -> Result<(), String> {
 }
 
 /// One scan from the locked page: a few frames' descriptors with their anti-spoof and liveness
-/// scores. Every call that does not match uses up an attempt.
+/// scores. Mid-scan probes have a bounded allowance; the last check counts as an attempt.
 #[tauri::command]
-pub async fn face_verify(app: AppHandle, samples: Vec<FaceSample>, blinked: bool) -> Result<FaceCheck, String> {
+pub async fn face_verify(app: AppHandle, samples: Vec<FaceSample>, blinked: bool, last: Option<bool>, deadline_ms: Option<u64>) -> Result<FaceCheck, String> {
     let check = |verdict, assessment: Option<Assessment>| FaceCheck {
         verdict,
         score: assessment.map_or(0.0, |a| a.score),
@@ -281,6 +287,7 @@ pub async fn face_verify(app: AppHandle, samples: Vec<FaceSample>, blinked: bool
     if !ambient::is_locked() {
         return Err("The screen is not locked.".into());
     }
+    let session = ambient::lock_session();
     // With the blink setting on, the page only asks after seeing one; refuse anything else.
     if require_blink(&app) && !blinked {
         return Ok(check(FaceVerdict::NoMatch, None));
@@ -298,6 +305,9 @@ pub async fn face_verify(app: AppHandle, samples: Vec<FaceSample>, blinked: bool
         .filter(|sample| valid_descriptor(&sample.descriptor))
         .collect();
     let assessment = assess(&samples, &store.known());
+    if deadline_ms.is_some_and(|deadline| crate::types::now_millis() >= deadline) {
+        return Err("The face scan expired. Try again or use your PIN.".into());
+    }
     if assessment.pass {
         if learn(&mut store, &samples) {
             // Learning is a bonus; a failed write must not block the unlock.
@@ -306,12 +316,17 @@ pub async fn face_verify(app: AppHandle, samples: Vec<FaceSample>, blinked: bool
         // Stay locked while the page plays its unlock animation, then close.
         tauri::async_runtime::spawn(async move {
             tokio::time::sleep(UNLOCK_ANIMATION).await;
-            if ambient::is_locked() {
+            if ambient::is_locked() && ambient::lock_session() == session {
                 ambient::close(&app);
             }
         });
         return Ok(check(FaceVerdict::Match, Some(assessment)));
     }
+    // A probe mid-scan is free, up to a cap; the scan's last check counts as the attempt.
+    if !last.unwrap_or(true) && PROBES.fetch_add(1, Ordering::AcqRel) < MAX_PROBES {
+        return Ok(check(FaceVerdict::NoMatch, Some(assessment)));
+    }
+    PROBES.store(0, Ordering::Release);
     let used = ATTEMPTS.fetch_add(1, Ordering::AcqRel) + 1;
     let verdict = if used >= MAX_ATTEMPTS { FaceVerdict::LockedOut } else { FaceVerdict::NoMatch };
     Ok(check(verdict, Some(assessment)))
@@ -339,11 +354,18 @@ mod tests {
     }
 
     #[test]
-    fn needs_several_live_frames() {
+    fn needs_live_frames_and_a_higher_bar_for_one() {
         let template = vec![0.1_f32; 128];
         let known = vec![template.as_slice()];
-        assert!(!assess(&[sample(template.clone())], &known).pass);
+        assert!(!assess(&[], &known).pass);
+        assert!(assess(&[sample(template.clone())], &known).pass);
         assert!(assess(&[sample(template.clone()), sample(template.clone())], &known).pass);
+        // Between the two bars: two frames agreeing pass, one alone does not.
+        let near: Vec<f32> = template.iter().map(|v| v + 0.815).collect();
+        let score = similarity(&near, &template);
+        assert!(score > MATCH_THRESHOLD && score < SINGLE_FRAME_THRESHOLD, "{score}");
+        assert!(!assess(&[sample(near.clone())], &known).pass);
+        assert!(assess(&[sample(near.clone()), sample(near.clone())], &known).pass);
         let spoof = |real| FaceSample { descriptor: template.clone(), real, live: 0.9 };
         assert!(!assess(&[spoof(0.1), spoof(0.2)], &known).pass);
     }

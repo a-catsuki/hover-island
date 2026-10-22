@@ -1,22 +1,24 @@
-import { createSignal, onCleanup, onMount, Show } from 'solid-js'
-import { cmd, listen, type FaceSample } from '../lib/ipc'
+import { createEffect, createSignal, onCleanup, onMount, Show } from 'solid-js'
+import { cmd, type FaceCheck, type FaceSample } from '../lib/ipc'
+import { saveFaceTiming } from '../lib/faceTiming'
+import { FaceScan, FaceScanCancelled, FaceScanExpired, FACE_SCAN_MS, BLINK_SCAN_MS } from '../lib/faceScan'
 import { settings } from '../state/settings'
-import { FaceOrb, Padlock, type GlyphState } from './FaceGlyph'
-import { BlinkWatch, FaceCamera, loadFaceEngine, type FaceFrame } from './face'
+import FaceGlyph, { Padlock, type GlyphState } from './FaceGlyph'
+import { BlinkWatch, FaceCamera, faceBackend, loadFaceEngine, type FaceFrame } from './face'
 
 /** Matches native OPEN_GRACE: the click or key that opened the page is not an unlock attempt. */
 const OPEN_GRACE_MS = 1500
 const HINT_MS = 4000
-/** How long a scan looks for a usable face; longer when it must also see a blink. */
-const SCAN_MS = 3000
-const BLINK_SCAN_MS = 6000
 /** Ask for a blink once this much of the scan has gone by without one. */
 const BLINK_PROMPT_MS = 1600
-const ENGINE_WAIT_MS = 15_000
-/** Identity frames per scan: two back-to-back frames, the least native code accepts. */
-const SAMPLES = 2
-/** The failure panel, with the camera still on for an instant retry. */
+/** Frames checked mid-scan before the scan's own (counted) check. Native code allows a few more. */
+const PROBES = 3
+/** Frames averaged in a check: the newest ones. */
+const WINDOW = 2
+/** The failure message, with the camera still on for an instant retry. */
 const FAIL_HOLD_MS = 6000
+/** After a scan, the camera stays on this long so a retry starts at once. */
+const CAMERA_LINGER_MS = 20_000
 
 type Phase = 'idle' | 'scanning' | 'success' | 'failed' | 'hello'
 
@@ -28,14 +30,14 @@ const PROBLEMS: Record<NonNullable<FaceFrame['problem']>, string> = {
 }
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-const withTimeout = <T,>(promise: Promise<T>, ms: number) => Promise.race([promise, delay(ms).then(() => { throw new Error('timed out') })])
 
 /**
- * The soft lock: a padlock in the notch and a face-scan panel. A key press or click tries face
- * unlock when a face is enrolled, and Windows Hello otherwise or after too many misses.
+ * The soft lock: the notch holds a padlock, and grows into a face-scan island the way Face ID
+ * does in an iPhone's Dynamic Island. Moving the mouse or pressing a key scans; each good frame
+ * is checked as it arrives, so a match unlocks on the first one. Windows Hello is the fallback.
  * Native code decides every match and closes the window; this only draws and collects frames.
  */
-export default function SoftLock(props: { onAwake: (awake: boolean) => void; onUnlock?: () => void }) {
+export default function SoftLock(props: { active: boolean; onAwake: (awake: boolean) => void; onUnlock: () => void }) {
   const [phase, setPhase] = createSignal<Phase>('idle')
   const [message, setMessage] = createSignal('')
   const [detail, setDetail] = createSignal('')
@@ -44,23 +46,35 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void; onU
   const [lockedOut, setLockedOut] = createSignal(false)
   const camera = new FaceCamera()
   let openedAt = Date.now()
+  let currentScan: FaceScan | undefined
   let failTimer: ReturnType<typeof setTimeout> | undefined
   let hintTimer: ReturnType<typeof setTimeout> | undefined
+  let lingerTimer: ReturnType<typeof setTimeout> | undefined
   /** One automatic scan per wake-up, like raising a phone; after that a key or click retries. */
   let autoScanned = false
 
   const busy = () => phase() === 'scanning' || phase() === 'success' || phase() === 'hello'
   const useFace = () => enrolled() && !lockedOut()
   const requireBlink = () => settings.ambient.faceRequireBlink
+  const keepReady = () => settings.ambient.faceCameraReady
   const settled = () => Date.now() - openedAt >= OPEN_GRACE_MS
+
+  /** Turns the camera off after a while, or never while "keep ready" is on. */
+  const linger = () => {
+    clearTimeout(lingerTimer)
+    if (!props.active) { camera.stop(); return }
+    if (keepReady() && useFace()) return
+    lingerTimer = setTimeout(() => { if (phase() !== 'scanning') camera.stop() }, CAMERA_LINGER_MS)
+  }
 
   const toIdle = () => {
     setPhase('idle')
     setDetail('')
-    camera.stop()
+    linger()
   }
 
   const wake = () => {
+    if (!props.active) return
     setAwake(true)
     props.onAwake(true)
     clearTimeout(hintTimer)
@@ -80,9 +94,13 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void; onU
     props.onAwake(true)
     clearTimeout(failTimer)
     failTimer = setTimeout(() => { if (phase() === 'failed') toIdle() }, FAIL_HOLD_MS)
+    linger()
   }
 
   const hello = async () => {
+    currentScan?.cancel()
+    currentScan = undefined
+    clearTimeout(lingerTimer)
     camera.stop()
     setPhase('hello')
     setMessage('')
@@ -91,42 +109,43 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void; onU
       // On success, or when Windows locks for real instead, native code closes this window.
       const outcome = await cmd.ambientUnlock()
       if (outcome === 'cancelled') setPhase('idle')
+      // Native Hello closes/hides the page before resolving. Do not fade its next showing.
     } catch {
       setPhase('idle')
     }
   }
 
   /**
-   * Quick frames (face, pose, eyes) until one is usable, then a full frame for identity, until it
-   * has enough samples (and a blink, if required) or time runs out.
+   * Full frames until a check matches, the time runs out or native code says stop. Each usable
+   * frame is checked at once with the one before it, so a clear look unlocks on the first frame.
    */
-  const collect = async () => {
+  const collect = async (scan: FaceScan) => {
     const samples: FaceSample[] = []
     const blink = new BlinkWatch()
     const blinkNeeded = requireBlink()
-    const limit = blinkNeeded ? BLINK_SCAN_MS : SCAN_MS
     let problem = ''
     let sawFace = false
-    // Straight to a full read: a face is usually there already, and every frame saved counts.
-    let full = true
-    // Count from the first frame, so a slow camera start does not eat the scan.
-    let started = 0
-    const done = () => samples.length >= SAMPLES && (!blinkNeeded || blink.seen)
-    while (!started || (Date.now() - started < limit && !done())) {
+    let frames = 0
+    let probes = 0
+    let check: FaceCheck | null = null
+    const started = Date.now()
+    while (scan.remaining > 120) {
       let frame: FaceFrame
       try {
-        frame = await camera.read({ full })
-      } catch {
-        started ||= Date.now()
-        full = false
-        await delay(100)
+        frame = await scan.wait(camera.read())
+      } catch (error) {
+        if (error instanceof FaceScanCancelled || error instanceof FaceScanExpired) throw error
+        await scan.wait(delay(80))
         continue
       }
-      started ||= Date.now()
+      frames++
       blink.push(frame.eyes)
       if (frame.problem !== null) sawFace = true
-      const usable = frame.problem === 'none' && blink.eyesOpen(frame.eyes)
-      if (frame.sample && usable && samples.length < SAMPLES) samples.push(frame.sample)
+      const usable = frame.problem === 'none' && (!blinkNeeded || blink.eyesOpen(frame.eyes))
+      if (frame.sample && usable) {
+        samples.push(frame.sample)
+        if (samples.length > WINDOW) samples.shift()
+      }
       if (usable) {
         problem = ''
         setMessage(blinkNeeded && !blink.seen && Date.now() - started > BLINK_PROMPT_MS ? 'Blink to unlock' : '')
@@ -134,83 +153,116 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void; onU
         problem = PROBLEMS[frame.problem]
         setMessage(problem)
       }
-      // Run the heavy models only on frames that are worth it.
-      full = usable && samples.length < SAMPLES
+      const ready = frame.sample && usable && (!blinkNeeded || blink.seen)
+      if (ready && probes < PROBES) {
+        probes++
+        check = await scan.wait(cmd.faceVerify(samples, blink.seen, false, scan.deadline))
+        if (check && check.verdict !== 'noMatch') break
+      }
+      // Finish a clear mismatch promptly instead of running full models until the deadline.
+      if (probes >= PROBES) break
+      if (!usable) await scan.wait(delay(40))
     }
-    if (blinkNeeded && !blink.seen && samples.length >= SAMPLES) problem = 'Blink to unlock'
-    return { samples, blinked: blink.seen, problem, sawFace }
+    if (blinkNeeded && !blink.seen && samples.length > 0) problem = 'Blink to unlock'
+    // The scan's own check, which counts as an attempt; skipped when a probe already settled it.
+    if (samples.length > 0 && (!blinkNeeded || blink.seen) && check?.verdict !== 'match' && check?.verdict !== 'lockedOut' && check?.verdict !== 'notEnrolled') {
+      check = await scan.wait(cmd.faceVerify(samples, blink.seen, true, scan.deadline))
+    }
+    return { check, sampled: samples.length > 0, blinked: blink.seen, problem, sawFace, frames }
   }
 
   /** `auto` scans start from a mouse move; with nobody in front of the camera they end quietly. */
   const scan = async (auto = false) => {
+    if (!props.active || busy()) return
+    const session = new FaceScan(requireBlink() ? BLINK_SCAN_MS : FACE_SCAN_MS)
+    currentScan?.cancel()
+    currentScan = session
+    const begun = performance.now()
     setPhase('scanning')
     setMessage('')
     setDetail('')
     clearTimeout(failTimer)
+    clearTimeout(lingerTimer)
+    let cameraMs = 0
+    let modelsMs = 0
     try {
       // The camera and the models start together; the camera is usually the slower one.
-      await Promise.all([withTimeout(loadFaceEngine(), ENGINE_WAIT_MS), camera.start()])
-    } catch {
-      camera.stop()
-      return auto ? toIdle() : hello()
-    }
-    const result = await collect()
-    // Not enough of a face to judge: not counted as an attempt.
-    if (result.samples.length < SAMPLES || (requireBlink() && !result.blinked)) {
-      if (auto && !result.sawFace) return toIdle()
-      return fail(result.problem || 'No Face Found')
-    }
-    const check = await cmd.faceVerify(result.samples, result.blinked).catch(() => null)
-    const scores = check ? `Match ${Math.round(check.score * 100)}% (needs 55) · real ${Math.round(check.real * 100)} · live ${Math.round(check.live * 100)}` : ''
+      const warm = camera.running
+      await Promise.all([
+        session.wait(loadFaceEngine()).then(() => { modelsMs = performance.now() - begun }),
+        session.wait(camera.start()).then(() => { cameraMs = warm ? 0 : performance.now() - begun }),
+      ])
+    const result = await collect(session)
+    const check = result.check
+    const totalMs = performance.now() - begun
+    if (result.sampled) saveFaceTiming({ at: Date.now(), matched: check?.verdict === 'match', totalMs, cameraMs, modelsMs, frames: result.frames, backend: faceBackend() })
+    const scores = check ? `Match ${Math.round(check.score * 100)}% · real ${Math.round(check.real * 100)} · live ${Math.round(check.live * 100)} · ${(totalMs / 1000).toFixed(1)} s on the ${faceBackend() === 'cpu' ? 'CPU' : 'GPU'}` : ''
     if (check?.verdict === 'match') {
       camera.stop()
       setPhase('success')
       setMessage('')
-      props.onUnlock?.()
-    } else if (check?.verdict === 'lockedOut') {
+      props.onUnlock()
+      return
+    }
+    if (check?.verdict === 'lockedOut') {
       setLockedOut(true)
       camera.stop()
-      fail('Use your PIN to unlock', scores)
-    } else if (check?.verdict === 'notEnrolled') {
+      return fail('Use your PIN to unlock', scores)
+    }
+    if (check?.verdict === 'notEnrolled') {
       setEnrolled(false)
-      void hello()
-    } else {
-      fail('Face Not Recognized', scores)
+      return void hello()
+    }
+    if (!check) {
+      // Not enough of a face to judge: not counted as an attempt.
+      if (auto && !result.sawFace) return toIdle()
+      return fail(result.problem || 'No Face Found')
+    }
+    fail('Not Recognized', scores)
+    } catch (error) {
+      if (session.cancelled || currentScan !== session || !props.active) return
+      camera.stop()
+      saveFaceTiming({ at: Date.now(), matched: false, totalMs: performance.now() - begun, cameraMs, modelsMs, frames: 0, backend: faceBackend() })
+      fail(error instanceof FaceScanExpired ? 'Face scan took too long' : 'Camera unavailable', 'Try again or use your PIN')
+    } finally {
+      if (currentScan === session) currentScan = undefined
     }
   }
 
   const attempt = () => {
-    if (busy() || !settled()) return
+    if (!props.active || busy() || !settled()) return
     void (useFace() ? scan() : hello())
   }
 
-  const refreshStatus = () => void cmd.faceStatus().then(status => {
-    setEnrolled(status.enrolled)
-    setLockedOut(status.attemptsLeft === 0)
-    // Load the models while the screen sits idle so the first scan starts at once.
-    if (status.enrolled) void loadFaceEngine().catch(() => {})
-  }).catch(() => {})
+  createEffect(() => {
+    const active = props.active
+    openedAt = Date.now()
+    autoScanned = false
+    clearTimeout(failTimer)
+    clearTimeout(hintTimer)
+    clearTimeout(lingerTimer)
+    currentScan?.cancel()
+    currentScan = undefined
+    camera.stop()
+    setPhase('idle')
+    setMessage('')
+    setDetail('')
+    setAwake(false)
+    props.onAwake(false)
+    let stale = false
+    void cmd.faceStatus().then(status => {
+      if (stale) return
+      setEnrolled(status.enrolled)
+      setLockedOut(status.attemptsLeft === 0)
+      if (!status.enrolled) return
+      // Load the models while the screen sits idle so the first scan starts at once.
+      void loadFaceEngine().catch(() => {})
+      if (active && keepReady() && status.attemptsLeft > 0) void camera.start().catch(() => {})
+    }).catch(() => {})
+    onCleanup(() => { stale = true })
+  })
 
   onMount(() => {
-    refreshStatus()
-    // Native code keeps this page warm between showings (see ambient.rs): reset for each one.
-    const unlisten: Array<() => void> = []
-    void listen('ambient://shown', () => {
-      openedAt = Date.now()
-      autoScanned = false
-      clearTimeout(failTimer)
-      setPhase('idle')
-      setMessage('')
-      setDetail('')
-      refreshStatus()
-    }).then(stop => unlisten.push(stop)).catch(() => {})
-    void listen('ambient://hidden', () => {
-      clearTimeout(failTimer)
-      clearTimeout(hintTimer)
-      toIdle()
-      setAwake(false)
-      props.onAwake(false)
-    }).then(stop => unlisten.push(stop)).catch(() => {})
     const onInput = (event: Event) => {
       if (event.target instanceof Element && event.target.closest('button')) return
       attempt()
@@ -224,30 +276,36 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void; onU
       window.removeEventListener('pointermove', wake)
       clearTimeout(failTimer)
       clearTimeout(hintTimer)
+      clearTimeout(lingerTimer)
+      currentScan?.cancel()
       camera.stop()
-      unlisten.forEach(stop => stop())
     })
   })
 
   const glyph = (): GlyphState => phase() === 'scanning' ? 'scanning' : phase() === 'success' ? 'success' : phase() === 'failed' ? 'fail' : 'face'
-  const hud = () => phase() === 'scanning' || phase() === 'success' || phase() === 'failed'
-  const pillLabel = () => phase() === 'hello' ? 'Windows Hello' : useFace() ? 'Look at your PC to unlock' : 'Press any key to unlock'
+  const expanded = () => phase() === 'scanning' || phase() === 'success' || phase() === 'failed'
+  const label = () => phase() === 'hello' ? 'Windows Hello' : useFace() ? 'Look at your PC to unlock' : 'Press any key to unlock'
 
   return (
     <>
-      <div class="ambient__lock" classList={{ [`ambient__lock--${phase()}`]: true, 'ambient__lock--awake': (awake() && !hud()) || phase() === 'hello' }} role="status">
-        <span class="ambient__lock-icon"><Padlock open={phase() === 'success'} size={17} /></span>
-        <span class="ambient__lock-label">{pillLabel()}</span>
+      <div class="island-scrim" classList={{ 'island-scrim--show': expanded() }} aria-hidden="true" />
+      <div class={`island island--${phase()}`} classList={{ 'island--awake': (awake() && !expanded()) || phase() === 'hello', 'island--open': expanded() }} role="status" aria-live="polite">
+        <div class="island__bar">
+          <span class="island__lock"><Padlock open={phase() === 'success'} size={16} /></span>
+          <span class="island__label">{label()}</span>
+        </div>
+        <div class="island__scan">
+          <FaceGlyph state={glyph()} size={78} />
+        </div>
       </div>
-      <div class="face-hud" classList={{ 'face-hud--show': hud() }} aria-live="polite">
-        <FaceOrb state={glyph()} />
-        <p class="face-hud__label" classList={{ 'face-hud__label--hidden': phase() === 'success' }}>{message() || (phase() === 'failed' ? '' : 'Looking for you')}</p>
+      <div class="island-note" classList={{ 'island-note--show': phase() === 'failed' || phase() === 'scanning' }}>
+        <p class="island-note__text">{message()}</p>
         <Show when={phase() === 'failed' && detail()}>
-          <p class="face-hud__detail">{detail()}</p>
+          <p class="island-note__detail">{detail()}</p>
         </Show>
-        <Show when={phase() === 'failed'}>
-          <div class="face-hud__actions">
-            <Show when={useFace()}>
+        <Show when={phase() === 'failed' || phase() === 'scanning'}>
+          <div class="island-note__actions">
+            <Show when={phase() === 'failed' && useFace()}>
               <button type="button" onClick={() => void scan()}>Try Again</button>
             </Show>
             <button type="button" onClick={() => void hello()}>Use PIN</button>
