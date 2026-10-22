@@ -1,0 +1,171 @@
+{
+  "boundary": "Real HP webcam startup; real inference on the public Human warmup face in Chromium, not owner matching or the installed WebView2.",
+  "camera": [
+    {
+      "coldMs": 4254,
+      "readyMs": 0,
+      "width": 640,
+      "height": 480
+    },
+    {
+      "coldMs": 1070,
+      "readyMs": 0,
+      "width": 640,
+      "height": 480
+    }
+  ],
+  "engines": [
+    {
+      "backend": "webgl",
+      "actualBackend": "webgl",
+      "tfjs": "4.22.0",
+      "loadMs": 1220,
+      "frames": [
+        {
+          "ms": 29486,
+          "faces": 1,
+          "sample": true,
+          "real": 0.81,
+          "live": 1,
+          "error": null,
+          "models": {
+            "initBackend": 103,
+            "loadModels": 1211,
+            "inputProcess": 0,
+            "totalFrames": 4,
+            "cachedFrames": 0,
+            "cacheCheck": 0,
+            "total": 385
+          }
+        },
+        {
+          "ms": 1107,
+          "faces": 1,
+          "sample": true,
+          "real": 0.81,
+          "live": 1,
+          "error": null,
+          "models": {
+            "initBackend": 103,
+            "loadModels": 1211,
+            "inputProcess": 0,
+            "totalFrames": 4,
+            "cachedFrames": 0,
+            "cacheCheck": 0,
+            "total": 385
+          }
+        },
+        {
+          "ms": 792,
+          "faces": 1,
+          "sample": true,
+          "real": 0.81,
+          "live": 1,
+          "error": null,
+          "models": {
+            "initBackend": 103,
+            "loadModels": 1211,
+            "inputProcess": 0,
+            "totalFrames": 4,
+            "cachedFrames": 0,
+            "cacheCheck": 0,
+            "total": 385
+          }
+        },
+        {
+          "ms": 386,
+          "faces": 1,
+          "sample": true,
+          "real": 0.81,
+          "live": 1,
+          "error": null,
+          "models": {
+            "initBackend": 103,
+            "loadModels": 1211,
+            "inputProcess": 0,
+            "totalFrames": 4,
+            "cachedFrames": 0,
+            "cacheCheck": 0,
+            "total": 385
+          }
+        }
+      ]
+    },
+    {
+      "backend": "wasm",
+      "actualBackend": "wasm",
+      "tfjs": "4.22.0",
+      "loadMs": 1647,
+      "frames": [
+        {
+          "ms": 628,
+          "faces": 1,
+          "sample": true,
+          "real": 0.81,
+          "live": 1,
+          "error": null,
+          "models": {
+            "initBackend": 599,
+            "loadModels": 1635,
+            "inputProcess": 15,
+            "totalFrames": 4,
+            "cachedFrames": 0,
+            "cacheCheck": 0,
+            "total": 358
+          }
+        },
+        {
+          "ms": 406,
+          "faces": 1,
+          "sample": true,
+          "real": 0.81,
+          "live": 1,
+          "error": null,
+          "models": {
+            "initBackend": 599,
+            "loadModels": 1635,
+            "inputProcess": 15,
+            "totalFrames": 4,
+            "cachedFrames": 0,
+            "cacheCheck": 0,
+            "total": 358
+          }
+        },
+        {
+          "ms": 369,
+          "faces": 1,
+          "sample": true,
+          "real": 0.81,
+          "live": 1,
+          "error": null,
+          "models": {
+            "initBackend": 599,
+            "loadModels": 1635,
+            "inputProcess": 15,
+            "totalFrames": 4,
+            "cachedFrames": 0,
+            "cacheCheck": 0,
+            "total": 358
+          }
+        },
+        {
+          "ms": 358,
+          "faces": 1,
+          "sample": true,
+          "real": 0.81,
+          "live": 1,
+          "error": null,
+          "models": {
+            "initBackend": 599,
+            "loadModels": 1635,
+            "inputProcess": 15,
+            "totalFrames": 4,
+            "cachedFrames": 0,
+            "cacheCheck": 0,
+            "total": 358
+          }
+        }
+      ]
+    }
+  ]
+}

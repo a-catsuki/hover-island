@@ -42,10 +42,10 @@
 .face-glyph--scanning .face-glyph__face, .face-glyph--success .face-glyph__face { opacity: 0; scale: 0.5; filter: blur(3px); }
 .face-glyph--scanning .face-glyph__dots { opacity: 1; animation: glyph-spin 0.95s linear infinite; }
 .face-glyph--scanning .face-glyph__dots circle { animation: glyph-dot-in 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--i) * 10ms); }
-.face-glyph--success { animation: glyph-pop 0.5s ease-out 0.22s; }
+.face-glyph--success { animation: glyph-pop 0.14s ease-out; }
 .face-glyph--success .face-glyph__dots { opacity: 0; scale: 1.08; transition-duration: 0.14s; }
-.face-glyph--success .face-glyph__ring { opacity: 1; stroke-dashoffset: 0; transition: stroke-dashoffset 0.3s cubic-bezier(0.55, 0, 0.2, 1); }
-.face-glyph--success .face-glyph__check { stroke-dashoffset: 0; transition: stroke-dashoffset 0.24s cubic-bezier(0.3, 0, 0.2, 1) 0.18s; }
+.face-glyph--success .face-glyph__ring { opacity: 1; stroke-dashoffset: 0; transition: stroke-dashoffset 0.12s ease-out; }
+.face-glyph--success .face-glyph__check { stroke-dashoffset: 0; transition: stroke-dashoffset 0.1s ease-out 0.04s; }
 .face-glyph--fail .face-glyph__face { animation: glyph-head-shake 0.7s ease-in-out; }
 .face-glyph--fail .face-glyph__features { animation: glyph-look 0.7s ease-in-out; }
 @keyframes glyph-spin { to { rotate: 360deg; } }

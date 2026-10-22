@@ -14,7 +14,7 @@ const errors = [], results = []
 page.on('pageerror', error => { errors.push(error.message); console.error('Browser error:', error.message) })
 page.on('console', message => { if (message.type() === 'error') console.error('Browser console:', message.text()) })
 await page.route('**/src/ambient/face.ts*', route => route.fulfill({ contentType: 'application/javascript', body: `
-export const faceBackend = () => 'webgl';
+export const faceBackend = () => 'wasm';
 export const frontal = () => true;
 export const loadFaceEngine = () => { window.modelLoads = (window.modelLoads || 0) + 1; return window.faceMode === 'models-hang' ? new Promise(() => {}) : Promise.resolve(); };
 export class BlinkWatch { seen = false; push() {} eyesOpen() { return true; } }
@@ -28,6 +28,15 @@ export class FaceCamera {
     return { problem: 'none', eyes: .3, sample: { descriptor: Array(128).fill(.1), real: .9, live: .9 } };
   }
 }` }))
+await page.route('**/src/lib/preview.ts*', async route => {
+  const response = await route.fetch()
+  const source = (await response.text())
+    .replace(/case ['"]face_verify['"]:[\s\S]*?break;/, `case "face_verify":
+      (window.verifyCalls ||= []).push({count: args.samples.length, blinked: args.blinked, last: args.last, deadlineMs: args.deadlineMs});
+      result = {verdict: window.faceMode === 'mismatch' ? 'noMatch' : 'match', score: .9, real: .9, live: .9}; break;`)
+    .replace(/case ['"]ambient_unlock['"]:[\s\S]*?break;/, `case "ambient_unlock": window.helloCalls = (window.helloCalls || 0) + 1; result = 'cancelled'; break;`)
+  await route.fulfill({ response, body: source })
+})
 const show = async mode => {
   await page.evaluate(mode => {
     window.faceMode = mode; window.verifyCalls = []; window.frameReads = 0;
@@ -42,14 +51,8 @@ const show = async mode => {
 try {
   await page.goto(process.env.UI_URL ?? 'http://127.0.0.1:1420/ambient.html?face=match', { waitUntil: 'domcontentloaded', timeout: 60000 })
   await page.locator('.ambient--ready').waitFor()
-  await page.evaluate(async () => {
-    const { cmd } = await import('/src/lib/ipc.ts')
-    cmd.faceVerify = async (samples, blinked, last, deadlineMs) => {
-      window.verifyCalls.push({ count: samples.length, blinked, last, deadlineMs })
-      return { verdict: window.faceMode === 'mismatch' ? 'noMatch' : 'match', score: .9, real: .9, live: .9 }
-    }
-    cmd.ambientUnlock = async () => { window.helloCalls = (window.helloCalls || 0) + 1; return 'cancelled' }
-  })
+  await page.waitForFunction(() => (window.cameraStarts || 0) > 0)
+  results.push({ flow: 'Camera readiness starts as soon as enrolled ambient becomes visible, before unlock input' })
   const first = await show('match')
   await page.locator('.island--success').waitFor()
   const matchMs = Date.now() - first
@@ -60,7 +63,7 @@ try {
   results.push({ flow: 'First good frame unlocks without waiting for a second frame', fixtureMs: matchMs })
   for (const mode of ['camera-hang', 'models-hang', 'frame-hang']) {
     const started = await show(mode)
-    await page.getByText('Face scan took too long', { exact: true }).waitFor()
+    await page.getByText(mode === 'camera-hang' ? 'Camera is getting ready' : 'Face scan took too long', { exact: true }).waitFor()
     const ms = Date.now() - started
     assert.ok(ms < 3200 && ms >= 2400, `${mode}: ${ms} ms`)
     assert.ok(await page.getByRole('button', { name: 'Use PIN', exact: true }).isVisible())
@@ -143,6 +146,6 @@ try {
   assert.ok(await page.evaluate(() => window.cameraStops || 0) > beforeHide)
   results.push({ flow: 'Hidden prewarm loads models without the webcam; keep-ready opens only when shown and stops on hide' })
   assert.deepEqual(errors, [])
-  await writeFile('docs/verification/instant-unlock-smoke.json', JSON.stringify({ boundary: 'Actual Solid ambient UI, simulated camera/models/native responses. Does not measure physical webcam recognition.', results, errors }, null, 2) + '\n')
+  await writeFile(process.env.FACE_SMOKE_RECORD ?? 'docs/verification/instant-unlock-smoke.json', JSON.stringify({ boundary: 'Actual Solid ambient UI, simulated camera/models/native responses. Does not measure physical webcam recognition.', results, errors }, null, 2) + '\n')
   console.log(JSON.stringify(results, null, 2))
 } finally { await browser.close() }

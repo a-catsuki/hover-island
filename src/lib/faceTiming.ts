@@ -9,7 +9,10 @@ export interface FaceTiming {
   /** Waiting for the face models to load. */
   modelsMs: number
   frames: number
-  backend: 'webgl' | 'cpu'
+  backend: 'wasm' | 'webgl' | 'cpu'
+  /** Where an incomplete scan spent its budget. Old diagnostic records omit it. */
+  stage?: 'camera' | 'models' | 'inference' | 'verification'
+  error?: string
 }
 
 const KEY = 'hover.faceUnlockTiming'
@@ -33,6 +36,10 @@ export function describeFaceTiming(timing: FaceTiming): string {
   const parts = [`${timing.matched ? 'Last unlock' : 'Last try'} took ${seconds(timing.totalMs)}`]
   if (timing.cameraMs > 0) parts.push(`camera ${seconds(timing.cameraMs)}`)
   if (timing.modelsMs > 50) parts.push(`loading ${seconds(timing.modelsMs)}`)
-  parts.push(`${timing.frames} frame${timing.frames === 1 ? '' : 's'} on the ${timing.backend === 'cpu' ? 'CPU (slow)' : 'GPU'}`)
+  parts.push(`${timing.frames} frame${timing.frames === 1 ? '' : 's'} on the ${faceBackendLabel(timing.backend)}`)
+  if (!timing.matched && timing.stage) parts.push(`stopped at ${timing.stage}`)
   return parts.join(', ')
 }
+
+export const faceBackendLabel = (backend: FaceTiming['backend']): string =>
+  backend === 'wasm' ? 'accelerated CPU' : backend === 'webgl' ? 'GPU' : 'CPU (slow)'

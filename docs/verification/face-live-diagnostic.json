@@ -1,0 +1,70 @@
+{
+  "boundary": "Real HP RGB camera and existing encrypted owner enrollment; actual production FaceCamera and face models in Chromium. Does not exercise the installed app closing its ambient window.",
+  "ownerPresence": "User confirmed they were away or off camera. These are no-face detector timings, not an owner mismatch or a full recognition benchmark.",
+  "cameraMs": 12197,
+  "modelsMs": 10747,
+  "readyCameraMs": 0,
+  "frames": [
+    {
+      "ms": 261,
+      "backend": "wasm",
+      "problem": null,
+      "brightness": 109,
+      "range": 238,
+      "identityPass": false,
+      "livenessPass": false,
+      "matched": false
+    },
+    {
+      "ms": 160,
+      "backend": "wasm",
+      "problem": null,
+      "brightness": 109,
+      "range": 236,
+      "identityPass": false,
+      "livenessPass": false,
+      "matched": false
+    },
+    {
+      "ms": 171,
+      "backend": "wasm",
+      "problem": null,
+      "brightness": 110,
+      "range": 236,
+      "identityPass": false,
+      "livenessPass": false,
+      "matched": false
+    },
+    {
+      "ms": 189,
+      "backend": "wasm",
+      "problem": null,
+      "brightness": 109,
+      "range": 234,
+      "identityPass": false,
+      "livenessPass": false,
+      "matched": false
+    },
+    {
+      "ms": 167,
+      "backend": "wasm",
+      "problem": null,
+      "brightness": 109,
+      "range": 235,
+      "identityPass": false,
+      "livenessPass": false,
+      "matched": false
+    },
+    {
+      "ms": 158,
+      "backend": "wasm",
+      "problem": null,
+      "brightness": 108,
+      "range": 237,
+      "identityPass": false,
+      "livenessPass": false,
+      "matched": false
+    }
+  ],
+  "matched": false
+}

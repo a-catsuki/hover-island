@@ -1,0 +1,43 @@
+{
+  "boundary": "Actual Solid ambient UI, simulated camera/models/native responses. Does not measure physical webcam recognition.",
+  "results": [
+    {
+      "flow": "Camera readiness starts as soon as enrolled ambient becomes visible, before unlock input"
+    },
+    {
+      "flow": "First good frame unlocks without waiting for a second frame",
+      "fixtureMs": 29
+    },
+    {
+      "flow": "camera-hang reaches PIN fallback",
+      "fixtureMs": 2944
+    },
+    {
+      "flow": "models-hang reaches PIN fallback",
+      "fixtureMs": 2908
+    },
+    {
+      "flow": "frame-hang reaches PIN fallback",
+      "fixtureMs": 2897
+    },
+    {
+      "flow": "A clear mismatch finishes promptly with one counted final check"
+    },
+    {
+      "flow": "PIN is available while scanning and cancels a late face result"
+    },
+    {
+      "flow": "Hiding a warm ambient page stops the camera and discards an in-flight scan"
+    },
+    {
+      "flow": "A reused warm page unlocks again after cancellation"
+    },
+    {
+      "flow": "All five scenes and four clocks render; reduced motion stops canvas animation"
+    },
+    {
+      "flow": "Hidden prewarm loads models without the webcam; keep-ready opens only when shown and stops on hide"
+    }
+  ],
+  "errors": []
+}

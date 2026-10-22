@@ -1,7 +1,7 @@
 import type { Config, FaceResult, Human, Result } from '@vladmandic/human'
 import type { FaceSample } from '../lib/ipc'
 
-/** Face models run in this page on the GPU, offline. Only descriptors reach native code, which matches them. */
+/** Offline face models use SIMD WebAssembly, avoiding WebGL shader compilation on the unlock path. */
 
 const CAMERA = { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } } as const
 /** Head turned further than this (radians) is too far off-axis for a reliable descriptor. */
@@ -10,17 +10,16 @@ const FRONTAL = 0.32
 const MIN_FACE_WIDTH = 0.18
 /** Face mesh points (MediaPipe numbering): eye corners, then upper and lower lid, for each eye. */
 const EYES = [[33, 133, 159, 145], [362, 263, 386, 374]] as const
-/** A frame that takes longer than this has hung the GPU backend. */
-const FRAME_TIMEOUT_MS = 10_000
+/** Bound an ordinary inference without restarting a still-busy TensorFlow operation. */
+const FRAME_TIMEOUT_MS = 1800
 /** The first frames also compile GPU shaders, which slow GPUs take a while over. */
 const FIRST_FRAME_TIMEOUT_MS = 30_000
 let framesDone = 0
-/** Backend failures in a row before switching to the slower CPU backend. */
-const GPU_FAILURES = 2
 
 // Every frame must be scored afresh: cached results would let one good frame vouch for later ones.
 const CONFIG: Partial<Config> = {
   modelBasePath: '/models/face/',
+  wasmPath: '/models/face/',
   debug: false,
   cacheSensitivity: 0,
   warmup: 'none',
@@ -49,8 +48,7 @@ const QUICK: Partial<Config> = { face: { description: { enabled: false }, antisp
 const FULL: Partial<Config> = { face: { description: { enabled: true }, antispoof: { enabled: true }, liveness: { enabled: true } } }
 
 let engine: Promise<Human> | null = null
-let backend: 'webgl' | 'cpu' = 'webgl'
-let gpuFailures = 0
+let backend: 'wasm' | 'webgl' = 'wasm'
 /** A timeout cannot cancel TensorFlow. Never start another detection on a busy engine. */
 let detecting = false
 
@@ -59,31 +57,6 @@ const timeout = <T,>(promise: Promise<T>, ms: number, what: string): Promise<T> 
     const timer = setTimeout(() => reject(new Error(`${what} timed out`)), ms)
     promise.then(value => { clearTimeout(timer); resolve(value) }, error => { clearTimeout(timer); reject(error) })
   })
-
-/**
- * Runs every loaded model once on zeros. The first run of a model compiles its GPU shaders,
- * which takes seconds; doing it while the screen sits idle makes the first scan as fast as the
- * rest. (Human's own warmup fetches a data: URL, which the app's content security policy blocks.)
- */
-function compileModels(human: Human): void {
-  const tf = human.tf
-  for (const model of Object.values(human.models.models)) {
-    const shape = model?.inputs?.[0]?.shape
-    if (!model || !shape) continue
-    try {
-      tf.tidy(() => {
-        const input = tf.zeros(shape.map((size: number) => (size > 0 ? size : 1)))
-        const output = model.execute(input)
-        // Read one value so the GPU actually runs the graph now.
-        const first = Array.isArray(output) ? output[0] : output
-        first.dataSync()
-      })
-    } catch (error) {
-      // Only a speed-up; the model still compiles on its first real frame.
-      console.warn('Face unlock: could not precompile a model', error)
-    }
-  }
-}
 
 /**
  * One full detection on a sample face at the camera's frame size, so the crop and resize steps
@@ -111,23 +84,22 @@ async function warmUp(human: Human): Promise<void> {
   }
 }
 
-async function createEngine(kind: 'webgl' | 'cpu'): Promise<Human> {
+async function createEngine(kind: 'wasm' | 'webgl'): Promise<Human> {
   const { Human } = await import('@vladmandic/human')
   const human = new Human({ ...CONFIG, backend: kind })
   await human.load()
   await timeout(human.tf.ready(), FRAME_TIMEOUT_MS, 'Face models')
-  compileModels(human)
   await warmUp(human)
   return human
 }
 
-/** Loads the models once, on the GPU, or on the CPU if the GPU backend fails. Safe to call early. */
+/** Prefer SIMD WASM. The GPU is a compatibility fallback; unaccelerated JavaScript is never used. */
 export function loadFaceEngine(): Promise<Human> {
   engine ??= createEngine(backend).catch(error => {
-    if (backend === 'cpu') throw error
-    console.error('Face unlock: GPU backend failed, using CPU', error)
-    backend = 'cpu'
-    return createEngine('cpu')
+    if (backend === 'webgl') throw error
+    console.error('Face unlock: accelerated CPU backend unavailable, using GPU', error)
+    backend = 'webgl'
+    return createEngine('webgl')
   }).catch(error => { engine = null; throw error })
   return engine
 }
@@ -135,30 +107,19 @@ export function loadFaceEngine(): Promise<Human> {
 /** The backend in use, for the status line. */
 export const faceBackend = () => backend
 
-/** One detection. Repeated backend failures switch to the CPU backend for the next frame. */
+/** One detection. Never run a second operation on a still-busy engine after a timeout. */
 async function detect(video: HTMLVideoElement, full: boolean): Promise<Result> {
   const human = await loadFaceEngine()
   if (detecting) throw new Error('Face detection is still finishing')
   detecting = true
   const pending = Promise.resolve().then(() => human.detect(video, full ? FULL : QUICK))
   void pending.finally(() => { detecting = false }).catch(() => {})
-  try {
-    const limit = framesDone < 3 ? FIRST_FRAME_TIMEOUT_MS : FRAME_TIMEOUT_MS
-    const result = await timeout(pending, limit, 'Face detection')
-    framesDone++
-    gpuFailures = 0
-    // A soft error, such as the video not being ready yet; the next frame may be fine.
-    if (result.error) throw new Error(result.error)
-    return result
-  } catch (error) {
-    if (backend === 'webgl' && !(error instanceof Error && /tensor|input/i.test(error.message)) && ++gpuFailures >= GPU_FAILURES) {
-      console.error('Face unlock: GPU detection keeps failing, using CPU', error)
-      backend = 'cpu'
-      engine = null
-      framesDone = 0
-    }
-    throw error
-  }
+  const limit = framesDone < 3 ? FIRST_FRAME_TIMEOUT_MS : FRAME_TIMEOUT_MS
+  const result = await timeout(pending, limit, 'Face detection')
+  framesDone++
+  // A soft error, such as the video not being ready yet; the next frame may be fine.
+  if (result.error) throw new Error(result.error)
+  return result
 }
 
 export interface FaceFrame {
@@ -178,6 +139,7 @@ export class FaceCamera {
   private stream: MediaStream | null = null
   private starting: Promise<void> | null = null
   private generation = 0
+  private cancelFrameWait: (() => void) | null = null
 
   /** True once frames are flowing. */
   get running(): boolean {
@@ -212,8 +174,21 @@ export class FaceCamera {
     await this.video.play()
     if (generation !== this.generation) throw new Error('Camera start cancelled')
     // Detection skips a video that has no current frame yet.
-    if (this.video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
-      await timeout(new Promise(resolve => this.video.addEventListener('canplay', resolve, { once: true })), 2500, 'Camera')
+    if (this.video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      await new Promise<void>((resolve, reject) => {
+        const finish = (error?: Error) => {
+          clearTimeout(timer)
+          this.video.removeEventListener('loadeddata', ready)
+          if (this.cancelFrameWait === cancel) this.cancelFrameWait = null
+          if (error) reject(error); else resolve()
+        }
+        const ready = () => finish()
+        const cancel = () => finish(new Error('Camera start cancelled'))
+        const timer = setTimeout(() => finish(new Error('Camera timed out')), 2500)
+        this.cancelFrameWait = cancel
+        this.video.addEventListener('loadeddata', ready, { once: true })
+        if (this.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) ready()
+      })
     }
     if (generation !== this.generation) throw new Error('Camera start cancelled')
     // Stopped while starting: make sure the light goes off.
@@ -224,6 +199,7 @@ export class FaceCamera {
   stop(): void {
     this.generation++
     this.starting = null
+    this.cancelFrameWait?.()
     this.stream?.getTracks().forEach(track => track.stop())
     this.stream = null
     this.video.srcObject = null

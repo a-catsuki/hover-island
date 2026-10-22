@@ -119,3 +119,35 @@ test('a failed video start releases its stream so retry can open the camera agai
   await assert.rejects(camera.start(), /camera busy/)
   assert.equal(stops, 2)
 })
+
+test('one decoded camera frame is sufficient without waiting for future buffered frames', async () => {
+  const { FaceCamera } = await load('ambient/face.ts', {
+    navigator: { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) } },
+    document: { createElement: () => ({ readyState: 2, srcObject: null, play: async () => {}, addEventListener() { throw new Error('should not wait for another frame') } }) },
+    HTMLMediaElement: { HAVE_CURRENT_DATA: 2, HAVE_FUTURE_DATA: 3 },
+  })
+  const camera = new FaceCamera()
+  await camera.start()
+  assert.equal(camera.running, true)
+  camera.stop()
+})
+
+test('hiding ambient cancels a pending first-frame wait and removes its listener', async () => {
+  const listeners = new Map()
+  const attached = deferred()
+  let stopped = 0
+  const { FaceCamera } = await load('ambient/face.ts', {
+    navigator: { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [{ stop: () => stopped++ }] }) } },
+    document: { createElement: () => ({ readyState: 1, srcObject: null, play: async () => {}, addEventListener: (name, fn) => { listeners.set(name, fn); attached.resolve() }, removeEventListener: name => listeners.delete(name) }) },
+    HTMLMediaElement: { HAVE_CURRENT_DATA: 2 },
+  })
+  const camera = new FaceCamera()
+  const opening = camera.start()
+  await attached.promise
+  assert.equal(listeners.size, 1)
+  const cancelled = assert.rejects(opening, /cancelled/)
+  camera.stop()
+  await cancelled
+  assert.equal(listeners.size, 0)
+  assert.equal(stopped, 1)
+})

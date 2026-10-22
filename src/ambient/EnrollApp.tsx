@@ -2,6 +2,7 @@ import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from 'soli
 import { cmd, type FaceSample } from '../lib/ipc'
 import FaceGlyph from './FaceGlyph'
 import { FaceCamera, faceBackend, frontal, loadFaceEngine, type FaceFrame } from './face'
+import { faceBackendLabel } from '../lib/faceTiming'
 
 const TICKS = 72
 /** Head turned at least this far (radians) lights the ticks it points at. */
@@ -92,7 +93,7 @@ export default function EnrollApp() {
       if (frame.problem === null) {
         const lost = Date.now() - lastFace
         setPrompt(lost > NO_FACE_HINT_MS ? 'No face found. Try facing a light, or sitting a little further back.' : 'Position your face within the frame.')
-        if (lost > NO_FACE_HINT_MS) setStatus(`Checked ${frames} frames on the ${faceBackend() === 'cpu' ? 'CPU' : 'GPU'}`)
+        if (lost > NO_FACE_HINT_MS) setStatus(`Checked ${frames} frames on the ${faceBackendLabel(faceBackend())}`)
         continue
       }
       lastFace = Date.now()
@@ -145,8 +146,7 @@ export default function EnrollApp() {
   const begin = async () => {
     setStep('loading')
     try {
-      await loadFaceEngine()
-      await camera.start()
+      await Promise.all([loadFaceEngine(), camera.start()])
       preview?.replaceChildren(camera.video)
       setPass(1)
       void runScan()

@@ -1,6 +1,6 @@
 import { createEffect, createSignal, onCleanup, onMount, Show } from 'solid-js'
 import { cmd, type FaceCheck, type FaceSample } from '../lib/ipc'
-import { saveFaceTiming } from '../lib/faceTiming'
+import { faceBackendLabel, saveFaceTiming, type FaceTiming } from '../lib/faceTiming'
 import { FaceScan, FaceScanCancelled, FaceScanExpired, FACE_SCAN_MS, BLINK_SCAN_MS } from '../lib/faceScan'
 import { settings } from '../state/settings'
 import FaceGlyph, { Padlock, type GlyphState } from './FaceGlyph'
@@ -119,7 +119,7 @@ export default function SoftLock(props: { active: boolean; onAwake: (awake: bool
    * Full frames until a check matches, the time runs out or native code says stop. Each usable
    * frame is checked at once with the one before it, so a clear look unlocks on the first frame.
    */
-  const collect = async (scan: FaceScan) => {
+  const collect = async (scan: FaceScan, report: (stage: NonNullable<FaceTiming['stage']>, frames: number) => void) => {
     const samples: FaceSample[] = []
     const blink = new BlinkWatch()
     const blinkNeeded = requireBlink()
@@ -132,6 +132,7 @@ export default function SoftLock(props: { active: boolean; onAwake: (awake: bool
     while (scan.remaining > 120) {
       let frame: FaceFrame
       try {
+        report('inference', frames)
         frame = await scan.wait(camera.read())
       } catch (error) {
         if (error instanceof FaceScanCancelled || error instanceof FaceScanExpired) throw error
@@ -139,6 +140,7 @@ export default function SoftLock(props: { active: boolean; onAwake: (awake: bool
         continue
       }
       frames++
+      report('inference', frames)
       blink.push(frame.eyes)
       if (frame.problem !== null) sawFace = true
       const usable = frame.problem === 'none' && (!blinkNeeded || blink.eyesOpen(frame.eyes))
@@ -156,6 +158,7 @@ export default function SoftLock(props: { active: boolean; onAwake: (awake: bool
       const ready = frame.sample && usable && (!blinkNeeded || blink.seen)
       if (ready && probes < PROBES) {
         probes++
+        report('verification', frames)
         check = await scan.wait(cmd.faceVerify(samples, blink.seen, false, scan.deadline))
         if (check && check.verdict !== 'noMatch') break
       }
@@ -166,6 +169,7 @@ export default function SoftLock(props: { active: boolean; onAwake: (awake: bool
     if (blinkNeeded && !blink.seen && samples.length > 0) problem = 'Blink to unlock'
     // The scan's own check, which counts as an attempt; skipped when a probe already settled it.
     if (samples.length > 0 && (!blinkNeeded || blink.seen) && check?.verdict !== 'match' && check?.verdict !== 'lockedOut' && check?.verdict !== 'notEnrolled') {
+      report('verification', frames)
       check = await scan.wait(cmd.faceVerify(samples, blink.seen, true, scan.deadline))
     }
     return { check, sampled: samples.length > 0, blinked: blink.seen, problem, sawFace, frames }
@@ -185,45 +189,50 @@ export default function SoftLock(props: { active: boolean; onAwake: (awake: bool
     clearTimeout(lingerTimer)
     let cameraMs = 0
     let modelsMs = 0
+    let modelsReady = false
+    let stage: NonNullable<FaceTiming['stage']> = 'camera'
+    let frames = 0
     try {
       // The camera and the models start together; the camera is usually the slower one.
       const warm = camera.running
       await Promise.all([
-        session.wait(loadFaceEngine()).then(() => { modelsMs = performance.now() - begun }),
-        session.wait(camera.start()).then(() => { cameraMs = warm ? 0 : performance.now() - begun }),
+        session.wait(loadFaceEngine()).then(() => { modelsReady = true; modelsMs = performance.now() - begun }),
+        session.wait(camera.start()).then(() => { cameraMs = warm ? 0 : performance.now() - begun; if (!modelsReady) stage = 'models' }),
       ])
-    const result = await collect(session)
-    const check = result.check
-    const totalMs = performance.now() - begun
-    if (result.sampled) saveFaceTiming({ at: Date.now(), matched: check?.verdict === 'match', totalMs, cameraMs, modelsMs, frames: result.frames, backend: faceBackend() })
-    const scores = check ? `Match ${Math.round(check.score * 100)}% · real ${Math.round(check.real * 100)} · live ${Math.round(check.live * 100)} · ${(totalMs / 1000).toFixed(1)} s on the ${faceBackend() === 'cpu' ? 'CPU' : 'GPU'}` : ''
-    if (check?.verdict === 'match') {
-      camera.stop()
-      setPhase('success')
-      setMessage('')
-      props.onUnlock()
-      return
-    }
-    if (check?.verdict === 'lockedOut') {
-      setLockedOut(true)
-      camera.stop()
-      return fail('Use your PIN to unlock', scores)
-    }
-    if (check?.verdict === 'notEnrolled') {
-      setEnrolled(false)
-      return void hello()
-    }
-    if (!check) {
-      // Not enough of a face to judge: not counted as an attempt.
-      if (auto && !result.sawFace) return toIdle()
-      return fail(result.problem || 'No Face Found')
-    }
-    fail('Not Recognized', scores)
+      const result = await collect(session, (next, count) => { stage = next; frames = count })
+      const check = result.check
+      const totalMs = performance.now() - begun
+      saveFaceTiming({ at: Date.now(), matched: check?.verdict === 'match', totalMs, cameraMs, modelsMs, frames: result.frames, backend: faceBackend(), stage })
+      const scores = check ? `Match ${Math.round(check.score * 100)}% · real ${Math.round(check.real * 100)} · live ${Math.round(check.live * 100)} · ${(totalMs / 1000).toFixed(1)} s on the ${faceBackendLabel(faceBackend())}` : ''
+      if (check?.verdict === 'match') {
+        camera.stop()
+        setPhase('success')
+        setMessage('')
+        props.onUnlock()
+        return
+      }
+      if (check?.verdict === 'lockedOut') {
+        setLockedOut(true)
+        camera.stop()
+        return fail('Use your PIN to unlock', scores)
+      }
+      if (check?.verdict === 'notEnrolled') {
+        setEnrolled(false)
+        return void hello()
+      }
+      if (!check) {
+        // Not enough of a face to judge: not counted as an attempt.
+        if (auto && !result.sawFace) return toIdle()
+        return fail(result.problem || 'No Face Found')
+      }
+      fail('Not Recognized', scores)
     } catch (error) {
       if (session.cancelled || currentScan !== session || !props.active) return
-      camera.stop()
-      saveFaceTiming({ at: Date.now(), matched: false, totalMs: performance.now() - begun, cameraMs, modelsMs, frames: 0, backend: faceBackend() })
-      fail(error instanceof FaceScanExpired ? 'Face scan took too long' : 'Camera unavailable', 'Try again or use your PIN')
+      // Do not turn a ready camera off just because inference used up its budget.
+      // A still-starting camera may also finish in time for the next try.
+      if (!keepReady()) camera.stop()
+      saveFaceTiming({ at: Date.now(), matched: false, totalMs: performance.now() - begun, cameraMs, modelsMs, frames, backend: faceBackend(), stage, error: error instanceof Error ? error.message : String(error) })
+      fail(error instanceof FaceScanExpired ? (stage === 'camera' ? 'Camera is getting ready' : 'Face scan took too long') : 'Face scan unavailable', 'Try again or use your PIN')
     } finally {
       if (currentScan === session) currentScan = undefined
     }

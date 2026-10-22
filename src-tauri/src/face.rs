@@ -46,7 +46,7 @@ const MAX_ATTEMPTS: u32 = 5;
 /// frame as it arrives and only the scan's last check counts, but this caps the free ones.
 const MAX_PROBES: u32 = 4;
 /// How long the page's check-mark and unlock animation runs after a match.
-const UNLOCK_ANIMATION: Duration = Duration::from_millis(560);
+const UNLOCK_ANIMATION: Duration = Duration::from_millis(180);
 
 static ATTEMPTS: AtomicU32 = AtomicU32::new(0);
 static PROBES: AtomicU32 = AtomicU32::new(0);

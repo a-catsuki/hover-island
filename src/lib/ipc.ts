@@ -423,7 +423,7 @@ export const DEFAULT_SETTINGS: Settings = {
     manualConfig: { label: 'Custom', used: null, limit: null, unit: 'tokens', resetAt: null },
   },
   transfer: { trustedPhones: false },
-  ambient: { enabled: false, idleMinutes: 5, clock: true, media: true, weather: true, dim: true, takeOverScreensaver: true, softLock: true, lockAfterMinutes: 10, faceRequireBlink: false, faceCameraReady: false, scene: 'aurora', clockStyle: 'classic', palette: 'auto', musicReactive: true, note: '' },
+  ambient: { enabled: false, idleMinutes: 5, clock: true, media: true, weather: true, dim: true, takeOverScreensaver: true, softLock: true, lockAfterMinutes: 10, faceRequireBlink: false, faceCameraReady: true, scene: 'aurora', clockStyle: 'classic', palette: 'auto', musicReactive: true, note: '' },
   notifications: { enabled: true, systemListener: true, sound: 'soft' },
   interaction: { hoverOpen: true, openDelayMs: 140, closeDelayMs: 450 },
 }

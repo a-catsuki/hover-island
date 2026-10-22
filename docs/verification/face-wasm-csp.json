@@ -1,0 +1,26 @@
+{
+  "boundary": "Actual production engine with the exact app CSP, local WASM and public sample face in Chromium. No webcam, owner match or installed WebView2.",
+  "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self' data: blob: https: asset:; media-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* http://localhost:*",
+  "backend": "wasm",
+  "readyMs": 2423,
+  "frames": [
+    {
+      "ms": 297,
+      "faces": 1,
+      "embedding": true,
+      "real": 0.81,
+      "live": 1,
+      "error": null
+    },
+    {
+      "ms": 286,
+      "faces": 1,
+      "embedding": true,
+      "real": 0.81,
+      "live": 1,
+      "error": null
+    }
+  ],
+  "violations": [],
+  "externalRequests": 0
+}

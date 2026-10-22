@@ -176,7 +176,7 @@ impl Default for AmbientCfg {
             soft_lock: true,
             lock_after_minutes: 10,
             face_require_blink: false,
-            face_camera_ready: false,
+            face_camera_ready: true,
             scene: "aurora".into(),
             clock_style: "classic".into(),
             palette: "auto".into(),
@@ -1587,7 +1587,7 @@ mod tests {
         assert_eq!(settings.ambient.scene, "artwork");
         assert_eq!(settings.ambient.clock_style, "classic");
         assert_eq!(settings.ambient.palette, "sunset");
-        assert!(!settings.ambient.face_camera_ready);
+        assert!(settings.ambient.face_camera_ready);
         assert!(settings.ambient.music_reactive);
     }
 }

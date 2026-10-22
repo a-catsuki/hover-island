@@ -89,11 +89,11 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; back
 .ambient--solo .clock-words__period { text-align: center; }
 
 /* unlocking: the screen lifts away while the island shows its check */
-/* (native code closes the window 0.56 s after a match, so this must finish by then) */
-.ambient--unlocking .ambient__stage { opacity: 0; scale: 1.08; translate: 0 -4vh; filter: blur(14px); transition: opacity 0.38s ease 0.14s, scale 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.12s, translate 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.12s, filter 0.38s ease 0.14s; }
-.ambient--unlocking .ambient__sky { opacity: 0; scale: 1.15; transition: opacity 0.36s ease 0.18s, scale 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.14s; }
-.ambient--unlocking .island { opacity: 0; scale: 0.9; transition: opacity 0.2s ease 0.36s, scale 0.25s ease 0.34s; }
-.ambient--unlocking { background: transparent; transition: background 0.24s ease 0.3s; }
+/* Native code closes after 180 ms: recognition must not wait for decorative animation. */
+.ambient--unlocking .ambient__stage { opacity: 0; scale: 1.02; translate: 0 -1vh; transition: opacity 0.14s ease-out, scale 0.16s ease-out, translate 0.16s ease-out; }
+.ambient--unlocking .ambient__sky { opacity: 0; scale: 1.02; transition: opacity 0.16s ease-out, scale 0.16s ease-out; }
+.ambient--unlocking .island { opacity: 0; transition: opacity 0.06s ease 0.1s; }
+.ambient--unlocking { background: transparent; transition: background 0.14s ease-out; }
 
 @keyframes ambient-rise { from { opacity: 0; transform: translateY(26px) scale(0.985); } to { opacity: 1; transform: none; } }
 @media (max-width: 900px) { .ambient__stage { flex-direction: column; gap: 40px; } .ambient__card { max-width: none; } }
