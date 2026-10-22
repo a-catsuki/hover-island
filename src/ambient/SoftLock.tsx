@@ -1,7 +1,7 @@
 import { createSignal, onCleanup, onMount, Show } from 'solid-js'
-import { cmd, type FaceSample } from '../lib/ipc'
+import { cmd, listen, type FaceSample } from '../lib/ipc'
 import { settings } from '../state/settings'
-import FaceGlyph, { Padlock, type GlyphState } from './FaceGlyph'
+import { FaceOrb, Padlock, type GlyphState } from './FaceGlyph'
 import { BlinkWatch, FaceCamera, loadFaceEngine, type FaceFrame } from './face'
 
 /** Matches native OPEN_GRACE: the click or key that opened the page is not an unlock attempt. */
@@ -13,9 +13,8 @@ const BLINK_SCAN_MS = 6000
 /** Ask for a blink once this much of the scan has gone by without one. */
 const BLINK_PROMPT_MS = 1600
 const ENGINE_WAIT_MS = 15_000
-/** Identity frames per scan, spaced so they are not near-copies of one another. */
+/** Identity frames per scan: two back-to-back frames, the least native code accepts. */
 const SAMPLES = 2
-const SAMPLE_GAP_MS = 60
 /** The failure panel, with the camera still on for an instant retry. */
 const FAIL_HOLD_MS = 6000
 
@@ -36,7 +35,7 @@ const withTimeout = <T,>(promise: Promise<T>, ms: number) => Promise.race([promi
  * unlock when a face is enrolled, and Windows Hello otherwise or after too many misses.
  * Native code decides every match and closes the window; this only draws and collects frames.
  */
-export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
+export default function SoftLock(props: { onAwake: (awake: boolean) => void; onUnlock?: () => void }) {
   const [phase, setPhase] = createSignal<Phase>('idle')
   const [message, setMessage] = createSignal('')
   const [detail, setDetail] = createSignal('')
@@ -44,7 +43,7 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
   const [enrolled, setEnrolled] = createSignal(false)
   const [lockedOut, setLockedOut] = createSignal(false)
   const camera = new FaceCamera()
-  const openedAt = Date.now()
+  let openedAt = Date.now()
   let failTimer: ReturnType<typeof setTimeout> | undefined
   let hintTimer: ReturnType<typeof setTimeout> | undefined
   /** One automatic scan per wake-up, like raising a phone; after that a key or click retries. */
@@ -108,8 +107,8 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
     const limit = blinkNeeded ? BLINK_SCAN_MS : SCAN_MS
     let problem = ''
     let sawFace = false
-    let lastSample = 0
-    let full = false
+    // Straight to a full read: a face is usually there already, and every frame saved counts.
+    let full = true
     // Count from the first frame, so a slow camera start does not eat the scan.
     let started = 0
     const done = () => samples.length >= SAMPLES && (!blinkNeeded || blink.seen)
@@ -127,10 +126,7 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
       blink.push(frame.eyes)
       if (frame.problem !== null) sawFace = true
       const usable = frame.problem === 'none' && blink.eyesOpen(frame.eyes)
-      if (frame.sample && usable && samples.length < SAMPLES && Date.now() - lastSample >= SAMPLE_GAP_MS) {
-        samples.push(frame.sample)
-        lastSample = Date.now()
-      }
+      if (frame.sample && usable && samples.length < SAMPLES) samples.push(frame.sample)
       if (usable) {
         problem = ''
         setMessage(blinkNeeded && !blink.seen && Date.now() - started > BLINK_PROMPT_MS ? 'Blink to unlock' : '')
@@ -170,6 +166,7 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
       camera.stop()
       setPhase('success')
       setMessage('')
+      props.onUnlock?.()
     } else if (check?.verdict === 'lockedOut') {
       setLockedOut(true)
       camera.stop()
@@ -187,13 +184,33 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
     void (useFace() ? scan() : hello())
   }
 
+  const refreshStatus = () => void cmd.faceStatus().then(status => {
+    setEnrolled(status.enrolled)
+    setLockedOut(status.attemptsLeft === 0)
+    // Load the models while the screen sits idle so the first scan starts at once.
+    if (status.enrolled) void loadFaceEngine().catch(() => {})
+  }).catch(() => {})
+
   onMount(() => {
-    void cmd.faceStatus().then(status => {
-      setEnrolled(status.enrolled)
-      setLockedOut(status.attemptsLeft === 0)
-      // Load the models while the screen sits idle so the first scan starts at once.
-      if (status.enrolled) void loadFaceEngine().catch(() => {})
-    }).catch(() => {})
+    refreshStatus()
+    // Native code keeps this page warm between showings (see ambient.rs): reset for each one.
+    const unlisten: Array<() => void> = []
+    void listen('ambient://shown', () => {
+      openedAt = Date.now()
+      autoScanned = false
+      clearTimeout(failTimer)
+      setPhase('idle')
+      setMessage('')
+      setDetail('')
+      refreshStatus()
+    }).then(stop => unlisten.push(stop)).catch(() => {})
+    void listen('ambient://hidden', () => {
+      clearTimeout(failTimer)
+      clearTimeout(hintTimer)
+      toIdle()
+      setAwake(false)
+      props.onAwake(false)
+    }).then(stop => unlisten.push(stop)).catch(() => {})
     const onInput = (event: Event) => {
       if (event.target instanceof Element && event.target.closest('button')) return
       attempt()
@@ -208,6 +225,7 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
       clearTimeout(failTimer)
       clearTimeout(hintTimer)
       camera.stop()
+      unlisten.forEach(stop => stop())
     })
   })
 
@@ -217,17 +235,13 @@ export default function SoftLock(props: { onAwake: (awake: boolean) => void }) {
 
   return (
     <>
-      <div class={`ambient__lock ambient__lock--${phase()}`} classList={{ 'ambient__lock--awake': (awake() && !hud()) || phase() === 'hello' }} role="status">
+      <div class="ambient__lock" classList={{ [`ambient__lock--${phase()}`]: true, 'ambient__lock--awake': (awake() && !hud()) || phase() === 'hello' }} role="status">
         <span class="ambient__lock-icon"><Padlock open={phase() === 'success'} size={17} /></span>
         <span class="ambient__lock-label">{pillLabel()}</span>
       </div>
       <div class="face-hud" classList={{ 'face-hud--show': hud() }} aria-live="polite">
-        <div class="face-hud__panel">
-          <FaceGlyph state={glyph()} />
-          <Show when={phase() !== 'success'}>
-            <p class="face-hud__label">{message() || 'Face Unlock'}</p>
-          </Show>
-        </div>
+        <FaceOrb state={glyph()} />
+        <p class="face-hud__label" classList={{ 'face-hud__label--hidden': phase() === 'success' }}>{message() || (phase() === 'failed' ? '' : 'Looking for you')}</p>
         <Show when={phase() === 'failed' && detail()}>
           <p class="face-hud__detail">{detail()}</p>
         </Show>

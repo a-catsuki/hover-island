@@ -42,7 +42,7 @@ const LEARN_BELOW: f32 = 0.9;
 /// Failed scans before only Windows Hello can unlock, as with Face ID and a passcode.
 const MAX_ATTEMPTS: u32 = 5;
 /// How long the page's check-mark and padlock animation runs after a match.
-const UNLOCK_ANIMATION: Duration = Duration::from_millis(950);
+const UNLOCK_ANIMATION: Duration = Duration::from_millis(560);
 
 static ATTEMPTS: AtomicU32 = AtomicU32::new(0);
 /// Set once Hello confirms the user in Settings; one enrollment may then be saved.
@@ -214,6 +214,11 @@ fn require_blink(app: &AppHandle) -> bool {
         .lock()
         .map(|settings| settings.ambient.face_require_blink)
         .unwrap_or(true)
+}
+
+/// A face is enrolled, so the locked page will run face unlock.
+pub(crate) fn is_enrolled(app: &AppHandle) -> bool {
+    read_store(app).map(|store| !store.templates.is_empty()).unwrap_or(false)
 }
 
 #[tauri::command]

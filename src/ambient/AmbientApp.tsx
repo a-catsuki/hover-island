@@ -1,10 +1,11 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js'
 import { Music } from 'lucide-solid'
-import { cmd, type WeatherSnapshot } from '../lib/ipc'
+import { cmd, listen, type AmbientPalette, type WeatherSnapshot } from '../lib/ipc'
 import { getAlbumPalette, type AlbumPalette } from '../lib/albumPalette'
 import { loadSettings, settings } from '../state/settings'
 import { interpolatedPosition, mediaReceivedAt, nowPlaying, subscribeMedia } from '../state/media'
 import SoftLock from './SoftLock'
+import { FlowScene, StarsScene } from './scenes'
 
 const WEATHER_REFRESH_MS = 15 * 60_000
 const DRIFT_MS = 45_000
@@ -15,6 +16,15 @@ function skyFor(hour: number, isDay: boolean | undefined): [string, string, stri
   if (hour >= 8 && hour < 17 && isDay !== false) return ['#4fa3ff', '#7ad7c4', '#1b2f5a']
   if (hour >= 17 && hour < 20) return ['#ff6b8b', '#ffb36b', '#3a1f5e']
   return ['#3b5bff', '#8a4dff', '#0b1030']
+}
+
+/** Fixed palettes for when the album and the time of day should not decide. */
+const PALETTES: Record<Exclude<AmbientPalette, 'auto'>, [string, string, string]> = {
+  ocean: ['#1fa2ff', '#12d8fa', '#0b2a4a'],
+  ember: ['#ff5f6d', '#ffc371', '#3a0f1e'],
+  forest: ['#38ef7d', '#11998e', '#0b2a1f'],
+  dusk: ['#c471f5', '#fa71cd', '#1c1036'],
+  mono: ['#9aa0a6', '#e8eaed', '#141416'],
 }
 
 const clock = (seconds: number) => {
@@ -31,7 +41,10 @@ export default function AmbientApp() {
   const [palette, setPalette] = createSignal<AlbumPalette | null>(null)
   const [ready, setReady] = createSignal(false)
   const [cursor, setCursor] = createSignal(false)
+  const [unlocking, setUnlocking] = createSignal(false)
   const ambient = () => settings.ambient
+  const scene = () => ambient().scene ?? 'aurora'
+  const clockStyle = () => ambient().clockStyle ?? 'thin'
 
   onMount(() => {
     void loadSettings()
@@ -44,7 +57,19 @@ export default function AmbientApp() {
     // A slow wander keeps a still image from burning into OLED and IPS panels.
     const wander = setInterval(() => setDrift({ x: Math.round((Math.random() - 0.5) * 90), y: Math.round((Math.random() - 0.5) * 60) }), DRIFT_MS)
     const raf = requestAnimationFrame(() => setReady(true))
-    onCleanup(() => { clearInterval(tick); clearInterval(refresh); clearInterval(wander); cancelAnimationFrame(raf); stopMedia?.() })
+    // With face unlock set up, native code hides this page instead of closing it, so the face
+    // models stay warm. Each showing starts fresh: faded in, settings re-read, weather current.
+    const unlisten: Array<() => void> = []
+    void listen('ambient://hidden', () => { setUnlocking(false); setReady(false); setCursor(false) }).then(stop => unlisten.push(stop)).catch(() => {})
+    void listen('ambient://shown', () => {
+      setUnlocking(false)
+      setReady(false)
+      void loadSettings()
+      loadWeather()
+      setNow(new Date())
+      requestAnimationFrame(() => requestAnimationFrame(() => setReady(true)))
+    }).then(stop => unlisten.push(stop)).catch(() => {})
+    onCleanup(() => { clearInterval(tick); clearInterval(refresh); clearInterval(wander); cancelAnimationFrame(raf); stopMedia?.(); unlisten.forEach(stop => stop()) })
   })
 
   const time = createMemo(() => {
@@ -55,6 +80,9 @@ export default function AmbientApp() {
     }).formatToParts(now())
     return parts.filter(part => part.type !== 'dayPeriod').map(part => part.value).join('').trim()
   })
+  const hours = () => time().split(':')[0] ?? ''
+  const minutes = () => time().split(':').slice(1).join(':')
+  const seconds = () => String(now().getSeconds()).padStart(2, '0')
   const period = () => settings.clockHourCycle === '24' ? '' : (new Intl.DateTimeFormat(undefined, { hour: 'numeric', hour12: true }).formatToParts(now()).find(part => part.type === 'dayPeriod')?.value ?? '')
   const weekday = () => new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(now())
   const day = () => new Intl.DateTimeFormat(undefined, { month: 'long', day: 'numeric' }).format(now())
@@ -83,29 +111,42 @@ export default function AmbientApp() {
   })
 
   const colors = createMemo<[string, string, string]>(() => {
+    const fixed = ambient().palette
+    if (fixed && fixed !== 'auto' && PALETTES[fixed]) return PALETTES[fixed]
     const art = palette()
     if (art) return [art.dominant, art.secondary, art.highlight]
     return skyFor(now().getHours(), weather()?.isDay ?? undefined)
   })
 
   return (
-    <main class="ambient" classList={{ 'ambient--dim': ambient().dim, 'ambient--ready': ready(), 'ambient--solo': !hasMedia(), 'ambient--cursor': cursor() }}
+    <main class="ambient" classList={{ [`ambient--scene-${scene()}`]: true, 'ambient--dim': ambient().dim, 'ambient--ready': ready(), 'ambient--solo': !hasMedia(), 'ambient--cursor': cursor(), 'ambient--unlocking': unlocking() }}
       style={{ '--c1': colors()[0], '--c2': colors()[1], '--c3': colors()[2] }}>
       <div class="ambient__sky" aria-hidden="true">
-        <i class="ambient__orb ambient__orb--a" />
-        <i class="ambient__orb ambient__orb--b" />
-        <i class="ambient__orb ambient__orb--c" />
+        <Show when={scene() === 'stars'}><StarsScene colors={colors} dim={() => ambient().dim} /></Show>
+        <Show when={scene() === 'flow'}><FlowScene colors={colors} dim={() => ambient().dim} /></Show>
+        <Show when={scene() === 'album' && hasMedia() && track()?.thumbnail}>
+          {src => <img class="ambient__backdrop" src={src()} alt="" draggable={false} />}
+        </Show>
+        <Show when={scene() === 'aurora' || (scene() === 'album' && !(hasMedia() && track()?.thumbnail))}>
+          <i class="ambient__orb ambient__orb--a" />
+          <i class="ambient__orb ambient__orb--b" />
+          <i class="ambient__orb ambient__orb--c" />
+        </Show>
         <i class="ambient__vignette" />
-        <i class="ambient__grain" />
+        <Show when={scene() !== 'minimal'}><i class="ambient__grain" /></Show>
       </div>
       <Show when={ambient().softLock}>
-        <SoftLock onAwake={setCursor} />
+        <SoftLock onAwake={setCursor} onUnlock={() => setUnlocking(true)} />
       </Show>
       <div class="ambient__stage" style={{ transform: `translate(${ambient().dim ? drift().x : 0}px, ${ambient().dim ? drift().y : 0}px)` }}>
         <Show when={ambient().clock}>
           <section class="ambient__clock">
             <p class="ambient__eyebrow"><span>{weekday()}</span><i /><span>{day()}</span></p>
-            <div class="ambient__time"><span>{time()}</span><Show when={period()}><small>{period()}</small></Show></div>
+            <Show when={clockStyle() === 'stacked'} fallback={
+              <div class={`ambient__time ambient__time--${clockStyle()}`}><span>{time()}</span><Show when={ambient().showSeconds}><span class="ambient__seconds">{seconds()}</span></Show><Show when={period()}><small>{period()}</small></Show></div>
+            }>
+              <div class="ambient__time ambient__time--stacked"><span>{hours()}</span><span class="ambient__minutes">{minutes()}<Show when={ambient().showSeconds}><span class="ambient__seconds">{seconds()}</span></Show></span></div>
+            </Show>
             <div class="ambient__minute" aria-hidden="true"><i style={{ transform: `scaleX(${minuteFraction()})` }} /></div>
             <Show when={ambient().weather && weather()}>
               <p class="ambient__weather"><b>{temperature()}</b><span>{weather()!.label}</span><Show when={weather()!.city}><em>{weather()!.city}</em></Show></p>

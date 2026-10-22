@@ -38,3 +38,33 @@ export function Padlock(props: { open: boolean; size?: number }) {
     </svg>
   )
 }
+
+/**
+ * The unlock orb: a glass disc ringed in the scene's colours. Scanning, the ring sweeps and a
+ * light passes over the face; on a match it flashes white and the check draws; on a miss the
+ * ring turns red and the orb shakes its head.
+ */
+export function FaceOrb(props: { state: GlyphState }) {
+  return (
+    <div class={`face-orb face-orb--${props.state}`} aria-hidden="true">
+      <i class="face-orb__glow" />
+      <i class="face-orb__ring" />
+      <div class="face-orb__core">
+        <i class="face-orb__scan" />
+        <svg class="face-orb__glyph" width="58" height="58" viewBox="0 0 100 100" fill="none">
+          <g class="face-orb__face">
+            <path d="M6 30V18A12 12 0 0 1 18 6h12" />
+            <path d="M70 6h12a12 12 0 0 1 12 12v12" />
+            <path d="M94 70v12a12 12 0 0 1-12 12H70" />
+            <path d="M30 94H18A12 12 0 0 1 6 82V70" />
+            <path d="M32 34v9" />
+            <path d="M68 34v9" />
+            <path d="M51 34v21h-5" />
+            <path d="M34 67q16 12 32 0" />
+          </g>
+          <path class="face-orb__check" d="M27 52l16 16 31-33" pathLength="100" />
+        </svg>
+      </div>
+    </div>
+  )
+}

@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::webview::{PermissionKind, PermissionResponse};
-use tauri::{AppHandle, Manager, WebviewUrl, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WindowEvent};
 
 use crate::state::AppState;
 
@@ -22,6 +22,9 @@ const LABEL: &str = "ambient";
 const OPEN_GRACE: Duration = Duration::from_millis(1500);
 /// How long before the Windows screen saver would start that ambient mode takes over.
 const SAVER_LEAD_MS: u64 = 20_000;
+/// With face unlock set up, the page is built this long before it is due, hidden, so the face
+/// models have compiled their GPU shaders (tens of seconds on some GPUs) before anyone looks.
+const PREWARM_LEAD_MS: u64 = 90_000;
 
 /// True while ambient mode wants the screen saver and display sleep held off.
 static HOLD_DISPLAY: AtomicBool = AtomicBool::new(false);
@@ -81,6 +84,11 @@ static LOCKED: AtomicBool = AtomicBool::new(false);
 static VERIFYING: AtomicBool = AtomicBool::new(false);
 /// The page is the face enrollment flow: input never closes it and it never locks.
 static ENROLLING: AtomicBool = AtomicBool::new(false);
+/// The window is on screen. With face unlock set up it outlives this: closing only hides it, so
+/// the face models stay loaded and compiled and the next unlock starts at once.
+static SHOWN: AtomicBool = AtomicBool::new(false);
+/// The existing window, shown or kept warm, holds the ambient page rather than enrollment.
+static AMBIENT_PAGE: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mode {
@@ -183,7 +191,59 @@ fn idle_millis() -> Option<u64> {
 }
 
 fn is_open(app: &AppHandle) -> bool {
-    app.get_webview_window(LABEL).is_some()
+    SHOWN.load(Ordering::Acquire) && app.get_webview_window(LABEL).is_some()
+}
+
+/// Keep the page alive between showings: only worth its memory when face unlock will use it.
+fn keep_warm(app: &AppHandle) -> bool {
+    let soft_lock = app
+        .state::<AppState>()
+        .settings
+        .lock()
+        .map(|settings| settings.ambient.soft_lock)
+        .unwrap_or(false);
+    soft_lock && crate::face::is_enrolled(app)
+}
+
+/// Builds the ambient page hidden, so it is ready the moment it is needed.
+fn build(app: &AppHandle, visible: bool) -> Result<tauri::WebviewWindow, String> {
+    let window = tauri::WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("ambient.html".into()))
+        .title("Hover Island Ambient")
+        .decorations(false)
+        .resizable(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        // The page paints its own background; transparency lets the unlock reveal the desktop.
+        .transparent(true)
+        .disable_drag_drop_handler()
+        // Face unlock reads frames in this page only; without this WebView2 asks every time.
+        .on_permission_request(|_, kind| match kind {
+            PermissionKind::Camera => PermissionResponse::Allow,
+            _ => PermissionResponse::Default,
+        })
+        .visible(visible)
+        .build()
+        .map_err(|error| format!("Could not open ambient mode: {error}"))?;
+    // Alt+F4 must not skip Hello. `close` uses `destroy` or `hide`, which do not ask.
+    window.on_window_event(|event| {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            if LOCKED.load(Ordering::Acquire) {
+                api.prevent_close();
+            }
+        }
+    });
+    Ok(window)
+}
+
+/// Builds the hidden ambient page ahead of time when face unlock will want it.
+fn prewarm(app: &AppHandle) {
+    if app.get_webview_window(LABEL).is_some() || !keep_warm(app) {
+        return;
+    }
+    ENROLLING.store(false, Ordering::Release);
+    if build(app, false).is_ok() {
+        AMBIENT_PAGE.store(true, Ordering::Release);
+    }
 }
 
 pub(crate) fn is_locked() -> bool {
@@ -211,44 +271,44 @@ fn open(app: &AppHandle, mode: Mode) -> Result<(), String> {
             return Ok(());
         }
     }
+    let warm = app.get_webview_window(LABEL);
+    let reuse = warm.as_ref().is_some_and(|_| AMBIENT_PAGE.load(Ordering::Acquire) && mode != Mode::Enroll);
+    if !reuse {
+        if let Some(window) = warm {
+            let _ = window.destroy();
+        }
+    }
     LOCKED.store(matches!(mode, Mode::Ambient { soft_lock: true }), Ordering::Release);
     ENROLLING.store(mode == Mode::Enroll, Ordering::Release);
     crate::face::reset_attempts();
-    let window = tauri::WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("ambient.html".into()))
-        .title("Hover Island Ambient")
-        .decorations(false)
-        .resizable(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .transparent(false)
-        .disable_drag_drop_handler()
-        // Face unlock reads frames in this page only; without this WebView2 asks every time.
-        .on_permission_request(|_, kind| match kind {
-            PermissionKind::Camera => PermissionResponse::Allow,
-            _ => PermissionResponse::Default,
-        })
-        .visible(false)
-        .build()
-        .map_err(|error| format!("Could not open ambient mode: {error}"))?;
-    // Alt+F4 must not skip Hello. `close` uses `destroy`, which does not ask.
-    window.on_window_event(|event| {
-        if let WindowEvent::CloseRequested { api, .. } = event {
-            if LOCKED.load(Ordering::Acquire) {
-                api.prevent_close();
-            }
+    let window = match app.get_webview_window(LABEL) {
+        Some(window) if reuse => {
+            // The kept page resets itself for a fresh showing before it is seen.
+            let _ = window.emit("ambient://shown", ());
+            window
         }
-    });
+        _ => build(app, false)?,
+    };
+    AMBIENT_PAGE.store(mode != Mode::Enroll, Ordering::Release);
     window.set_fullscreen(true).map_err(|error| error.to_string())?;
     window.show().map_err(|error| error.to_string())?;
+    SHOWN.store(true, Ordering::Release);
     let _ = window.set_focus();
     Ok(())
 }
 
 pub(crate) fn close(app: &AppHandle) {
     LOCKED.store(false, Ordering::Release);
-    ENROLLING.store(false, Ordering::Release);
+    let was_enrolling = ENROLLING.swap(false, Ordering::AcqRel);
+    SHOWN.store(false, Ordering::Release);
     if let Some(window) = app.get_webview_window(LABEL) {
-        let _ = window.destroy();
+        if !was_enrolling && AMBIENT_PAGE.load(Ordering::Acquire) && keep_warm(app) {
+            let _ = window.hide();
+            let _ = window.emit("ambient://hidden", ());
+        } else {
+            AMBIENT_PAGE.store(false, Ordering::Release);
+            let _ = window.destroy();
+        }
     }
 }
 
@@ -257,6 +317,7 @@ pub fn spawn(app: AppHandle) {
     spawn_display_holder();
     tauri::async_runtime::spawn(async move {
         let mut opened_at: Option<Instant> = None;
+        let mut prewarm_tried = false;
         loop {
             let cfg = app
                 .state::<AppState>()
@@ -271,6 +332,13 @@ pub fn spawn(app: AppHandle) {
             let open_now = is_open(&app);
             if !open_now {
                 opened_at = None;
+                // A kept page that is no longer wanted (soft lock or ambient turned off) goes.
+                if (!cfg.enabled || !cfg.soft_lock) && !is_enrolling() {
+                    if let Some(window) = app.get_webview_window(LABEL) {
+                        AMBIENT_PAGE.store(false, Ordering::Release);
+                        let _ = window.destroy();
+                    }
+                }
             }
             HOLD_DISPLAY.store(open_now && cfg.take_over_screensaver, Ordering::Relaxed);
             // Start ahead of the Windows screen saver, so ambient mode is what shows instead of it.
@@ -302,6 +370,14 @@ pub fn spawn(app: AppHandle) {
                     if open(&app, Mode::Ambient { soft_lock: cfg.soft_lock }).is_ok() {
                         opened_at = Some(Instant::now());
                     }
+                } else if cfg.enabled && cfg.soft_lock && idle >= threshold.saturating_sub(PREWARM_LEAD_MS) {
+                    // Once per idle stretch: checking enrollment reads the face store.
+                    if !prewarm_tried {
+                        prewarm_tried = true;
+                        prewarm(&app);
+                    }
+                } else {
+                    prewarm_tried = false;
                 }
             }
             let wait = if open_now || cfg.enabled { 700 } else { 4000 };

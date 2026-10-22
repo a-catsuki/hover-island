@@ -15,6 +15,9 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; back
 @keyframes ambient-b { to { transform: translate(-14vw, 18vh) scale(0.88); } }
 @keyframes ambient-c { to { transform: translate(-18vw, -10vh) scale(1.25); } }
 .ambient__vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 35%, rgba(0, 0, 0, 0.72) 100%); }
+.ambient__canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.ambient__backdrop { position: absolute; inset: -12%; width: 124%; height: 124%; object-fit: cover; filter: blur(70px) saturate(1.6) brightness(0.62); transform: scale(1.05); animation: ambient-backdrop 40s ease-in-out infinite alternate; }
+@keyframes ambient-backdrop { to { transform: scale(1.18) rotate(3deg); } }
 .ambient__grain { position: absolute; inset: 0; opacity: 0.07; mix-blend-mode: overlay; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
 
 .ambient__stage { position: relative; display: flex; align-items: center; justify-content: center; gap: clamp(56px, 9vw, 160px); padding: 5vh 6vw; transition: transform 6s ease-in-out; }
@@ -50,3 +53,33 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; back
 @keyframes ambient-rise { from { opacity: 0; transform: translateY(26px) scale(0.985); } to { opacity: 1; transform: none; } }
 @media (max-width: 900px) { .ambient__stage { flex-direction: column; gap: 40px; } .ambient__card { max-width: none; } }
 @media (prefers-reduced-motion: reduce) { .ambient__orb, .ambient__clock, .ambient__card { animation: none; } }
+
+/* Scenes. Minimal is pure black for OLED; the canvas scenes draw their own sky. */
+.ambient--scene-minimal { background: #000; }
+.ambient--scene-minimal .ambient__vignette { display: none; }
+.ambient--scene-minimal .ambient__card { background: none; border-color: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.ambient--scene-minimal .ambient__time { background: none; color: #fff; filter: none; }
+.ambient--scene-stars .ambient__vignette, .ambient--scene-flow .ambient__vignette { background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.55) 100%); }
+.ambient--scene-album .ambient__vignette { background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.1) 20%, rgba(0, 0, 0, 0.7) 100%); }
+
+/* Clock styles. */
+.ambient__time--bold { font-weight: 700; letter-spacing: -0.065em; }
+.ambient__time--outline { font-weight: 600; letter-spacing: -0.04em; background: none; color: transparent; -webkit-text-stroke: 2px rgba(255, 255, 255, 0.9); }
+.ambient__time--outline small, .ambient__time--outline .ambient__seconds { -webkit-text-stroke: 0; }
+.ambient__time--stacked { flex-direction: column; align-items: flex-start; gap: 0; font-size: clamp(120px, 21vw, 340px); font-weight: 800; letter-spacing: -0.07em; line-height: 0.8; }
+.ambient--solo .ambient__time--stacked { align-items: center; }
+.ambient__minutes { display: flex; align-items: baseline; gap: 0.08em; background: linear-gradient(120deg, var(--c1), var(--c2) 60%, #fff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.ambient__seconds { margin-left: 0.12em; font-size: 0.32em; font-weight: 300; letter-spacing: 0; opacity: 0.55; -webkit-text-fill-color: rgba(255, 255, 255, 0.6); }
+.ambient__time--stacked .ambient__seconds { font-size: 0.22em; }
+
+/* Unlock: the orb pops, then an iris opens from the centre and reveals the desktop. */
+@property --iris { syntax: '<length>'; inherits: false; initial-value: 0px; }
+.ambient--unlocking { -webkit-mask: radial-gradient(circle at 50% 50%, transparent var(--iris), #000 calc(var(--iris) + 1.5px)); mask: radial-gradient(circle at 50% 50%, transparent var(--iris), #000 calc(var(--iris) + 1.5px)); animation: ambient-iris 0.38s cubic-bezier(0.7, 0, 0.25, 1) 0.17s forwards; }
+.ambient--unlocking .ambient__stage { transform: scale(1.06) !important; filter: blur(6px); opacity: 0.6; transition: transform 0.55s cubic-bezier(0.32, 0.72, 0, 1), filter 0.4s ease, opacity 0.4s ease; }
+.ambient--unlocking .face-hud { transform: scale(1.25); opacity: 0; transition: transform 0.45s cubic-bezier(0.32, 0.72, 0, 1) 0.15s, opacity 0.25s ease 0.3s; }
+@keyframes ambient-iris { to { --iris: 120vmax; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient--unlocking { -webkit-mask: none; mask: none; animation: none; opacity: 0; transition: opacity 0.3s ease 0.15s; }
+  .ambient__backdrop { animation: none; }
+}

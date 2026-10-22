@@ -13,15 +13,51 @@
 .padlock__shackle { transform-box: view-box; transform-origin: 16.5px 11px; transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .padlock--open .padlock__shackle { transform: translateY(-2.5px) rotate(-28deg); }
 
-.face-hud { position: fixed; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; pointer-events: none; opacity: 0; transform: scale(0.9); transition: opacity 0.28s ease, transform 0.4s cubic-bezier(0.32, 0.72, 0, 1); }
-.face-hud--show { opacity: 1; transform: none; }
-.face-hud::before { content: ''; position: fixed; inset: -10%; z-index: -1; background: radial-gradient(circle at center, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.25) 60%); }
-.face-hud__panel { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; width: 172px; height: 172px; border-radius: 36px; background: rgba(36, 36, 38, 0.78); backdrop-filter: blur(30px) saturate(1.6); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5); color: #fff; }
-.face-hud__label { min-height: 18px; margin: 0; padding: 0 12px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; text-align: center; color: rgba(255, 255, 255, 0.92); }
+.face-hud { position: fixed; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; pointer-events: none; opacity: 0; transform: scale(0.82); filter: blur(8px); transition: opacity 0.22s ease, transform 0.42s cubic-bezier(0.34, 1.4, 0.64, 1), filter 0.3s ease; }
+.face-hud--show { opacity: 1; transform: none; filter: none; }
+.face-hud::before { content: ''; position: fixed; inset: -10%; z-index: -1; background: radial-gradient(circle at center, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0.38) 55%, rgba(0, 0, 0, 0.3)); backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2); }
+.face-hud__label { min-height: 20px; margin: 0; padding: 0 12px; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; text-align: center; color: rgba(255, 255, 255, 0.92); text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5); transition: opacity 0.2s ease, transform 0.3s ease; }
+.face-hud__label--hidden { opacity: 0; transform: translateY(-6px); }
 .face-hud__detail { margin: -10px 0 0; font-size: 12px; font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, 0.5); }
-.face-hud__actions { display: flex; gap: 10px; pointer-events: auto; }
-.face-hud__actions button { height: 36px; padding: 0 18px; border: 0; border-radius: 18px; background: rgba(255, 255, 255, 0.14); backdrop-filter: blur(20px); color: #fff; font: 600 14px 'Inter Variable', Inter, system-ui, sans-serif; cursor: pointer; transition: background 0.2s ease; }
+.face-hud__actions { display: flex; gap: 10px; pointer-events: auto; animation: hud-actions-in 0.35s cubic-bezier(0.32, 0.72, 0, 1) both; }
+.face-hud__actions button { height: 38px; padding: 0 20px; border: 0; border-radius: 19px; background: rgba(255, 255, 255, 0.14); backdrop-filter: blur(20px) saturate(1.5); color: #fff; font: 600 14px 'Inter Variable', Inter, system-ui, sans-serif; cursor: pointer; transition: background 0.2s ease, transform 0.15s ease; }
 .face-hud__actions button:hover { background: rgba(255, 255, 255, 0.24); }
+.face-hud__actions button:active { transform: scale(0.96); }
+@keyframes hud-actions-in { from { opacity: 0; transform: translateY(8px); } }
+
+/* Orb: glass core, a ring in the scene colours, a glow behind. */
+@property --orb-turn { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.face-orb { --ok: #30d158; --bad: #ff453a; position: relative; display: grid; place-items: center; width: 136px; height: 136px; color: #fff; }
+.face-orb > :not(.face-orb__glow) { grid-area: 1 / 1; }
+.face-orb__glow { position: absolute; inset: -42px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--c2, #8a4dff) 55%, transparent), color-mix(in srgb, var(--c1, #3b5bff) 20%, transparent) 45%, transparent 70%); opacity: 0.45; filter: blur(6px); transition: opacity 0.3s ease, background 0.3s ease; }
+.face-orb__ring { width: 136px; height: 136px; border-radius: 50%; background: conic-gradient(from var(--orb-turn), var(--c1, #3b5bff), var(--c2, #8a4dff), #fff, var(--c1, #3b5bff)); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px)); opacity: 0.55; transition: opacity 0.25s ease, filter 0.25s ease; }
+.face-orb__core { position: relative; display: grid; place-items: center; width: 118px; height: 118px; overflow: hidden; border-radius: 50%; background: rgba(18, 18, 22, 0.62); backdrop-filter: blur(26px) saturate(1.7); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 22px 60px rgba(0, 0, 0, 0.5); }
+.face-orb__scan { position: absolute; left: 0; right: 0; top: 0; height: 46%; background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--c2, #8a4dff) 40%, transparent) 70%, rgba(255, 255, 255, 0.5) 96%, transparent); opacity: 0; transform: translateY(-110%); }
+.face-orb__glyph { position: relative; overflow: visible; stroke: currentColor; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.face-orb__glyph * { transform-box: view-box; transform-origin: 50px 50px; }
+.face-orb__face { transition: opacity 0.18s ease, transform 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
+.face-orb__check { stroke-width: 7; stroke-dasharray: 100; stroke-dashoffset: 100; }
+
+.face-orb--scanning .face-orb__ring { opacity: 1; animation: orb-turn 0.9s linear infinite; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--c2, #8a4dff) 70%, transparent)); }
+.face-orb--scanning .face-orb__glow { opacity: 0.9; animation: orb-breathe 1.2s ease-in-out infinite alternate; }
+.face-orb--scanning .face-orb__scan { opacity: 1; animation: orb-scan 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate; }
+.face-orb--scanning .face-orb__face { opacity: 0.85; }
+
+.face-orb--success { animation: orb-pop 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.face-orb--success .face-orb__ring { opacity: 1; background: var(--ok); filter: drop-shadow(0 0 16px color-mix(in srgb, var(--ok) 80%, transparent)); }
+.face-orb--success .face-orb__glow { opacity: 1; background: radial-gradient(circle, color-mix(in srgb, var(--ok) 55%, transparent), transparent 68%); }
+.face-orb--success .face-orb__face { opacity: 0; transform: scale(0.6); }
+.face-orb--success .face-orb__check { stroke-dashoffset: 0; transition: stroke-dashoffset 0.22s cubic-bezier(0.65, 0, 0.35, 1) 0.06s; }
+
+.face-orb--fail { animation: orb-shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+.face-orb--fail .face-orb__ring { opacity: 1; background: var(--bad); }
+.face-orb--fail .face-orb__glow { opacity: 0.8; background: radial-gradient(circle, color-mix(in srgb, var(--bad) 40%, transparent), transparent 68%); }
+
+@keyframes orb-turn { to { --orb-turn: 360deg; } }
+@keyframes orb-breathe { from { transform: scale(0.92); } to { transform: scale(1.08); } }
+@keyframes orb-scan { from { transform: translateY(-110%); } to { transform: translateY(230%); } }
+@keyframes orb-pop { 0% { transform: scale(1); } 45% { transform: scale(1.12); } 100% { transform: scale(1.04); } }
+@keyframes orb-shake { 15%, 55% { transform: translateX(-10px); } 35%, 75% { transform: translateX(10px); } 90% { transform: translateX(-3px); } }
 
 /* Glyph: brackets and face -> spinning dots -> solid ring and check; a head shake on failure. */
 .face-glyph { overflow: visible; stroke: currentColor; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
@@ -60,5 +96,5 @@
 @keyframes enroll-in { from { opacity: 0; transform: scale(0.94); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .ambient__lock, .face-glyph *, .enroll__glyph, .enroll__frame { animation: none !important; }
+  .ambient__lock, .face-glyph *, .face-orb, .face-orb *, .enroll__glyph, .enroll__frame { animation: none !important; }
 }

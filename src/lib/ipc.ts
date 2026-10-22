@@ -423,7 +423,7 @@ export const DEFAULT_SETTINGS: Settings = {
     manualConfig: { label: 'Custom', used: null, limit: null, unit: 'tokens', resetAt: null },
   },
   transfer: { trustedPhones: false },
-  ambient: { enabled: false, idleMinutes: 5, clock: true, media: true, weather: true, dim: true, takeOverScreensaver: true, softLock: true, lockAfterMinutes: 10, faceRequireBlink: false },
+  ambient: { enabled: false, idleMinutes: 5, clock: true, media: true, weather: true, dim: true, takeOverScreensaver: true, softLock: true, lockAfterMinutes: 10, faceRequireBlink: false, scene: 'aurora', clockStyle: 'thin', palette: 'auto', showSeconds: false },
   notifications: { enabled: true, systemListener: true, sound: 'soft' },
   interaction: { hoverOpen: true, openDelayMs: 140, closeDelayMs: 450 },
 }
@@ -1061,7 +1061,10 @@ export interface AirDropCapability {
   reason:string
 }
 
-export interface AmbientSettings { enabled: boolean; idleMinutes: number; clock: boolean; media: boolean; weather: boolean; dim: boolean; takeOverScreensaver: boolean; softLock: boolean; lockAfterMinutes: number; faceRequireBlink: boolean }
+export interface AmbientSettings { enabled: boolean; idleMinutes: number; clock: boolean; media: boolean; weather: boolean; dim: boolean; takeOverScreensaver: boolean; softLock: boolean; lockAfterMinutes: number; faceRequireBlink: boolean; scene: AmbientScene; clockStyle: AmbientClockStyle; palette: AmbientPalette; showSeconds: boolean }
+export type AmbientScene = 'aurora' | 'album' | 'stars' | 'flow' | 'minimal'
+export type AmbientClockStyle = 'thin' | 'bold' | 'outline' | 'stacked'
+export type AmbientPalette = 'auto' | 'ocean' | 'ember' | 'forest' | 'dusk' | 'mono'
 /** `locked`: Windows Hello is not set up, so the real Windows lock took over. */
 export type AmbientUnlockOutcome = 'verified' | 'cancelled' | 'locked'
 export interface FaceStatus { enrolled: boolean; attemptsLeft: number }

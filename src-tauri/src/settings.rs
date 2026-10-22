@@ -150,6 +150,13 @@ pub struct AmbientCfg {
     pub lock_after_minutes: u32,
     /// Face unlock also waits for a blink, which a held-up photo cannot do. Slower, so opt-in.
     pub face_require_blink: bool,
+    /// Backdrop: aurora, album, stars, flow or minimal.
+    pub scene: String,
+    /// Clock face: thin, bold, outline or stacked.
+    pub clock_style: String,
+    /// Colours: auto (album art, else time of day) or a fixed palette.
+    pub palette: String,
+    pub show_seconds: bool,
 }
 impl Default for AmbientCfg {
     fn default() -> Self {
@@ -164,6 +171,10 @@ impl Default for AmbientCfg {
             soft_lock: true,
             lock_after_minutes: 10,
             face_require_blink: false,
+            scene: "aurora".into(),
+            clock_style: "thin".into(),
+            palette: "auto".into(),
+            show_seconds: false,
         }
     }
 }
