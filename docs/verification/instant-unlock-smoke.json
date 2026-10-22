@@ -3,19 +3,19 @@
   "results": [
     {
       "flow": "First good frame unlocks without waiting for a second frame",
-      "fixtureMs": 105
+      "fixtureMs": 55
     },
     {
       "flow": "camera-hang reaches PIN fallback",
-      "fixtureMs": 2927
+      "fixtureMs": 2909
     },
     {
       "flow": "models-hang reaches PIN fallback",
-      "fixtureMs": 2915
+      "fixtureMs": 2916
     },
     {
       "flow": "frame-hang reaches PIN fallback",
-      "fixtureMs": 2894
+      "fixtureMs": 2912
     },
     {
       "flow": "A clear mismatch finishes promptly with one counted final check"
@@ -31,6 +31,9 @@
     },
     {
       "flow": "All five scenes and four clocks render; reduced motion stops canvas animation"
+    },
+    {
+      "flow": "Hidden prewarm loads models without the webcam; keep-ready opens only when shown and stops on hide"
     }
   ],
   "errors": []

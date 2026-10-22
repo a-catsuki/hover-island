@@ -1,0 +1,47 @@
+{
+  "version": "0.1.11",
+  "msixVersion": "0.1.11.1",
+  "previousMsixVersion": "0.1.10.1",
+  "publisher": "CN=Hover Island",
+  "packageFamilyUnchanged": true,
+  "sourceCommit": "cfd9d16",
+  "deploymentId": "dpl_12sFvSjuoHTWDWtWSFezfrKqph4F",
+  "productionUrl": "https://hover-island.vercel.app",
+  "updateUrl": "https://hover-island.vercel.app/updates/HoverIsland-0.1.11.msix",
+  "packageSha256": "dc8ce35bd7c90a5f9d5a2c43c35add3a03360e2230549bc45366ba0ce555a874",
+  "signatureTrusted": true,
+  "installedExecutableSha256": "ED81388F8F811624888BD829F20772A99A5DF990BBE70A4E6A20659205EB5C40",
+  "installedExecutableMatchesRelease": true,
+  "nativeProcessId": 38240,
+  "responding": true,
+  "preservedFiles": [
+    {
+      "name": "settings.json",
+      "unchanged": true
+    },
+    {
+      "name": "notes.json",
+      "unchanged": true
+    },
+    {
+      "name": "face-unlock.dpapi",
+      "unchanged": true
+    },
+    {
+      "name": "website-alerts.dpapi",
+      "unchanged": false,
+      "decryptedContentUnchanged": true,
+      "note": "Normal polling re-encrypted the same contents with fresh DPAPI randomness."
+    }
+  ],
+  "validation": {
+    "typecheck": "passed",
+    "frontendTests": 174,
+    "nativeTests": 259,
+    "nativeOptInTestsIgnored": 11,
+    "browserFlows": 10,
+    "physicalFaceLatency": "not measured"
+  },
+  "windowsDownloadUrl": "https://hover-island.vercel.app/downloads/HoverIsland-Windows.zip",
+  "windowsDownloadSha256": "B8CAB2D62C68A516526F9BBE3DEEF6831AAD9EEFFA306038E3FF8E69BD279977"
+}

@@ -16,7 +16,7 @@ page.on('console', message => { if (message.type() === 'error') console.error('B
 await page.route('**/src/ambient/face.ts*', route => route.fulfill({ contentType: 'application/javascript', body: `
 export const faceBackend = () => 'webgl';
 export const frontal = () => true;
-export const loadFaceEngine = () => window.faceMode === 'models-hang' ? new Promise(() => {}) : Promise.resolve();
+export const loadFaceEngine = () => { window.modelLoads = (window.modelLoads || 0) + 1; return window.faceMode === 'models-hang' ? new Promise(() => {}) : Promise.resolve(); };
 export class BlinkWatch { seen = false; push() {} eyesOpen() { return true; } }
 export class FaceCamera {
   running = false;
@@ -123,6 +123,25 @@ try {
   assert.equal(await page.locator('.ambient__canvas').evaluate(node => node.toDataURL()), still, 'reduced motion keeps the canvas still')
   results.push({ flow: 'All five scenes and four clocks render; reduced motion stops canvas animation' })
   await page.screenshot({ path: 'docs/verification/instant-unlock-ambient.png' })
+  await page.evaluate(async () => {
+    const { patchSettings, settings, flushSettings } = await import('/src/state/settings.ts')
+    patchSettings({ ambient: { ...settings.ambient, faceCameraReady: true } })
+    await flushSettings()
+  })
+  await page.route('**/src/lib/preview.ts*', async route => {
+    const response = await route.fetch()
+    const source = (await response.text()).replace(/case ['"]ambient_mode['"]:[\s\S]*?break;/, 'case "ambient_mode": result = "prewarm"; break;')
+    await route.fulfill({ response, body: source })
+  })
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.waitForFunction(() => (window.modelLoads || 0) > 0)
+  assert.equal(await page.evaluate(() => window.cameraStarts || 0), 0, 'prewarm must never switch the webcam on, even with keep-ready enabled')
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('ambient://shown')))
+  await page.waitForFunction(() => (window.cameraStarts || 0) > 0)
+  const beforeHide = await page.evaluate(() => window.cameraStops || 0)
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('ambient://hidden')))
+  assert.ok(await page.evaluate(() => window.cameraStops || 0) > beforeHide)
+  results.push({ flow: 'Hidden prewarm loads models without the webcam; keep-ready opens only when shown and stops on hide' })
   assert.deepEqual(errors, [])
   await writeFile('docs/verification/instant-unlock-smoke.json', JSON.stringify({ boundary: 'Actual Solid ambient UI, simulated camera/models/native responses. Does not measure physical webcam recognition.', results, errors }, null, 2) + '\n')
   console.log(JSON.stringify(results, null, 2))
