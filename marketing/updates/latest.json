@@ -1,7 +1,8 @@
 {
-    "version":  "0.1.11",
-    "url":  "https://hover-island.vercel.app/updates/HoverIsland-0.1.11.msix",
-    "sha256":  "dc8ce35bd7c90a5f9d5a2c43c35add3a03360e2230549bc45366ba0ce555a874",
-    "notes":  "Faster first-frame face unlock, quick PIN fallback, warm model loading, and new ambient scenes and clocks.",
-    "published":  "2026-10-22T07:23:33.5331322Z"
+  "version": "0.1.12",
+  "url": "https://hover-island.vercel.app/updates/HoverIsland-0.1.12.msix",
+  "sha256": "a68a969b16fd74d95d7041c2d6eebab6729e0daa2140e18585c0712cf68cec58",
+  "certificateSha256": "b0849642404b1ebcb247bddcf33b64d3e6187f7e02613e01025c7b46a78f5433",
+  "notes": "Faster offline face recognition with an accelerated engine, camera readiness during ambient mode, quicker unlock animation, and reliable direct-update downloads.",
+  "published": "2026-10-22T08:18:09.0119928Z"
 }

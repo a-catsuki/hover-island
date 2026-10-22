@@ -34,4 +34,12 @@ Primary references: [Human backends](https://github.com/vladmandic/human/wiki/Ba
 
 ## Direct-update publishing repair
 
-The automatic Git deployment after the previous manual release did not contain the ignored MSIX. The production manifest advertised 0.1.11 while its package URL returned 404. The static site's build now restores the exact already-published installer and public certificate when they are absent from a Git checkout, verifies their SHA-256 values, and fails the deployment if either cannot be restored. A manual staged release includes both assets locally, so it needs no download. This keeps subsequent ordinary Git deployments from removing the update download.
+The automatic Git deployment after the previous manual release did not contain the ignored MSIX. The production manifest advertised 0.1.11 while its package URL returned 404. Both the repository-root Git build and the staged marketing-site build now restore the exact already-published installer and public certificate when they are absent, verify their SHA-256 values, and fail the deployment if either cannot be restored. A manual staged release includes both assets locally, so it needs no download. This keeps subsequent ordinary Git deployments from removing the update download.
+
+## Installed and published
+
+- Built the optimized Windows executable and signed MSIX **0.1.12.1** with the existing `CN=Hover Island` publisher. Windows trusted the signature; the embedded and installed executable hashes match the release executable.
+- Downloaded the package and installer ZIP from the staged deployment, checked their full hashes, then promoted that deployment. Downloaded both again from production and installed that verified MSIX in place of **0.1.11.1**. The new process is responding with the same package family.
+- Face enrollment, notes and encrypted website connection files retained their exact hashes. The only preference change was enabling `ambient.faceCameraReady`; all other saved preferences compare equal.
+- The production manifest advertises **0.1.12**. Its installer SHA-256 is `a68a969b16fd74d95d7041c2d6eebab6729e0daa2140e18585c0712cf68cec58`. The manual release deployment is `dpl_cczgRxyZ5k2Ghcf1Hsap4PbX6ea2`.
+- Detailed package, install and validation evidence is in `face-wasm-install.json`. Physical owner recognition remains unverified because the user was away or off camera.

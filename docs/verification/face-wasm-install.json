@@ -1,0 +1,49 @@
+{
+    "version":  "0.1.12",
+    "msixVersion":  "0.1.12.1",
+    "previousMsixVersion":  "0.1.11.1",
+    "publisher":  "CN=Hover Island",
+    "packageFamilyUnchanged":  true,
+    "sourceCommit":  "5401502a40843ed1e7b8d85e2a0406436e04db80",
+    "deploymentId":  "dpl_cczgRxyZ5k2Ghcf1Hsap4PbX6ea2",
+    "productionUrl":  "https://hover-island.vercel.app",
+    "updateUrl":  "https://hover-island.vercel.app/updates/HoverIsland-0.1.12.msix",
+    "packageSha256":  "a68a969b16fd74d95d7041c2d6eebab6729e0daa2140e18585c0712cf68cec58",
+    "signatureTrusted":  true,
+    "installedExecutableSha256":  "2F6EC62B0074EB88A446A8379371CDCB8282C80ED80CC099EB176762F6C90BE1",
+    "installedExecutableMatchesRelease":  true,
+    "nativeProcessId":  2992,
+    "responding":  true,
+    "preservedFiles":  [
+                           {
+                               "name":  "settings.json",
+                               "unchanged":  false,
+                               "onlyChangeCameraReady":  true,
+                               "cameraReady":  true
+                           },
+                           {
+                               "name":  "notes.json",
+                               "unchanged":  true
+                           },
+                           {
+                               "name":  "face-unlock.dpapi",
+                               "unchanged":  true
+                           },
+                           {
+                               "name":  "website-alerts.dpapi",
+                               "unchanged":  true
+                           }
+                       ],
+    "validation":  {
+                       "typecheck":  "passed",
+                       "physicalOwnerUnlock":  "pending - user confirmed away or off camera",
+                       "actualEngineCsp":  "passed",
+                       "nativeOptInTestsIgnored":  11,
+                       "browserFlows":  11,
+                       "nativeTests":  259,
+                       "frontendTests":  178,
+                       "crossBackendPublicFaceSimilarity":  1
+                   },
+    "windowsDownloadUrl":  "https://hover-island.vercel.app/downloads/HoverIsland-Windows.zip",
+    "windowsDownloadSha256":  "9AEF7BB2824530543A650EDF7E0FF6F49B36F77736A164E077C45B38BBC60F6B"
+}

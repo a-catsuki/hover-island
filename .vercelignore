@@ -8,7 +8,7 @@ packaging
 backups
 video
 tests
-scripts
+/scripts
 *.msix
 *.cer
 *.log
