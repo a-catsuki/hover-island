@@ -423,7 +423,7 @@ export const DEFAULT_SETTINGS: Settings = {
     manualConfig: { label: 'Custom', used: null, limit: null, unit: 'tokens', resetAt: null },
   },
   transfer: { trustedPhones: false },
-  ambient: { enabled: false, idleMinutes: 5, clock: true, media: true, weather: true, dim: true, takeOverScreensaver: true, softLock: true, lockAfterMinutes: 10, faceRequireBlink: false },
+  ambient: { enabled: false, idleMinutes: 5, clock: true, media: true, weather: true, dim: true, takeOverScreensaver: true, softLock: true, lockAfterMinutes: 10, faceRequireBlink: false, faceCameraReady: false, scene: 'aurora', clockStyle: 'classic', palette: 'auto', musicReactive: true, note: '' },
   notifications: { enabled: true, systemListener: true, sound: 'soft' },
   interaction: { hoverOpen: true, openDelayMs: 140, closeDelayMs: 450 },
 }
@@ -587,7 +587,8 @@ export const cmd = {
   faceEnrollStart: () => invoke<void>('face_enroll_start'),
   faceEnrollSave: (templates: number[][]) => invoke<void>('face_enroll_save', { templates }),
   faceReset: () => invoke<void>('face_reset'),
-  faceVerify: (samples: FaceSample[], blinked: boolean) => invoke<FaceCheck>('face_verify', { samples, blinked }),
+  /** `last` false is a mid-scan probe: a miss is not yet counted as a failed attempt. */
+  faceVerify: (samples: FaceSample[], blinked: boolean, last = true) => invoke<FaceCheck>('face_verify', { samples, blinked, last }),
   transferStatus: () => invoke<TransferStatus>('transfer_status'),
   transferStart: () => invoke<TransferStatus>('transfer_start'),
   transferStageDroppedPaths: (paths: string[]) => invoke<TransferStatus>('transfer_stage_dropped_paths', { paths }),
@@ -1061,7 +1062,10 @@ export interface AirDropCapability {
   reason:string
 }
 
-export interface AmbientSettings { enabled: boolean; idleMinutes: number; clock: boolean; media: boolean; weather: boolean; dim: boolean; takeOverScreensaver: boolean; softLock: boolean; lockAfterMinutes: number; faceRequireBlink: boolean }
+export interface AmbientSettings { enabled: boolean; idleMinutes: number; clock: boolean; media: boolean; weather: boolean; dim: boolean; takeOverScreensaver: boolean; softLock: boolean; lockAfterMinutes: number; faceRequireBlink: boolean; faceCameraReady: boolean; scene: AmbientScene; clockStyle: AmbientClockStyle; palette: AmbientPalette; musicReactive: boolean; note: string }
+export type AmbientScene = 'aurora' | 'stars' | 'artwork' | 'ripples' | 'black'
+export type AmbientClockStyle = 'classic' | 'stacked' | 'analog' | 'words'
+export type AmbientPalette = 'auto' | 'sunset' | 'ocean' | 'forest' | 'neon' | 'mono'
 /** `locked`: Windows Hello is not set up, so the real Windows lock took over. */
 export type AmbientUnlockOutcome = 'verified' | 'cancelled' | 'locked'
 export interface FaceStatus { enrolled: boolean; attemptsLeft: number }

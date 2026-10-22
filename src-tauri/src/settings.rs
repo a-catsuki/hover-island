@@ -150,6 +150,18 @@ pub struct AmbientCfg {
     pub lock_after_minutes: u32,
     /// Face unlock also waits for a blink, which a held-up photo cannot do. Slower, so opt-in.
     pub face_require_blink: bool,
+    /// Keep the webcam on while the soft lock shows, so face unlock starts with no camera delay.
+    pub face_camera_ready: bool,
+    /// Background: aurora, stars, artwork, ripples or black.
+    pub scene: String,
+    /// Clock face: classic, stacked, analog or words.
+    pub clock_style: String,
+    /// Colours: auto (album art, else time of day) or a fixed palette.
+    pub palette: String,
+    /// The background moves with the music that is playing.
+    pub music_reactive: bool,
+    /// A short note shown under the clock, such as "Back in 5". Empty = none.
+    pub note: String,
 }
 impl Default for AmbientCfg {
     fn default() -> Self {
@@ -164,6 +176,12 @@ impl Default for AmbientCfg {
             soft_lock: true,
             lock_after_minutes: 10,
             face_require_blink: false,
+            face_camera_ready: false,
+            scene: "aurora".into(),
+            clock_style: "classic".into(),
+            palette: "auto".into(),
+            music_reactive: true,
+            note: String::new(),
         }
     }
 }
@@ -738,6 +756,16 @@ impl Settings {
         self.ai_toast_providers.truncate(32);
         self.ambient.idle_minutes = self.ambient.idle_minutes.clamp(1, 120);
         self.ambient.lock_after_minutes = self.ambient.lock_after_minutes.min(240);
+        if !matches!(self.ambient.scene.as_str(), "aurora" | "stars" | "artwork" | "ripples" | "black") {
+            self.ambient.scene = "aurora".into();
+        }
+        if !matches!(self.ambient.clock_style.as_str(), "classic" | "stacked" | "analog" | "words") {
+            self.ambient.clock_style = "classic".into();
+        }
+        if !matches!(self.ambient.palette.as_str(), "auto" | "sunset" | "ocean" | "forest" | "neon" | "mono") {
+            self.ambient.palette = "auto".into();
+        }
+        self.ambient.note = self.ambient.note.trim().chars().filter(|ch| !ch.is_control()).take(80).collect();
         if !matches!(self.cover_style.as_str(), "classic" | "vinyl" | "cd" | "polaroid" | "stack" | "float") {
             self.cover_style = "classic".into();
         }

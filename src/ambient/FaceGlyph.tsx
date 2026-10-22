@@ -1,9 +1,13 @@
+import { For } from 'solid-js'
+
 export type GlyphState = 'face' | 'scanning' | 'success' | 'fail'
 
+const DOTS = 28
+
 /**
- * The face-scan glyph: corner brackets around a simple face. While scanning it folds into a
- * spinning ring of dots, which closes into a check mark on success; on failure the face
- * shakes its head.
+ * The face-scan glyph, after Face ID's: corner brackets around a simple face. Scanning folds the
+ * face away and sweeps in a spinning ring of dots, which closes into a solid ring and a check
+ * that pops on success; on failure the face comes back and shakes its head.
  */
 export default function FaceGlyph(props: { state: GlyphState; size?: number }) {
   return (
@@ -22,9 +26,14 @@ export default function FaceGlyph(props: { state: GlyphState; size?: number }) {
           <path d="M34 67q16 12 32 0" />
         </g>
       </g>
+      <g class="face-glyph__dots">
+        <For each={Array.from({ length: DOTS }, (_, index) => index)}>{index => {
+          const angle = (index / DOTS) * Math.PI * 2 - Math.PI / 2
+          return <circle cx={50 + Math.cos(angle) * 40} cy={50 + Math.sin(angle) * 40} r="3.1" style={{ '--i': index, '--o': 0.18 + 0.82 * (index / (DOTS - 1)) }} />
+        }}</For>
+      </g>
       <circle class="face-glyph__ring" cx="50" cy="50" r="40" pathLength="100" />
-      <circle class="face-glyph__ring-solid" cx="50" cy="50" r="40" pathLength="100" />
-      <path class="face-glyph__check" d="M30 51l14 14 27-29" pathLength="100" />
+      <path class="face-glyph__check" d="M31 51.5l12.5 12.5 26-27.5" pathLength="100" />
     </svg>
   )
 }

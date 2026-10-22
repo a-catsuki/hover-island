@@ -3,7 +3,7 @@ import type { FaceSample } from '../lib/ipc'
 
 /** Face models run in this page on the GPU, offline. Only descriptors reach native code, which matches them. */
 
-const CAMERA = { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } as const
+const CAMERA = { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } } as const
 /** Head turned further than this (radians) is too far off-axis for a reliable descriptor. */
 const FRONTAL = 0.32
 /** A face narrower than this share of the frame is too far away to trust. */
@@ -169,6 +169,11 @@ export class FaceCamera {
   private stream: MediaStream | null = null
   private starting: Promise<void> | null = null
 
+  /** True once frames are flowing. */
+  get running(): boolean {
+    return this.stream !== null && !this.starting
+  }
+
   /** Starts the camera, or joins a start already under way. */
   start(): Promise<void> {
     this.starting ??= this.open().finally(() => { this.starting = null })
@@ -187,6 +192,8 @@ export class FaceCamera {
     if (this.video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
       await new Promise(resolve => this.video.addEventListener('canplay', resolve, { once: true }))
     }
+    // Stopped while starting: make sure the light goes off.
+    if (this.stream !== stream) stream.getTracks().forEach(track => track.stop())
   }
 
   /** Turns the camera (and its light) off straight away. */

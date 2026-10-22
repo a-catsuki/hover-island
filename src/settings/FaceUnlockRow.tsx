@@ -1,5 +1,6 @@
 import { createSignal, onCleanup, onMount, Show } from 'solid-js'
 import { cmd } from '../lib/ipc'
+import { describeFaceTiming, lastFaceTiming } from '../lib/faceTiming'
 import { reportError } from '../state/feedback'
 import { Field } from './controls'
 
@@ -7,7 +8,11 @@ import { Field } from './controls'
 export default function FaceUnlockRow(props: { disabled: boolean }) {
   const [enrolled, setEnrolled] = createSignal(false)
   const [busy, setBusy] = createSignal(false)
-  const refresh = () => void cmd.faceStatus().then(status => setEnrolled(status.enrolled)).catch(() => {})
+  const [timing, setTiming] = createSignal(lastFaceTiming())
+  const refresh = () => {
+    setTiming(lastFaceTiming())
+    void cmd.faceStatus().then(status => setEnrolled(status.enrolled)).catch(() => {})
+  }
 
   onMount(() => {
     refresh()
@@ -37,7 +42,7 @@ export default function FaceUnlockRow(props: { disabled: boolean }) {
   }
 
   return (
-    <Field label="Face unlock" hint={enrolled() ? 'Set up. Press a key on the ambient screen and look at your PC. The camera is on only during a scan, and your face data stays encrypted on this PC.' : 'Use your webcam to unlock the ambient screen. Windows Hello stays as a backup.'}>
+    <Field label="Face unlock" hint={enrolled() ? `Set up. Move the mouse or press a key on the ambient screen and look at your PC. Your face data stays encrypted on this PC.${timing() ? ` ${describeFaceTiming(timing()!)}.` : ''}` : 'Use your webcam to unlock the ambient screen. Windows Hello stays as a backup.'}>
       <Show when={enrolled()} fallback={
         <button type="button" class="button button--primary" disabled={props.disabled || busy()} onClick={() => void setUp()}>Set Up</button>
       }>

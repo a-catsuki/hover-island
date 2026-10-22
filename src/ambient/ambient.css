@@ -14,6 +14,16 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; back
 @keyframes ambient-a { to { transform: translate(16vw, 12vh) scale(1.18); } }
 @keyframes ambient-b { to { transform: translate(-14vw, 18vh) scale(0.88); } }
 @keyframes ambient-c { to { transform: translate(-18vw, -10vh) scale(1.25); } }
+/* music: the orbs swell with the bass (scale is separate from their drifting transform) */
+.ambient__orb { scale: calc(1 + var(--energy, 0) * 0.22); transition: background 2.4s ease, scale 0.18s ease-out; }
+.ambient__canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ambient--scene-stars .ambient__orb { opacity: 0.22; }
+.ambient--scene-stars .ambient__sky { background: radial-gradient(ellipse at 50% 120%, color-mix(in srgb, var(--c3) 70%, #000), #000 70%); }
+.ambient--scene-ripples .ambient__orb { opacity: 0.3; }
+.ambient--scene-black, .ambient--scene-black .ambient__sky { background: #000; }
+.ambient__art { position: absolute; inset: -12%; width: 124%; height: 124%; object-fit: cover; filter: blur(70px) saturate(1.5) brightness(0.62); scale: calc(1.05 + var(--energy, 0) * 0.06); transition: scale 0.2s ease-out; animation: ambient-kenburns 70s ease-in-out infinite alternate; }
+@keyframes ambient-kenburns { from { transform: translate(-3%, -2%) rotate(-2deg); } to { transform: translate(3%, 2%) rotate(3deg); } }
+
 .ambient__vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 35%, rgba(0, 0, 0, 0.72) 100%); }
 .ambient__grain { position: absolute; inset: 0; opacity: 0.07; mix-blend-mode: overlay; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
 
@@ -47,6 +57,43 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; back
 .ambient__progress i { display: block; height: 100%; transform-origin: left; border-radius: inherit; background: #fff; transition: transform 1s linear; }
 .ambient__empty { font-size: 20px; opacity: 0.5; }
 
+/* a note left on the screen */
+.ambient__note { align-self: flex-start; display: inline-flex; align-items: center; gap: 10px; margin: 8px 0 0; padding: 10px 18px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.12); backdrop-filter: blur(24px); font-size: clamp(15px, 1.3vw, 20px); font-weight: 500; color: rgba(255, 255, 255, 0.92); }
+.ambient__note::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--c2); box-shadow: 0 0 12px var(--c2); }
+.ambient--solo .ambient__note, .ambient--clock-analog .ambient__note { align-self: center; }
+.ambient__note--solo { font-size: clamp(22px, 2.4vw, 40px); padding: 16px 28px; }
+
+/* clock: stacked */
+.clock-stacked { display: flex; flex-direction: column; align-items: inherit; font-size: clamp(120px, 19vh, 260px); font-weight: 800; line-height: 0.84; letter-spacing: -0.06em; font-variant-numeric: tabular-nums; font-family: var(--clock-font, inherit); }
+.clock-stacked span { background: linear-gradient(160deg, #fff 20%, color-mix(in srgb, var(--c2) 70%, #fff)); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 14px 60px color-mix(in srgb, var(--c1) 50%, transparent)); }
+.clock-stacked span + span { background: linear-gradient(160deg, color-mix(in srgb, var(--c2) 60%, #fff), color-mix(in srgb, var(--c1) 80%, #fff)); -webkit-background-clip: text; background-clip: text; }
+
+/* clock: analog */
+.ambient--clock-analog .ambient__clock { align-items: center; text-align: center; }
+.clock-analog { width: clamp(260px, 42vh, 460px); height: auto; overflow: visible; filter: drop-shadow(0 20px 60px color-mix(in srgb, var(--c1) 40%, transparent)); }
+.clock-analog__face { fill: rgba(255, 255, 255, 0.05); stroke: rgba(255, 255, 255, 0.14); stroke-width: 1; }
+.clock-analog__tick { stroke: rgba(255, 255, 255, 0.3); stroke-width: 1; stroke-linecap: round; }
+.clock-analog__tick--hour { stroke: rgba(255, 255, 255, 0.85); stroke-width: 2.6; }
+.clock-analog__hand { stroke-linecap: round; transform-box: view-box; transform-origin: 100px 100px; transition: transform 1s linear; }
+.clock-analog__hand--hour { stroke: #fff; stroke-width: 6; }
+.clock-analog__hand--minute { stroke: rgba(255, 255, 255, 0.92); stroke-width: 4; }
+.clock-analog__hand--second { stroke: var(--c2); stroke-width: 1.6; }
+.clock-analog__pin { fill: var(--c2); }
+
+/* clock: words */
+.clock-words { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.28em; max-width: min(78vw, 13em); font-size: clamp(54px, 7.4vw, 124px); font-weight: 300; line-height: 1.04; letter-spacing: -0.035em; }
+.ambient--solo .clock-words { justify-content: center; }
+.clock-words__lead, .clock-words__soft { color: rgba(255, 255, 255, 0.5); }
+.clock-words__hour { font-weight: 700; background: linear-gradient(120deg, #fff, color-mix(in srgb, var(--c2) 65%, #fff)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.clock-words__period { font-size: 0.5em; letter-spacing: -0.01em; flex-basis: 100%; }
+.ambient--solo .clock-words__period { text-align: center; }
+
+/* unlocking: the screen lifts away while the island shows its check */
+/* (native code closes the window 0.56 s after a match, so this must finish by then) */
+.ambient--unlocking .ambient__stage { opacity: 0; scale: 1.08; translate: 0 -4vh; filter: blur(14px); transition: opacity 0.38s ease 0.14s, scale 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.12s, translate 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.12s, filter 0.38s ease 0.14s; }
+.ambient--unlocking .ambient__sky { opacity: 0; scale: 1.15; transition: opacity 0.36s ease 0.18s, scale 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.14s; }
+.ambient--unlocking .island { opacity: 0; scale: 0.9; transition: opacity 0.2s ease 0.36s, scale 0.25s ease 0.34s; }
+
 @keyframes ambient-rise { from { opacity: 0; transform: translateY(26px) scale(0.985); } to { opacity: 1; transform: none; } }
 @media (max-width: 900px) { .ambient__stage { flex-direction: column; gap: 40px; } .ambient__card { max-width: none; } }
-@media (prefers-reduced-motion: reduce) { .ambient__orb, .ambient__clock, .ambient__card { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ambient__orb, .ambient__clock, .ambient__card, .ambient__art { animation: none; } }
