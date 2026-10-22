@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "echo no install needed",
-  "buildCommand": "echo static site, no build",
+  "buildCommand": "node scripts/ensure-update-assets.mjs",
   "outputDirectory": ".",
   "cleanUrls": true
 }

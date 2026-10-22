@@ -21,10 +21,12 @@ $name = "HoverIsland-$version.msix"
 Copy-Item (Join-Path $bundle.FullName 'HoverIsland.msix') (Join-Path $updates $name) -Force
 Copy-Item (Join-Path $bundle.FullName 'Publisher.cer') (Join-Path $updates 'Publisher.cer') -Force
 $hash = (Get-FileHash (Join-Path $updates $name) -Algorithm SHA256).Hash.ToLowerInvariant()
+$certificateHash = (Get-FileHash (Join-Path $updates 'Publisher.cer') -Algorithm SHA256).Hash.ToLowerInvariant()
 $manifest = [ordered]@{
     version = $version
     url = "https://hover-island.vercel.app/updates/$name"
     sha256 = $hash
+    certificateSha256 = $certificateHash
     notes = $Notes
     published = (Get-Date).ToUniversalTime().ToString('o')
 }

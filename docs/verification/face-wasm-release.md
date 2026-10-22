@@ -19,10 +19,11 @@ The webcam itself took 4.25 seconds to open cold and 1.07 seconds to reopen in t
 
 ## Verification
 
-- TypeScript typecheck passed; 176 frontend tests passed.
+- TypeScript typecheck passed; 178 frontend tests passed, including restoring ignored update assets and refusing missing or corrupted packages.
 - Native tests: 259 passed, 11 opt-in hardware/service tests ignored.
 - Eleven UI smoke flows passed with simulated camera/native responses: first-frame match, bounded stalled camera/models/inference, mismatch, PIN cancellation, hide/reuse, ambient styles and camera readiness lifecycle. See `face-wasm-smoke.json`.
 - Actual production engine loaded local WASM and recognized the public sample under the exact app CSP with zero CSP violations and zero external requests. See `face-wasm-csp.json`.
+- The public sample's 1024-dimensional signatures from the old GPU and new WASM backend scored 1.0 with the native similarity formula, above the 0.58 single-frame threshold. See `face-model-compatibility.json`. This establishes sample compatibility, not owner-match accuracy.
 - Live camera frames had normal brightness and contrast but no detected face. The user confirmed being away or off camera, so this does not demonstrate an owner mismatch. No camera images or face descriptors were saved. A real owner-unlock trial remains pending. See `face-live-diagnostic.json`.
 
 ## Alternatives considered
@@ -30,3 +31,7 @@ The webcam itself took 4.25 seconds to open cold and 1.07 seconds to reopen in t
 OpenCV YuNet plus SFace was reviewed as a lightweight native alternative. It produces different identity embeddings and would require enrollment migration or re-enrollment. The measured WASM improvement resolves the observed shader startup bottleneck while retaining existing enrollment, so this release keeps the current recognition model.
 
 Primary references: [Human backends](https://github.com/vladmandic/human/wiki/Backends), [TensorFlow.js WASM](https://github.com/tensorflow/tfjs/tree/master/tfjs-backend-wasm), [OpenCV SFace](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface), [OpenCV YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet).
+
+## Direct-update publishing repair
+
+The automatic Git deployment after the previous manual release did not contain the ignored MSIX. The production manifest advertised 0.1.11 while its package URL returned 404. The static site's build now restores the exact already-published installer and public certificate when they are absent from a Git checkout, verifies their SHA-256 values, and fails the deployment if either cannot be restored. A manual staged release includes both assets locally, so it needs no download. This keeps subsequent ordinary Git deployments from removing the update download.

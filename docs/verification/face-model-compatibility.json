@@ -1,0 +1,7 @@
+{
+  "boundary": "Same public Human face across WebGL and WASM in Chromium, scored with the native similarity formula. Checks embedding compatibility, not owner enrollment accuracy.",
+  "descriptorDimensions": 1024,
+  "similarity": 1,
+  "singleFrameThreshold": 0.58,
+  "compatible": true
+}
