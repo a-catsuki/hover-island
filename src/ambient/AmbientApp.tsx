@@ -8,7 +8,6 @@ import { audioFrame, subscribeAudioSpectrum } from '../state/audio'
 import SoftLock from './SoftLock'
 import { AnalogClock, StackedClock, WordsClock } from './clocks'
 import { Ripples, Starfield } from './scenes'
-import AmbientBackdrop from './AmbientBackdrop'
 
 const WEATHER_REFRESH_MS = 15 * 60_000
 const DRIFT_MS = 45_000
@@ -50,7 +49,9 @@ export default function AmbientApp(props: { initialActive?: boolean }) {
 
   onMount(() => {
     void loadSettings()
+    let stopMedia: (() => void) | undefined
     let disposed = false
+    void subscribeMedia().then(stop => { if (disposed) stop(); else stopMedia = stop }).catch(() => {})
     const tick = setInterval(() => { if (active()) { setNow(new Date()); setTickMs(performance.now()) } }, 1000)
     const loadWeather = () => { if (active()) void cmd.weatherGet().then(snapshot => { if (snapshot.ok) setWeather(snapshot) }).catch(() => {}) }
     loadWeather()
@@ -75,15 +76,7 @@ export default function AmbientApp(props: { initialActive?: boolean }) {
       setNow(new Date())
       requestAnimationFrame(() => requestAnimationFrame(() => { if (active()) setReady(true) }))
     }))
-    onCleanup(() => { disposed = true; clearInterval(tick); clearInterval(refresh); clearInterval(wander); cancelAnimationFrame(raf); unlisten.forEach(stop => stop()) })
-  })
-
-  createEffect(() => {
-    if (!active()) return
-    let release: (() => void) | undefined
-    let disposed = false
-    void subscribeMedia().then(stop => { if (disposed) stop(); else release = stop }).catch(() => {})
-    onCleanup(() => { disposed = true; release?.() })
+    onCleanup(() => { disposed = true; clearInterval(tick); clearInterval(refresh); clearInterval(wander); cancelAnimationFrame(raf); stopMedia?.(); unlisten.forEach(stop => stop()) })
   })
 
   const time = createMemo(() => {
@@ -160,17 +153,24 @@ export default function AmbientApp(props: { initialActive?: boolean }) {
   return (
     <main class={`ambient ambient--scene-${scene()} ambient--clock-${clockStyle()}`} classList={{ 'ambient--dim': ambient().dim, 'ambient--ready': ready(), 'ambient--solo': !hasMedia(), 'ambient--cursor': cursor(), 'ambient--unlocking': unlocking(), 'ambient--art': !!artwork() }}
       style={{ '--c1': colors()[0], '--c2': colors()[1], '--c3': colors()[2] }}>
-      <Show when={active()}>
-      <div class="ambient__sky" aria-hidden="true">
-        <Show when={scene() !== 'black'}><AmbientBackdrop colors={colors()} artwork={artwork()} dim={ambient().dim} energy={energy()} /></Show>
+      <div class="ambient__sky" aria-hidden="true" style={{ '--energy': energy().toFixed(3) }}>
+        <Show when={artwork()}>
+          {src => <img class="ambient__art" src={src()} alt="" draggable={false} />}
+        </Show>
+        <Show when={scene() !== 'black' && !artwork()}>
+          <i class="ambient__orb ambient__orb--a" />
+          <i class="ambient__orb ambient__orb--b" />
+          <i class="ambient__orb ambient__orb--c" />
+        </Show>
         <Show when={active() && scene() === 'stars'}><Starfield {...sceneInput} /></Show>
         <Show when={active() && scene() === 'ripples'}><Ripples {...sceneInput} /></Show>
+        <i class="ambient__vignette" />
+        <Show when={scene() !== 'black'}><i class="ambient__grain" /></Show>
       </div>
-      </Show>
       <Show when={ambient().softLock}>
         <SoftLock active={active()} onAwake={setCursor} onUnlock={() => setUnlocking(true)} />
       </Show>
-      <Show when={active()}><div class="ambient__stage" style={{ transform: `translate(${ambient().dim ? drift().x : 0}px, ${ambient().dim ? drift().y : 0}px)` }}>
+      <div class="ambient__stage" style={{ transform: `translate(${ambient().dim ? drift().x : 0}px, ${ambient().dim ? drift().y : 0}px)` }}>
         <Show when={ambient().clock}>
           <section class="ambient__clock">
             <p class="ambient__eyebrow"><span>{weekday()}</span><i /><span>{day()}</span></p>
@@ -217,7 +217,7 @@ export default function AmbientApp(props: { initialActive?: boolean }) {
             <p class="ambient__note ambient__note--solo">{ambient().note}</p>
           </Show>
         </Show>
-      </div></Show>
+      </div>
     </main>
   )
 }

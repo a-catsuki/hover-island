@@ -1,40 +1,12 @@
-//! Keep browser caches economical and return unused native heap pages to Windows.
-//! Live allocations are never paged out to make a working-set number look smaller.
+//! Ask WebView2 to release expendable caches while the island is compact.
+//!
+//! Unlike suspending the renderer, this preserves event delivery, incoming alerts,
+//! media controls and immediate hover response. The WebView2 hint is an engine
+//! resource hint, not a promise about aggregate process memory. In addition, a
+//! few seconds after the island settles collapsed, this process's own working set
+//! is trimmed (pages return on demand), at most once every 30 seconds.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::AppHandle;
-static AMBIENT_COVERING: AtomicBool = AtomicBool::new(false);
-static MAIN_WAS_VISIBLE: AtomicBool = AtomicBool::new(false);
-
-pub fn ambient_covering() -> bool {
-    AMBIENT_COVERING.load(Ordering::Acquire)
-}
-
-/// Keep the covered notch's state, but stop its renderer and compositor work.
-pub fn set_ambient_covering(app: &AppHandle, covered: bool) {
-    use tauri::Manager;
-    if AMBIENT_COVERING.swap(covered, Ordering::AcqRel) == covered {
-        return;
-    }
-    let Some(window) = app.get_webview_window("main") else {
-        return;
-    };
-    if covered {
-        let visible = window.is_visible().unwrap_or(false);
-        MAIN_WAS_VISIBLE.store(visible, Ordering::Release);
-        if visible {
-            let _ = window.hide();
-            #[cfg(windows)]
-            platform::set_suspended(app, true);
-        }
-    } else if MAIN_WAS_VISIBLE.swap(false, Ordering::AcqRel) {
-        #[cfg(windows)]
-        platform::set_suspended(app, false);
-        if !crate::window::main_hidden_by_user() {
-            let _ = window.show();
-        }
-    }
-}
 
 #[cfg(windows)]
 mod platform {
@@ -42,104 +14,77 @@ mod platform {
     use std::time::{Duration, Instant};
     use tauri::{AppHandle, Manager};
     use webview2_com::Microsoft::Web::WebView2::Win32::{
-        ICoreWebView2_19, ICoreWebView2_3, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+        ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
     };
-    use windows::Win32::Foundation::HANDLE;
-    use windows::Win32::System::Memory::{HeapOptimizeResources, HeapSetInformation};
+    use windows::Win32::System::ProcessStatus::K32EmptyWorkingSet;
+    use windows::Win32::System::Threading::GetCurrentProcess;
     use windows_core::Interface;
 
+    static MAIN_ACTIVE: AtomicBool = AtomicBool::new(false);
+    static SETTINGS_ACTIVE: AtomicBool = AtomicBool::new(false);
     static REPORTED_UNAVAILABLE: AtomicBool = AtomicBool::new(false);
-    static RELEASE_PENDING: AtomicBool = AtomicBool::new(false);
-    static LAST_RELEASE: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
-    const SETTLE: Duration = Duration::from_millis(1500);
-    const MIN_INTERVAL: Duration = Duration::from_secs(30);
+    static TRIM_PENDING: AtomicBool = AtomicBool::new(false);
+    static LAST_TRIM: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
+    const TRIM_SETTLE: Duration = Duration::from_secs(5);
+    const TRIM_MIN_INTERVAL: Duration = Duration::from_secs(30);
 
-    // HEAP_OPTIMIZE_RESOURCES_INFORMATION from winnt.h (Windows 8.1+).
-    #[repr(C)]
-    struct HeapResources {
-        version: u32,
-        flags: u32,
-    }
-
-    pub fn set_suspended(app: &AppHandle, suspended: bool) {
-        let Some(window) = app.get_webview_window("main") else {
-            return;
-        };
-        let _ = window.with_webview(move |webview| {
-            let result = unsafe {
-                webview.controller().CoreWebView2().and_then(|core| {
-                    let core = core.cast::<ICoreWebView2_3>()?;
-                    if suspended {
-                        webview.controller().SetIsVisible(false)?;
-                        let callback =
-                            webview2_com::TrySuspendCompletedHandler::create(Box::new(|_, _| {
-                                Ok(())
-                            }));
-                        core.TrySuspend(&callback)
-                    } else {
-                        core.Resume()?;
-                        webview.controller().SetIsVisible(true)
-                    }
-                })
-            };
-            if let Err(error) = result {
-                eprintln!("Could not change covered notch activity: {error}");
-            }
-        });
-    }
-
-    pub fn schedule_release() {
-        if RELEASE_PENDING.swap(true, Ordering::AcqRel) {
+    /// Trim this process's working set once the island has stayed collapsed.
+    /// One short-lived thread at a time; hover thrash cannot pile threads up.
+    fn schedule_trim() {
+        if TRIM_PENDING.swap(true, Ordering::AcqRel) {
             return;
         }
         let spawned = std::thread::Builder::new()
-            .name("hover-heap-release".into())
+            .name("hover-island-trim".into())
             .stack_size(128 * 1024)
             .spawn(|| {
-                let wait = LAST_RELEASE
+                let wait = LAST_TRIM
                     .lock()
                     .ok()
                     .and_then(|last| *last)
-                    .map(|at| MIN_INTERVAL.saturating_sub(at.elapsed()).max(SETTLE))
-                    .unwrap_or(SETTLE);
+                    .map(|at| TRIM_MIN_INTERVAL.saturating_sub(at.elapsed()).max(TRIM_SETTLE))
+                    .unwrap_or(TRIM_SETTLE);
                 std::thread::sleep(wait);
-                let info = HeapResources {
-                    version: 1,
-                    flags: 0,
-                };
-                // NULL selects this process's heaps. Decommit free LFH cache pages;
-                // unlike EmptyWorkingSet, live data stays resident and responsive.
-                let _ = unsafe {
-                    HeapSetInformation(
-                        HANDLE(0),
-                        HeapOptimizeResources,
-                        Some((&info as *const HeapResources).cast()),
-                        std::mem::size_of::<HeapResources>(),
-                    )
-                };
-                if let Ok(mut last) = LAST_RELEASE.lock() {
-                    *last = Some(Instant::now());
+                TRIM_PENDING.store(false, Ordering::Release);
+                if !MAIN_ACTIVE.load(Ordering::Acquire) {
+                    // Failure only means the pages stay resident.
+                    let _ = unsafe { K32EmptyWorkingSet(GetCurrentProcess()) };
+                    if let Ok(mut last) = LAST_TRIM.lock() {
+                        *last = Some(Instant::now());
+                    }
                 }
-                RELEASE_PENDING.store(false, Ordering::Release);
             });
         if spawned.is_err() {
-            RELEASE_PENDING.store(false, Ordering::Release);
+            TRIM_PENDING.store(false, Ordering::Release);
         }
     }
 
-    pub fn set_low(app: &AppHandle, label: &str) {
+    fn set_active(app: &AppHandle, label: &str, state: &'static AtomicBool, active: bool) {
+        state.store(active, Ordering::Release);
+        if !active && label == "main" {
+            schedule_trim();
+        }
         let Some(window) = app.get_webview_window(label) else {
             return;
         };
+        // Tauri executes this closure on the owning UI thread. Read the latest
+        // desired state there so queued hover reversals cannot apply stale hints.
         let result = window.with_webview(move |webview| {
             let result = unsafe {
                 webview.controller().CoreWebView2().and_then(|core| {
                     core.cast::<ICoreWebView2_19>().and_then(|memory| {
-                        memory.SetMemoryUsageTargetLevel(COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW)
+                        memory.SetMemoryUsageTargetLevel(if state.load(Ordering::Acquire) {
+                            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+                        } else {
+                            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+                        })
                     })
                 })
             };
             if let Err(error) = result {
+                // Older runtimes may lack this optional interface. Never disable
+                // app functionality or replace it with aggressive memory trimming.
                 if !REPORTED_UNAVAILABLE.swap(true, Ordering::Relaxed) {
                     eprintln!("WebView2 memory target is unavailable: {error}");
                 }
@@ -151,39 +96,27 @@ mod platform {
             }
         }
     }
+
+    pub fn set_main(app: &AppHandle, active: bool) {
+        set_active(app, "main", &MAIN_ACTIVE, active);
+    }
+    pub fn set_settings(app: &AppHandle, active: bool) {
+        set_active(app, "settings", &SETTINGS_ACTIVE, active);
+    }
 }
 
-pub fn release_native_caches() {
-    #[cfg(windows)]
-    platform::schedule_release();
-}
-
+/// Call once after main-window setup, and whenever its expanded state changes.
 pub fn set_main_active(app: &AppHandle, active: bool) {
     #[cfg(windows)]
-    platform::set_low(app, "main");
+    platform::set_main(app, active);
     #[cfg(not(windows))]
-    let _ = app;
-    if !active {
-        release_native_caches();
-    }
+    let _ = (app, active);
 }
 
+/// Settings can release optional caches while minimized or in the background.
 pub fn set_settings_active(app: &AppHandle, active: bool) {
     #[cfg(windows)]
-    platform::set_low(app, "settings");
+    platform::set_settings(app, active);
     #[cfg(not(windows))]
-    let _ = app;
-    if !active {
-        release_native_caches();
-    }
-}
-
-pub fn set_ambient_active(app: &AppHandle, active: bool) {
-    #[cfg(windows)]
-    platform::set_low(app, "ambient");
-    #[cfg(not(windows))]
-    let _ = app;
-    if !active {
-        release_native_caches();
-    }
+    let _ = (app, active);
 }

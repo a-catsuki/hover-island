@@ -12,8 +12,8 @@ const MIN_FACE_WIDTH = 0.18
 const EYES = [[33, 133, 159, 145], [362, 263, 386, 374]] as const
 /** Bound an ordinary inference without restarting a still-busy TensorFlow operation. */
 const FRAME_TIMEOUT_MS = 1800
-/** A bounded preparation pass on the accelerated CPU. */
-const FIRST_FRAME_TIMEOUT_MS = 3_000
+/** The first frames also compile GPU shaders, which slow GPUs take a while over. */
+const FIRST_FRAME_TIMEOUT_MS = 30_000
 let framesDone = 0
 
 // Every frame must be scored afresh: cached results would let one good frame vouch for later ones.
@@ -48,6 +48,7 @@ const QUICK: Partial<Config> = { face: { description: { enabled: false }, antisp
 const FULL: Partial<Config> = { face: { description: { enabled: true }, antispoof: { enabled: true }, liveness: { enabled: true } } }
 
 let engine: Promise<Human> | null = null
+let backend: 'wasm' | 'webgl' = 'wasm'
 /** A timeout cannot cancel TensorFlow. Never start another detection on a busy engine. */
 let detecting = false
 
@@ -75,10 +76,7 @@ async function warmUp(human: Human): Promise<void> {
     context.fillRect(0, 0, canvas.width, canvas.height)
     const size = Math.min(canvas.height, image.naturalHeight * (canvas.height / image.naturalHeight))
     context.drawImage(image, (canvas.width - size) / 2, 0, size, size)
-    detecting = true
-    const pending = Promise.resolve().then(() => human.detect(canvas, FULL))
-    void pending.finally(() => { detecting = false }).catch(() => {})
-    await timeout(pending, FIRST_FRAME_TIMEOUT_MS, 'Face models')
+    await timeout(human.detect(canvas, FULL), FIRST_FRAME_TIMEOUT_MS, 'Face models')
     framesDone = 3
   } catch (error) {
     // Only a speed-up; the first real frame compiles whatever is left.
@@ -86,30 +84,35 @@ async function warmUp(human: Human): Promise<void> {
   }
 }
 
-async function createEngine(): Promise<Human> {
+async function createEngine(kind: 'wasm' | 'webgl'): Promise<Human> {
   const { Human } = await import('@vladmandic/human')
-  const human = new Human({ ...CONFIG, backend: 'wasm' })
+  const human = new Human({ ...CONFIG, backend: kind })
   await human.load()
   await timeout(human.tf.ready(), FRAME_TIMEOUT_MS, 'Face models')
   await warmUp(human)
   return human
 }
 
-/** SIMD WASM only. An unavailable engine offers PIN rather than allocating a second GPU engine. */
+/** Prefer SIMD WASM. The GPU is a compatibility fallback; unaccelerated JavaScript is never used. */
 export function loadFaceEngine(): Promise<Human> {
-  engine ??= createEngine().catch(error => { engine = null; throw error })
+  engine ??= createEngine(backend).catch(error => {
+    if (backend === 'webgl') throw error
+    console.error('Face unlock: accelerated CPU backend unavailable, using GPU', error)
+    backend = 'webgl'
+    return createEngine('webgl')
+  }).catch(error => { engine = null; throw error })
   return engine
 }
 
 /** The backend in use, for the status line. */
-export const faceBackend = () => 'wasm' as const
+export const faceBackend = () => backend
 
 /** One detection. Never run a second operation on a still-busy engine after a timeout. */
-async function detect(input: HTMLCanvasElement, full: boolean): Promise<Result> {
+async function detect(video: HTMLVideoElement, full: boolean): Promise<Result> {
   const human = await loadFaceEngine()
   if (detecting) throw new Error('Face detection is still finishing')
   detecting = true
-  const pending = Promise.resolve().then(() => human.detect(input, full ? FULL : QUICK))
+  const pending = Promise.resolve().then(() => human.detect(video, full ? FULL : QUICK))
   void pending.finally(() => { detecting = false }).catch(() => {})
   const limit = framesDone < 3 ? FIRST_FRAME_TIMEOUT_MS : FRAME_TIMEOUT_MS
   const result = await timeout(pending, limit, 'Face detection')
@@ -137,9 +140,6 @@ export class FaceCamera {
   private starting: Promise<void> | null = null
   private generation = 0
   private cancelFrameWait: (() => void) | null = null
-  private frameCanvas: HTMLCanvasElement | null = null
-  private frameContext: CanvasRenderingContext2D | null = null
-  private reading = false
 
   /** True once frames are flowing. */
   get running(): boolean {
@@ -203,9 +203,6 @@ export class FaceCamera {
     this.stream?.getTracks().forEach(track => track.stop())
     this.stream = null
     this.video.srcObject = null
-    if (this.frameCanvas) this.frameCanvas.width = this.frameCanvas.height = 0
-    this.frameCanvas = null
-    this.frameContext = null
   }
 
   /**
@@ -213,39 +210,12 @@ export class FaceCamera {
    * identity, anti-spoof and liveness models. Throws when detection itself fails.
    */
   async read(options: { full?: boolean; frontalOnly?: boolean } = {}): Promise<FaceFrame> {
-    // A timed-out inference may still own the capture canvas. Never overwrite
-    // its pixels while TensorFlow is reading them, including on a quick retry.
-    if (this.reading || detecting) throw new Error('Face detection is still finishing')
-    this.reading = true
-    try {
-      const full = options.full ?? true
-      // Fix one frame for both passes. A high-resolution or virtual camera must
-      // never turn fromPixels into a monitor-sized tensor allocation.
-      const sourceWidth = this.video.videoWidth || 640, sourceHeight = this.video.videoHeight || 480
-      const scale = Math.min(1, 640 / sourceWidth, 480 / sourceHeight)
-      const width = Math.max(1, Math.floor(sourceWidth * scale)), height = Math.max(1, Math.floor(sourceHeight * scale))
-      this.frameCanvas ??= document.createElement('canvas')
-      const input = this.frameCanvas
-      if (input.width !== width || input.height !== height) { input.width = width; input.height = height }
-      this.frameContext ??= input.getContext('2d', { willReadFrequently: true, alpha: false })
-      if (!this.frameContext) throw new Error('Camera frame unavailable')
-      this.frameContext.drawImage(this.video, 0, 0, width, height)
-      const quick = await detect(input, false)
-      let faces = quick.face.filter(face => face.score >= 0.5)
-      if (faces.length === 0) return { problem: null, yaw: 0, pitch: 0, eyes: null, sample: null }
-      if (faces.length > 1) return { problem: 'many', yaw: 0, pitch: 0, eyes: null, sample: null }
-      const located = toFrame(faces[0], width, false, options.frontalOnly ?? true)
-      if (!full || located.problem !== 'none') return located
-      // Reject empty, distant, turned or multiple faces before allocating the
-      // description/anti-spoof/liveness pipelines. Full scoring uses this exact image.
-      const result = await detect(input, true)
-      faces = result.face.filter(face => face.score >= 0.5)
-      if (faces.length === 0) return { problem: null, yaw: 0, pitch: 0, eyes: null, sample: null }
-      if (faces.length > 1) return { problem: 'many', yaw: 0, pitch: 0, eyes: null, sample: null }
-      return toFrame(faces[0], width, true, options.frontalOnly ?? true)
-    } finally {
-      this.reading = false
-    }
+    const full = options.full ?? true
+    const result = await detect(this.video, full)
+    const faces = result.face.filter(face => face.score >= 0.5)
+    if (faces.length === 0) return { problem: null, yaw: 0, pitch: 0, eyes: null, sample: null }
+    if (faces.length > 1) return { problem: 'many', yaw: 0, pitch: 0, eyes: null, sample: null }
+    return toFrame(faces[0], this.video.videoWidth || 640, full, options.frontalOnly ?? true)
   }
 }
 

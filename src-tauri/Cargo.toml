@@ -1,6 +1,6 @@
 [package]
 name = "hover-island"
-version = "0.1.13"
+version = "0.1.12"
 description = "A macOS-notch-style Dynamic Island for Windows"
 authors = ["Hover Island"]
 edition = "2021"
@@ -63,7 +63,6 @@ windows = { version = "0.52", features = [
       "Win32_System_Wmi",
       "Win32_System_Diagnostics_ToolHelp",
       "Win32_System_ProcessStatus",
-      "Win32_System_Memory",
       "Win32_System_RemoteDesktop",
       "Win32_System_Threading",
     "Win32_Media_Audio",

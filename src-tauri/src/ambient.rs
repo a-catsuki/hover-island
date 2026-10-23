@@ -22,8 +22,9 @@ const LABEL: &str = "ambient";
 const OPEN_GRACE: Duration = Duration::from_millis(1500);
 /// How long before the Windows screen saver would start that ambient mode takes over.
 const SAVER_LEAD_MS: u64 = 20_000;
-/// SIMD models need seconds, not a permanently resident renderer. Prepare just before use.
-const PREWARM_LEAD_MS: u64 = 8_000;
+/// With face unlock set up, the page is built this long before it is due, hidden, so the face
+/// models have compiled their GPU shaders (tens of seconds on some GPUs) before anyone looks.
+const PREWARM_LEAD_MS: u64 = 90_000;
 
 /// True while ambient mode wants the screen saver and display sleep held off.
 static HOLD_DISPLAY: AtomicBool = AtomicBool::new(false);
@@ -84,7 +85,8 @@ static LOCK_SESSION: AtomicU64 = AtomicU64::new(0);
 static VERIFYING: AtomicBool = AtomicBool::new(false);
 /// The page is the face enrollment flow: input never closes it and it never locks.
 static ENROLLING: AtomicBool = AtomicBool::new(false);
-/// The window is on screen. Closing releases its model heap and compositor surfaces.
+/// The window is on screen. With face unlock set up it outlives this: closing only hides it, so
+/// the face models stay loaded and compiled and the next unlock starts at once.
 static SHOWN: AtomicBool = AtomicBool::new(false);
 /// The existing window, shown or kept warm, holds the ambient page rather than enrollment.
 static AMBIENT_PAGE: AtomicBool = AtomicBool::new(false);
@@ -193,7 +195,7 @@ fn is_open(app: &AppHandle) -> bool {
     SHOWN.load(Ordering::Acquire) && app.get_webview_window(LABEL).is_some()
 }
 
-/// Prepare face recognition shortly before ambient mode is due.
+/// Keep the page alive between showings: only worth its memory when face unlock will use it.
 fn keep_warm(app: &AppHandle) -> bool {
     let soft_lock = app
         .state::<AppState>()
@@ -210,12 +212,10 @@ fn build(app: &AppHandle, visible: bool) -> Result<tauri::WebviewWindow, String>
         .title("Hover Island Ambient")
         .decorations(false)
         .resizable(false)
-        // A prepared page has no visuals. Do not allocate a hidden full-screen swap chain.
-        .inner_size(1.0, 1.0)
         .always_on_top(true)
         .skip_taskbar(true)
-        .transparent(false)
-        .background_color(tauri::window::Color(5, 6, 10, 255))
+        // The page paints its own background; transparency lets the unlock reveal the desktop.
+        .transparent(true)
         .disable_drag_drop_handler()
         // Face unlock reads frames in this page only; without this WebView2 asks every time.
         .on_permission_request(|_, kind| match kind {
@@ -233,7 +233,6 @@ fn build(app: &AppHandle, visible: bool) -> Result<tauri::WebviewWindow, String>
             }
         }
     });
-    crate::runtime_memory::set_ambient_active(app, visible);
     Ok(window)
 }
 
@@ -246,11 +245,6 @@ fn prewarm(app: &AppHandle) {
     if build(app, false).is_ok() {
         AMBIENT_PAGE.store(true, Ordering::Release);
     }
-}
-
-pub(crate) fn prepare_for_audit(app: &AppHandle) { prewarm(app); }
-pub(crate) fn show_for_audit(app: &AppHandle) -> Result<(),String> {
-    open(app,Mode::Ambient { soft_lock: soft_lock_enabled(app) })
 }
 
 pub(crate) fn is_locked() -> bool {
@@ -295,20 +289,16 @@ fn open(app: &AppHandle, mode: Mode) -> Result<(), String> {
     crate::face::reset_attempts();
     let window = match app.get_webview_window(LABEL) {
         Some(window) if reuse => {
+            // The kept page resets itself for a fresh showing before it is seen.
+            let _ = window.emit("ambient://shown", ());
             window
         }
-        _ => match build(app, false) { Ok(window) => window, Err(error) => { close(app); return Err(error); } },
+        _ => build(app, false)?,
     };
     AMBIENT_PAGE.store(mode != Mode::Enroll, Ordering::Release);
-    if let Err(error) = window.set_fullscreen(true) { close(app); return Err(error.to_string()); }
+    window.set_fullscreen(true).map_err(|error| error.to_string())?;
+    window.show().map_err(|error| error.to_string())?;
     SHOWN.store(true, Ordering::Release);
-    if let Err(error) = window.show() {
-        close(app);
-        return Err(error.to_string());
-    }
-    let _ = window.emit("ambient://shown", ());
-    crate::runtime_memory::set_ambient_covering(app, true);
-    crate::runtime_memory::set_ambient_active(app, true);
     let _ = window.set_focus();
     Ok(())
 }
@@ -316,24 +306,15 @@ fn open(app: &AppHandle, mode: Mode) -> Result<(), String> {
 pub(crate) fn close(app: &AppHandle) {
     LOCK_SESSION.fetch_add(1, Ordering::AcqRel);
     LOCKED.store(false, Ordering::Release);
-    ENROLLING.store(false, Ordering::Release);
+    let was_enrolling = ENROLLING.swap(false, Ordering::AcqRel);
     SHOWN.store(false, Ordering::Release);
     if let Some(window) = app.get_webview_window(LABEL) {
-        let _ = window.emit("ambient://hidden", ());
-        AMBIENT_PAGE.store(false, Ordering::Release);
-        let _ = window.destroy();
-    }
-    crate::runtime_memory::set_ambient_covering(app, false);
-    crate::runtime_memory::release_native_caches();
-}
-
-/// An interrupted idle stretch must not leave its prepared model renderer resident.
-fn discard_prepared(app: &AppHandle) {
-    if !SHOWN.load(Ordering::Acquire) && !is_enrolling() {
-        if let Some(window) = app.get_webview_window(LABEL) {
+        if !was_enrolling && AMBIENT_PAGE.load(Ordering::Acquire) && keep_warm(app) {
+            let _ = window.hide();
+            let _ = window.emit("ambient://hidden", ());
+        } else {
             AMBIENT_PAGE.store(false, Ordering::Release);
             let _ = window.destroy();
-            crate::runtime_memory::release_native_caches();
         }
     }
 }
@@ -341,8 +322,6 @@ fn discard_prepared(app: &AppHandle) {
 /// Polls twice a second while ambient mode is on, and once every few seconds otherwise.
 pub fn spawn(app: AppHandle) {
     spawn_display_holder();
-    // The explicitly requested local audit drives these phases itself and never locks Windows.
-    if crate::runtime_audit::running() { return; }
     tauri::async_runtime::spawn(async move {
         let mut opened_at: Option<Instant> = None;
         let mut prewarm_tried = false;
@@ -406,7 +385,6 @@ pub fn spawn(app: AppHandle) {
                     }
                 } else {
                     prewarm_tried = false;
-                    discard_prepared(&app);
                 }
             }
             let wait = if open_now || cfg.enabled { 700 } else { 4000 };
