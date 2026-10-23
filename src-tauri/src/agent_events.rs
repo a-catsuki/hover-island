@@ -219,6 +219,16 @@ fn hook_recent(provider: &str, session: &str) -> bool {
         .is_some_and(|seen| seen.elapsed() < Duration::from_millis(HOOK_AUTHORITY_MS))
 }
 
+fn activity_session_id(provider: &str, id: &str) -> String {
+    // Codex rollout filenames have a timestamp prefix; hooks supply the thread UUID.
+    if provider == "codex" {
+        if let Some(uuid) = id.get(id.len().saturating_sub(36)..).filter(|tail| uuid::Uuid::parse_str(tail).is_ok()) {
+            return uuid.to_string();
+        }
+    }
+    id.to_string()
+}
+
 #[derive(Clone, Default)]
 struct Cfg {
     enabled: bool,
@@ -252,8 +262,10 @@ fn deliver(app: &AppHandle, event: AgentEvent) {
     if !cfg.enabled || !cfg.allows(&event.provider) {
         return;
     }
-    // A tool with working hooks is authoritative; the log guess would only duplicate it.
-    if event.source == "log" && hook_recent(&event.provider, event.session_id.as_deref().unwrap_or("default")) {
+    // Stop hooks own final results. Keep explicit log input/progress signals:
+    // Codex's completion-only hook has no way to report a pending question.
+    if event.source == "log" && matches!(event.kind.as_str(), "completed" | "failed")
+        && hook_recent(&event.provider, event.session_id.as_deref().unwrap_or("default")) {
         return;
     }
     let key = format!(
@@ -320,6 +332,11 @@ fn plan_from_todos(items: &[Value], status_key: &str) -> Option<Signal> {
 }
 
 fn classify_claude(line: &str) -> Vec<Signal> {
+    // Skip bulky API/debug records without allocating a JSON tree. The parsed
+    // top-level role below remains authoritative, including for pretty JSON.
+    if !["\"type\":\"assistant\"", "\"type\": \"assistant\"", "\"type\":\"user\"", "\"type\": \"user\""].iter().any(|kind| line.contains(kind)) {
+        return Vec::new();
+    }
     let Ok(root) = serde_json::from_str::<Value>(line) else { return Vec::new() };
     if root.get("isSidechain").and_then(Value::as_bool) == Some(true)
         || root.get("agentId").and_then(Value::as_str).is_some_and(|id| !id.is_empty()) {
@@ -445,7 +462,12 @@ fn classify_codex(line: &str) -> Vec<Signal> {
         let text = payload_text("/payload/message").unwrap_or_else(|| "Codex hit an error".into());
         return vec![Signal::Error { ts, text: snippet(&text, 120) }];
     }
-    if line.contains("approval_request") {
+    let approval = line.contains("approval_request") && serde_json::from_str::<Value>(line).ok().is_some_and(|root| {
+        root.get("type").and_then(Value::as_str) == Some("event_msg")
+            && root.pointer("/payload/type").and_then(Value::as_str)
+                .is_some_and(|kind| kind == "approval_request" || kind.ends_with("_approval_request"))
+    });
+    if approval {
         return vec![Signal::Question { ts, text: "Approval needed".into() }];
     }
     let call = line.contains("\"type\":\"function_call\"")
@@ -566,7 +588,7 @@ impl SessionState {
     fn new(provider: &str, id: &str, project: Option<String>) -> Self {
         Self {
             provider: provider.to_string(),
-            id: id.to_string(),
+            id: activity_session_id(provider, id),
             project,
             task: String::new(),
             phase: Phase::Idle,
@@ -1349,6 +1371,7 @@ fn event_from_hook(provider: &str, hook: &str, body: &Value, now: u64) -> Option
         .find(|s| !s.is_empty())
         .unwrap_or("default")
         .to_string();
+    let session = activity_session_id(&provider, &session);
     let cwd = body.get("cwd").and_then(Value::as_str).and_then(|c| {
         c.replace('\\', "/").trim_end_matches('/').rsplit('/').next().map(str::to_string)
     });
@@ -2155,6 +2178,17 @@ mod tests {
     }
 
     #[test]
+    fn codex_hook_and_rollout_events_share_a_thread_id() {
+        let id = "11111111-2222-4333-8444-555555555555";
+        let filename = format!("rollout-2026-10-13T16-43-46-{id}");
+        let state = SessionState::new("codex", &filename, None);
+        assert_eq!(state.id, id);
+        assert_eq!(state.event("question", "Which file?".into(), 1).session_id.as_deref(), Some(id));
+        let hook = event_from_hook("codex", "agent-turn-complete", &json!({"thread-id":id,"last-assistant-message":"Done."}), 2).unwrap();
+        assert_eq!(hook.session_id.as_deref(), Some(id));
+    }
+
+    #[test]
     fn updating_our_hooks_keeps_other_commands_in_the_same_group() {
         let mut entries = vec![json!({"matcher":"*","hooks":[
             {"type":"command","command":"echo keep-this"},
@@ -2227,6 +2261,10 @@ mod tests {
             [Signal::Question { text, .. }] => assert_eq!(text, "Which TV model?"),
             _ => panic!("expected a question"),
         }
+        let call = json!({"type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":"search source for approval_request"}});
+        assert!(matches!(classify_codex(&call.to_string()).as_slice(), [Signal::ToolUse { .. }]));
+        let approval = json!({"type":"event_msg","payload":{"type":"exec_approval_request"}});
+        assert!(matches!(classify_codex(&approval.to_string()).as_slice(), [Signal::Question { .. }]));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 {
-  "recordedAt": "2026-10-23T07:26:04.113Z",
-  "fingerprint": "c0c265e93d3f21394f4d5c8bb24bb2f92f7913d6d73434f1610a0d49a0f1b3dc",
+  "recordedAt": "2026-10-23T07:45:35.422Z",
+  "fingerprint": "9ecf93fb6fdb5dbf65a31858470f7d0f2f75cc1dc584fb7905cbdb74a581f29d",
   "fileCount": 277,
   "files": [
     {
@@ -130,8 +130,8 @@
     },
     {
       "path": "src-tauri/src/agent_events.rs",
-      "bytes": 95998,
-      "sha256": "824ee4c4180bcaf9553b7aa8305b1c884bf7a695a17e151fb5318abbe35a8c2d"
+      "bytes": 98352,
+      "sha256": "0eb6ca5c83a49b0e531abc8dde49007d3c95edd20d7c9fdae99098850eebc647"
     },
     {
       "path": "src-tauri/src/airdrop.rs",

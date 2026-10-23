@@ -5,7 +5,7 @@
 - Ambient lock shows a recognizable Face ID glyph and label before input, with a persistent press-any-key hint. The face remains visible during scanning; verified success becomes a check. PIN remains available during scanning. No minimum scan duration was added.
 - The notch keeps its interruptible, independent springs, with a faster, nearly critically damped response. Content fades in immediately; the long staggered widget reveal is removed. Saved hover preferences are preserved.
 - Claude logs use structural roles and explicit `end_turn`, rather than six seconds of silence. A slow tool is not treated as a permission prompt. Explicit question/approval events remain supported.
-- Claude child-agent hooks, sidechain messages, background-task stops, and Codex child-rollout metadata cannot complete the parent task. Hook authority is scoped to a session rather than silencing every other session from that provider.
+- Claude child-agent hooks, sidechain messages, background-task stops, and Codex child-rollout metadata cannot complete the parent task. Codex rollout and hook IDs normalize to the same thread UUID. Hook authority is scoped to final results in that session, leaving explicit log questions and progress available.
 - Generic idle/auth notifications do not become input requests. Resuming work clears queued input prompts, and startup history retains each session's latest state. Generic desktop task-status popups defer to verified agent events; their inbox entries remain.
 - Windows Claude Desktop sign-in is supported alongside the existing CLI/status-line sources. Its account-bound encrypted credential is read only, used exclusively with Anthropic's usage endpoint, and never refreshed or saved by Hover Island. Requests share a minimum interval and rate-limit backoff. Partial status-line reports preserve the other quota window.
 - Hook commands use curl's Windows NUL output target rather than shell-specific `/dev/null` and `|| true`. Only explicit question tools match the new tool hook.
@@ -18,7 +18,7 @@ These are concrete source changes that explain the observed regression. Their in
 
 ## Validation
 
-- Native unit suite: 266 passed, 12 explicitly ignored integration/interactive checks.
+- Native unit suite: 267 passed, 12 explicitly ignored integration/interactive checks.
 - Explicit native live usage check: passed against Anthropic using the existing Windows Desktop sign-in. Account details and credentials are excluded from this report.
 - Frontend typecheck, all 183 regression tests, and production build pass.
 - Actual Solid ambient UI with simulated camera/model/native responses: idle Face ID and key hint, first-frame match, camera/model/frame stalls reaching PIN in roughly 2.5 seconds, immediate mismatch, cancellation, hide/reuse, reduced motion, and hidden prewarm behavior pass.
