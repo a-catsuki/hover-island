@@ -25,3 +25,9 @@ These are concrete source changes that explain the observed regression. Their in
 - Actual Solid notch fixture: first response about 25 ms, 90% height about 210 ms, no overshoot, continuous reversal, and reduced motion pass. Native WebView/GPU latency and physical camera recognition are separate from this fixture evidence.
 
 References: [Claude hook event semantics](https://code.claude.com/docs/en/hooks), [Claude status-line rate-limit data](https://code.claude.com/docs/en/statusline).
+
+## Delivery verification
+
+The signed 0.1.14.1 package is installed and running. Its executable matches the built executable, its local agent endpoint responds, and its WebViews do not carry the GPU-disable switch. All five saved JSON/DPAPI files were byte-identical across installation, before first launch. Only Hover Island's existing Claude hook entries were refreshed; unrelated configuration passed a preservation check.
+
+The public update manifest, installer, publisher certificate, and download ZIP were fetched from production and checked against the signed local artifacts. Source fingerprints match across compilation; the package revision counter was incremented afterward. See `polish-release-0.1.14.json` for artifact hashes and check results.

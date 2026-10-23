@@ -1,8 +1,8 @@
 {
-  "version": "0.1.12",
-  "url": "https://hover-island.vercel.app/updates/HoverIsland-0.1.12.msix",
-  "sha256": "a68a969b16fd74d95d7041c2d6eebab6729e0daa2140e18585c0712cf68cec58",
+  "version": "0.1.14",
+  "url": "https://hover-island.vercel.app/updates/HoverIsland-0.1.14.msix",
+  "sha256": "f74fc59183dbd7a50d703a86efbbda10a5cdec1edb38c13a1fc53361c283e63d",
   "certificateSha256": "b0849642404b1ebcb247bddcf33b64d3e6187f7e02613e01025c7b46a78f5433",
-  "notes": "Faster offline face recognition with an accelerated engine, camera readiness during ambient mode, quicker unlock animation, and reliable direct-update downloads.",
-  "published": "2026-10-22T08:18:09.0119928Z"
+  "notes": "Clear Face ID animation and key-to-unlock hint, faster notch expansion, real Claude Desktop plan usage, and task alerts based on main-agent completion and genuine input requests.",
+  "published": "2026-10-23T08:13:20.2316154Z"
 }

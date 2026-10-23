@@ -1,0 +1,1392 @@
+{
+  "recordedAt": "2026-10-23T08:12:25.210Z",
+  "fingerprint": "9ecf93fb6fdb5dbf65a31858470f7d0f2f75cc1dc584fb7905cbdb74a581f29d",
+  "fileCount": 277,
+  "files": [
+    {
+      "path": "index.html",
+      "bytes": 347,
+      "sha256": "daff04f149f9051cee608fff1e48816182f3bc6c9087c35285140a9bb0ffde81"
+    },
+    {
+      "path": "package-lock.json",
+      "bytes": 79073,
+      "sha256": "fabe3a1345242ea1aec78bb2d394ce96c6122082ddcc423f42f1c64a48bd39af"
+    },
+    {
+      "path": "package.json",
+      "bytes": 1282,
+      "sha256": "cd065d0d2e74f8b575367ec2bf408c9a14a5413170b223f2424751d0c0ae42a2"
+    },
+    {
+      "path": "packaging/windows/.build-number",
+      "bytes": 10,
+      "sha256": "c1c56cee4b2ec6772628c9ca750a561094c68c628f6a61dff084f86b0e3c017d"
+    },
+    {
+      "path": "packaging/windows/AppxManifest.xml",
+      "bytes": 1817,
+      "sha256": "0b119afe92f0e75632e717910a340c9f45ad68d5c288615ea505c0c8e1e2b835"
+    },
+    {
+      "path": "packaging/windows/Build-Msix.ps1",
+      "bytes": 14082,
+      "sha256": "96517ea47838f26a6b3f91acd60341803538b84c2103a3a5423aab5f3a9a87a5"
+    },
+    {
+      "path": "packaging/windows/Deploy-Site.ps1",
+      "bytes": 1680,
+      "sha256": "7553364663c28298e370ced43aa1d5537294b5e672b350e87291f60fdee04f83"
+    },
+    {
+      "path": "packaging/windows/INSTALL-README.txt",
+      "bytes": 1615,
+      "sha256": "e7923eab3b27cf973387eacf2ab62255ca588761811c21d4d1df69b039eb4def"
+    },
+    {
+      "path": "packaging/windows/Install.cmd",
+      "bytes": 198,
+      "sha256": "34e9910532cf287bf1173f4a9d1f8910e5b1d40db5deee9816527fbf8a781c45"
+    },
+    {
+      "path": "packaging/windows/Install.ps1",
+      "bytes": 6196,
+      "sha256": "98c9a1ba5154bdc7b2870e7eb2f7d959a520ab28d09672c2261053fa0d5c9d16"
+    },
+    {
+      "path": "packaging/windows/Publish-Update.ps1",
+      "bytes": 2413,
+      "sha256": "8d10340ca9daefb5bf0324143a9c67c44e913c75edf53a56303899f94929430d"
+    },
+    {
+      "path": "packaging/windows/Trust-Publisher.ps1",
+      "bytes": 1487,
+      "sha256": "7843c1bea73faa50bd1e5304daf803289ee4f81d343a752dbe492cb4d9160081"
+    },
+    {
+      "path": "packaging/windows/Verify-MsixSignature.ps1",
+      "bytes": 2288,
+      "sha256": "8ef9255e88a88decb71c817c320d8b8a238116883c57baf4f975580f64214a0a"
+    },
+    {
+      "path": "settings.html",
+      "bytes": 365,
+      "sha256": "bd45924681ddfef0e7aba4cda519f54fcee9663218aff92d209a91a832f38191"
+    },
+    {
+      "path": "src-tauri/Cargo.lock",
+      "bytes": 141402,
+      "sha256": "3efb79df5bb12c237de43d9e465898cec6b27c95c598a57d131d8edcbcff7cf7"
+    },
+    {
+      "path": "src-tauri/Cargo.toml",
+      "bytes": 3037,
+      "sha256": "21db72bf863721ed138e75eb2292739a99b47f30dcc764b1dc150df46a2c65cf"
+    },
+    {
+      "path": "src-tauri/build.rs",
+      "bytes": 2613,
+      "sha256": "0584df67e1888d0c602d69f5171108a49fbaabf4e39a163764963ee4d02f439d"
+    },
+    {
+      "path": "src-tauri/capabilities/ambient.json",
+      "bytes": 218,
+      "sha256": "61ae9229d0a02d097ad14d689cc426f373701f3934dad71abf2b0e2919a22422"
+    },
+    {
+      "path": "src-tauri/capabilities/default.json",
+      "bytes": 622,
+      "sha256": "b6b3e349b73ec1af41f47539721c0a538a9bfea9731c0e037542fc8934e154f4"
+    },
+    {
+      "path": "src-tauri/capabilities/settings.json",
+      "bytes": 247,
+      "sha256": "bb7f8ac5fe6123033d32166098eafb3d281125b817dc3eb3c7faaa85d9d6f627"
+    },
+    {
+      "path": "src-tauri/icons/128x128.png",
+      "bytes": 10028,
+      "sha256": "c351162279083fd4a5c2c2f76571cc984859c7ace40ba84e3f2637ca13e37c9f"
+    },
+    {
+      "path": "src-tauri/icons/128x128@2x.png",
+      "bytes": 21105,
+      "sha256": "6a27e50fa3505ab5c26cb8c2bc074de0e20b5ff0d66651e1d974808f44587c5a"
+    },
+    {
+      "path": "src-tauri/icons/32x32.png",
+      "bytes": 1772,
+      "sha256": "51fa899ebc086c6ada1ad7421a89753ba68841c1a23aae10f6c329fda9d26426"
+    },
+    {
+      "path": "src-tauri/icons/icon.ico",
+      "bytes": 42507,
+      "sha256": "9c4d94fd8538c2cf38926e4fd0f47ff1ddbe75de73fb00bb6502e5afe2d87a5b"
+    },
+    {
+      "path": "src-tauri/icons/icon.png",
+      "bytes": 21105,
+      "sha256": "6a27e50fa3505ab5c26cb8c2bc074de0e20b5ff0d66651e1d974808f44587c5a"
+    },
+    {
+      "path": "src-tauri/src/agent_events.rs",
+      "bytes": 98352,
+      "sha256": "0eb6ca5c83a49b0e531abc8dde49007d3c95edd20d7c9fdae99098850eebc647"
+    },
+    {
+      "path": "src-tauri/src/airdrop.rs",
+      "bytes": 7204,
+      "sha256": "44abbd8400d25d8bc69f7af66b69480e638a47de3d3c20400efbc13f50a36d21"
+    },
+    {
+      "path": "src-tauri/src/airdrop_protocol.rs",
+      "bytes": 52297,
+      "sha256": "116b1a6d853acf285c8e9f4f48625a3b47cdebf007d954a7454fb713b3980c58"
+    },
+    {
+      "path": "src-tauri/src/ambient.rs",
+      "bytes": 18053,
+      "sha256": "0879c1af84d7a7e7d70566d8cdced3c88d977ecef2ea23aa608a36a1fd5121a3"
+    },
+    {
+      "path": "src-tauri/src/apps.rs",
+      "bytes": 36604,
+      "sha256": "040e3a6595278d00d8b1f4a40fd1833f43481a9b29977dddbc82e52bc1e84567"
+    },
+    {
+      "path": "src-tauri/src/audio.rs",
+      "bytes": 54073,
+      "sha256": "5a9385c6148698bd6932a99879d7158da2bc869eb56712889cbdb8a30dfcedf1"
+    },
+    {
+      "path": "src-tauri/src/awake.rs",
+      "bytes": 18973,
+      "sha256": "65bcc24007366eb46c8ad281b6e335aae6c66c8279892a2ef0e433b324224279"
+    },
+    {
+      "path": "src-tauri/src/awake_core.rs",
+      "bytes": 12516,
+      "sha256": "93e9925d2e42ce2b2ecf4f3a723dcbf740b5799e9d606b4b5111994bdcc0fed1"
+    },
+    {
+      "path": "src-tauri/src/bluetooth.rs",
+      "bytes": 66155,
+      "sha256": "b04191ae4306a9802c9440b301f640026835f5c3256e4090ebe6a929703b6195"
+    },
+    {
+      "path": "src-tauri/src/calendar.rs",
+      "bytes": 14238,
+      "sha256": "f5017504607cd78952552645fdd74d98623f24218fd04d49683af6df52f13063"
+    },
+    {
+      "path": "src-tauri/src/calendar_sources.rs",
+      "bytes": 9733,
+      "sha256": "dcdb81e5ea7569490690cf34d0a03e3c8e549333eaf3e7e0decae624ec71ea0f"
+    },
+    {
+      "path": "src-tauri/src/connections.rs",
+      "bytes": 2213,
+      "sha256": "ab7ec1e251fa818fa780b7ae4e6b86ad2425038acc4ca6bf31014f11f1e2004e"
+    },
+    {
+      "path": "src-tauri/src/devices.rs",
+      "bytes": 18516,
+      "sha256": "74aa538530f3487d4e0c235ac9c1d51471b088acfd9fbcc99879d77fa81c4683"
+    },
+    {
+      "path": "src-tauri/src/email_codes.rs",
+      "bytes": 63590,
+      "sha256": "49aebe1f6e2c3fd37d16ec4e2fddce5e15da988aaa03814339a2f047d5481dc8"
+    },
+    {
+      "path": "src-tauri/src/erp.rs",
+      "bytes": 38419,
+      "sha256": "a9812224e33e5e12f7ec390145bbc667155c5b60f4f0c4b692d88371bdaddbe7"
+    },
+    {
+      "path": "src-tauri/src/face.rs",
+      "bytes": 15503,
+      "sha256": "bd69a56e8d512562fdd27c26c53591424651c573b6595a4a940d8cd0477dc041"
+    },
+    {
+      "path": "src-tauri/src/lib.rs",
+      "bytes": 37747,
+      "sha256": "8badab554fa7d8ea7f0fc77920bf400e962cf12fe5aaf3eb341265c01a4d22e2"
+    },
+    {
+      "path": "src-tauri/src/lyrics.rs",
+      "bytes": 29197,
+      "sha256": "9433f4555a8157a02a832f4405b6e7d682949590269b259abe5c7e17ba296869"
+    },
+    {
+      "path": "src-tauri/src/main.rs",
+      "bytes": 647,
+      "sha256": "d2ffdde489e31b4414d18dcafbab113cba39a72921cbaa0f43d922d5ceda6134"
+    },
+    {
+      "path": "src-tauri/src/media.rs",
+      "bytes": 25545,
+      "sha256": "8c9ca300f59499e8402f50b30a1a7c33b40adf936c5019bc9e39c585dc58a235"
+    },
+    {
+      "path": "src-tauri/src/memory_reclaim.rs",
+      "bytes": 24478,
+      "sha256": "a3c9ee70b3a32412805839094d20534ae47a126fcadca7854e1942cf89b8ec6d"
+    },
+    {
+      "path": "src-tauri/src/nearby.rs",
+      "bytes": 54994,
+      "sha256": "b58892b49bc5f3cc43836bb3b4ff34b4dffebaa8b967de554aceb0c69e46341c"
+    },
+    {
+      "path": "src-tauri/src/network.rs",
+      "bytes": 22117,
+      "sha256": "f458ba5165df47bc428febd86185866ddc0c9a57458a4fa7c231912c208b5dad"
+    },
+    {
+      "path": "src-tauri/src/notes.rs",
+      "bytes": 3508,
+      "sha256": "be620212c2fd7572c87d9567f9937a900c94d3a1d26f72d7544f99fc1851372d"
+    },
+    {
+      "path": "src-tauri/src/notification_icon.rs",
+      "bytes": 14935,
+      "sha256": "a3f6deef356e2c744d5894cdb0147c347982dae6f418cb2e8f34ea1d4cd7949e"
+    },
+    {
+      "path": "src-tauri/src/notifications.rs",
+      "bytes": 21197,
+      "sha256": "2d1bf316bb6a3ed78ccec8d2077d2c3654889a158d486c94f6eab94d50035db1"
+    },
+    {
+      "path": "src-tauri/src/paired_devices.rs",
+      "bytes": 19593,
+      "sha256": "ea4b47388bc0fc6726f13af7bc21f61cfe095b2004b924e2af0d2a87df1da35f"
+    },
+    {
+      "path": "src-tauri/src/phone-bucket.html",
+      "bytes": 19311,
+      "sha256": "812a9f8baaa8a3e6834116313d6a6e0df80c8394cb4a49b6dfd8eaeba1d6888a"
+    },
+    {
+      "path": "src-tauri/src/phone-pairing.html",
+      "bytes": 5933,
+      "sha256": "e360a0777a20a837be7d83b5e48d789d1df3d48d8733eedd7c1e3205c9d0863d"
+    },
+    {
+      "path": "src-tauri/src/placement.rs",
+      "bytes": 27923,
+      "sha256": "d5729d54e5f4ee2b0d97a30fd9cf712f0b0e0fc4ffe482805a32c1abacd23708"
+    },
+    {
+      "path": "src-tauri/src/quick_controls.rs",
+      "bytes": 85244,
+      "sha256": "cf5bc632f377831dec02c296562bfba165049e0037ab24cd63a9767a430e1d54"
+    },
+    {
+      "path": "src-tauri/src/recycle.rs",
+      "bytes": 16065,
+      "sha256": "a18ed2cebd5d093c999f050161fd7469f4dc0157df4dda7c837825f038e8605b"
+    },
+    {
+      "path": "src-tauri/src/reminder_core.rs",
+      "bytes": 3656,
+      "sha256": "38d25680c2a76eac5b9d6db6236e8e413c03cf68868ceb736f1a2b4c59e61456"
+    },
+    {
+      "path": "src-tauri/src/reminders.rs",
+      "bytes": 12882,
+      "sha256": "a649c1d1209b485fded3d19a507abbb9823176ac374777e17bde3fc4ea95f8dc"
+    },
+    {
+      "path": "src-tauri/src/reset_watch.rs",
+      "bytes": 25200,
+      "sha256": "547cc688ec7d83b88eeff1cdc3d5abe8b942f433e22ed39a6f7ad3fe11f3099e"
+    },
+    {
+      "path": "src-tauri/src/runtime_memory.rs",
+      "bytes": 5318,
+      "sha256": "3290d6cdee927894468ea3874a66381db71f3dca2333f85205ec3c34ca950fad"
+    },
+    {
+      "path": "src-tauri/src/settings.rs",
+      "bytes": 59971,
+      "sha256": "a27b804c03b1ce1999b4c85ca852de827f1c659b1d0eff0cdc97d5671af23757"
+    },
+    {
+      "path": "src-tauri/src/single_instance.rs",
+      "bytes": 4381,
+      "sha256": "3fdd15e1a9101dc843f600fdc19fac305f90a7464236eac0d4e944f697b3d0dd"
+    },
+    {
+      "path": "src-tauri/src/sound.rs",
+      "bytes": 5161,
+      "sha256": "b6283684d1cd20d2c4be76277ae1e846d3e972f08572c098f24e74e86e22fad7"
+    },
+    {
+      "path": "src-tauri/src/spotlight.rs",
+      "bytes": 18668,
+      "sha256": "3ad73180a7f5316a1ebfa15a6d6c35ba0654529a430224f27e33d8b792bb8a9c"
+    },
+    {
+      "path": "src-tauri/src/state.rs",
+      "bytes": 2087,
+      "sha256": "0c177cf7a31019651152891a2add03592cf79b78dedc323e607a0daa1ace09da"
+    },
+    {
+      "path": "src-tauri/src/system.rs",
+      "bytes": 6566,
+      "sha256": "c28823b1fd3c101c0a69715bf81adbb66b58675816200f01af61b767848c53d9"
+    },
+    {
+      "path": "src-tauri/src/system_events.rs",
+      "bytes": 19580,
+      "sha256": "f0b46be89c62254a077842056e75acee27eb17b14e522c68b043394fdf6c8d77"
+    },
+    {
+      "path": "src-tauri/src/transfer.rs",
+      "bytes": 107986,
+      "sha256": "9693abd50efd7640db0a192bf8c25eeff2eb4e0f58ed9529b89547e0d96f1814"
+    },
+    {
+      "path": "src-tauri/src/tray.rs",
+      "bytes": 3546,
+      "sha256": "a498b0b2a5540af898046841006d11c747aebc14996abbf42866979a8a672d4f"
+    },
+    {
+      "path": "src-tauri/src/types.rs",
+      "bytes": 9165,
+      "sha256": "2700dbf7c6fa4982eb9809e8055ce75ef7e02d2e52d801d81629196a9786bcf5"
+    },
+    {
+      "path": "src-tauri/src/updater.rs",
+      "bytes": 13900,
+      "sha256": "d0e95f410b4b9f8fa7f0c1fada2cb4996780fc06eee19629f29621af25252e7e"
+    },
+    {
+      "path": "src-tauri/src/usage/claude_desktop.rs",
+      "bytes": 6142,
+      "sha256": "23eab9b555c7b8ad635cc3488bb62adc35f242533fb3fb77b9940d7fdd72a69a"
+    },
+    {
+      "path": "src-tauri/src/usage/claude_limits.rs",
+      "bytes": 13145,
+      "sha256": "98bf650cc470a48cc0dfc3f18fdfcd0fd85e7c9cb6ff2f2f1480d375df810dac"
+    },
+    {
+      "path": "src-tauri/src/usage/detect.rs",
+      "bytes": 26874,
+      "sha256": "c1e0b20d80f3cc4a0e6a0196a34b666eded142e356e3f99500138bd22930e094"
+    },
+    {
+      "path": "src-tauri/src/usage/mod.rs",
+      "bytes": 46955,
+      "sha256": "497445bb69cc72fb37d293cb911392eb1ac063559220cbc1607c90f83563c2b8"
+    },
+    {
+      "path": "src-tauri/src/usage/providers.rs",
+      "bytes": 44006,
+      "sha256": "2209fb378cc490bcce9cb7f0328722e93b2051afcef89df6cb43e9d7455b66f3"
+    },
+    {
+      "path": "src-tauri/src/weather.rs",
+      "bytes": 51070,
+      "sha256": "228ac6f4463e566f693618d9d8fd9598480bc40d0e0cf8747b8445895fc013f6"
+    },
+    {
+      "path": "src-tauri/src/window.rs",
+      "bytes": 51718,
+      "sha256": "b60acf85c3b4172d2eb109f56a6c767a492c11606c826dde325bb57237a70afe"
+    },
+    {
+      "path": "src-tauri/tauri.conf.json",
+      "bytes": 1495,
+      "sha256": "d07fecbcc8835ee5f3092096c725f72db11b5cc2a46dedc99bf2e1ffc798acb0"
+    },
+    {
+      "path": "src/App.tsx",
+      "bytes": 9039,
+      "sha256": "79f5a01f95988b891abd47d0a3ac331ca4ba71663da53fb5b9fa516d4bb95052"
+    },
+    {
+      "path": "src/ambient/AmbientApp.tsx",
+      "bytes": 11948,
+      "sha256": "383cf2d157fc14228caf77acc24ee15d6adc580be0e7b59773743770fbaf602e"
+    },
+    {
+      "path": "src/ambient/EnrollApp.tsx",
+      "bytes": 9236,
+      "sha256": "0d0855de5efb993e9d2ebc23e7f1b031e3d104dc9cedb801a134540e3f42a006"
+    },
+    {
+      "path": "src/ambient/FaceGlyph.tsx",
+      "bytes": 1784,
+      "sha256": "618c278180dd44b45b532690726c1f77a2af67c51629a0d7a43064a77ccf649d"
+    },
+    {
+      "path": "src/ambient/SoftLock.tsx",
+      "bytes": 14553,
+      "sha256": "5a69ec907d188afd7a122ba66877d8a7075accb48d9bff61b2bc887af4afd51c"
+    },
+    {
+      "path": "src/ambient/ambient.css",
+      "bytes": 11652,
+      "sha256": "cbc12a58d6008bd00599a9be87d01c171c54394507d754a1fdb0b3a248bbbfcb"
+    },
+    {
+      "path": "src/ambient/clocks.tsx",
+      "bytes": 3685,
+      "sha256": "f0816dc3c00d18fcf72546f1a86b9a99ea12d7553fbeb0454cced2fc36960dc8"
+    },
+    {
+      "path": "src/ambient/face.css",
+      "bytes": 8489,
+      "sha256": "1ce8d8416b29cd37cff5b708301a931b0d953e3d17f5433ff2a7e72eab905f43"
+    },
+    {
+      "path": "src/ambient/face.ts",
+      "bytes": 11965,
+      "sha256": "58005f9d9acd58f00ffa2f73e37a1cfe190ebdc96fe494af3f6b7c0d65010af2"
+    },
+    {
+      "path": "src/ambient/main.tsx",
+      "bytes": 699,
+      "sha256": "b811613d129901c6dc50156b9388ddf9497b11df5f309d588ecd7f21d252f93c"
+    },
+    {
+      "path": "src/ambient/scenes.tsx",
+      "bytes": 6851,
+      "sha256": "94fef08215675264c4da74f41efd1f17217a00376d13e2f8d7f7a6cc3044f822"
+    },
+    {
+      "path": "src/build-info.d.ts",
+      "bytes": 37,
+      "sha256": "921c99d9c1403278c750dd77dae94c5ae61f6e00742019f9193257c71a82faef"
+    },
+    {
+      "path": "src/components/BrandIcon.tsx",
+      "bytes": 1671,
+      "sha256": "1afc830cf05fd3cadb21b8e7e86d170928162faaafa124148c8ad71eeb261716"
+    },
+    {
+      "path": "src/components/settings/CalendarConnectionsPanel.tsx",
+      "bytes": 5321,
+      "sha256": "cbc330580e11847f211afd09fc30f01a4c8bf86f90edae7106c69381b0bc8051"
+    },
+    {
+      "path": "src/components/settings/EmailCodesPanel.tsx",
+      "bytes": 9983,
+      "sha256": "c80ff8a10ff099e82ecbb8c6e0d2815b8f0d3aab6f763eb32a0db134fe85884b"
+    },
+    {
+      "path": "src/components/settings/WebsiteConnectionsPanel.tsx",
+      "bytes": 6580,
+      "sha256": "12c65c42fc1b1f6da160044cedce09b00368e61ee05f2ae97906176f37b44cea"
+    },
+    {
+      "path": "src/components/settings/panels.css",
+      "bytes": 6706,
+      "sha256": "3811f2ba33542bebd2065117e864cf0905463e23c770e56d0c7b7cf183b1c009"
+    },
+    {
+      "path": "src/components/shell/AiActivityMark.tsx",
+      "bytes": 1168,
+      "sha256": "ab790779c7b6c14427ae21f8bf66b66a7fde3b763ad773a4d00f3eab5a8560c1"
+    },
+    {
+      "path": "src/components/shell/AiActivityToast.css",
+      "bytes": 5964,
+      "sha256": "547116c40964fa60a8df711a4691881b1fc2c983fc703616702b0c816d7af90b"
+    },
+    {
+      "path": "src/components/shell/AiActivityToast.tsx",
+      "bytes": 3174,
+      "sha256": "2ba148edd3df5bd76d61f20e998fc7b95d21619f8729cce26f518d8f382d0c33"
+    },
+    {
+      "path": "src/components/shell/AmbientBackground.css",
+      "bytes": 10038,
+      "sha256": "42bd1894d9880706c086c0eb95fb238f185ef55dc7800041e0c94147b0f2fcbb"
+    },
+    {
+      "path": "src/components/shell/AmbientBackground.tsx",
+      "bytes": 8016,
+      "sha256": "d81f933c23d7a7396ddeb8578bf7c263f3a805782b0ba145c8b78f80240f5736"
+    },
+    {
+      "path": "src/components/shell/CollapsedPill.css",
+      "bytes": 8307,
+      "sha256": "667d5fecb00e7ec25263a029d71a0696a2565a9aaf7cc20332f6abe8bd13e48b"
+    },
+    {
+      "path": "src/components/shell/CollapsedPill.tsx",
+      "bytes": 13257,
+      "sha256": "ab8c3067789760c9e57995e4189f96e99c4295102738bd4dea22cb2d50ec1cf2"
+    },
+    {
+      "path": "src/components/shell/EventPeek.css",
+      "bytes": 15767,
+      "sha256": "563817730b444356dd7db06029b9c173f9137d43fe8f178448b30db5480179be"
+    },
+    {
+      "path": "src/components/shell/EventPeek.tsx",
+      "bytes": 13386,
+      "sha256": "cb4dfe4a0f605ec3eeafdd722b2a28fc3b0f7615ad29863fbe783c26643c7755"
+    },
+    {
+      "path": "src/components/shell/ExpandedPanel.tsx",
+      "bytes": 33820,
+      "sha256": "b0a62822025c172ce45c0b8b96195827f7cd5b7a57df3a10df20fe083849d5f1"
+    },
+    {
+      "path": "src/components/shell/FileDropToast.tsx",
+      "bytes": 3292,
+      "sha256": "a1fd04be781deb9f288e068fed2e1b021342b949fd310333c32e7689b3e8c1f4"
+    },
+    {
+      "path": "src/components/shell/FirstRunTour.css",
+      "bytes": 5845,
+      "sha256": "bd28aca4b75c577f973e711aaaf136d4e5fc3ce03cad5c3cb677b89a4d38c295"
+    },
+    {
+      "path": "src/components/shell/FirstRunTour.tsx",
+      "bytes": 7626,
+      "sha256": "abeddb132aa25b7da9785ee22aa553561f2c84fcf0b0e771e236e79a2763ff52"
+    },
+    {
+      "path": "src/components/shell/Island.tsx",
+      "bytes": 34768,
+      "sha256": "e7e8e246470a8203edfbe7fe8d6b63e2c1696b1061681e5fcd2c158d59b871e6"
+    },
+    {
+      "path": "src/components/shell/IslandPlacement.css",
+      "bytes": 13566,
+      "sha256": "f2ca506a804466c99d64882685fe56034f2a5d6443a792e4f30dd2df6bb19cd6"
+    },
+    {
+      "path": "src/components/shell/NotificationAppIcon.css",
+      "bytes": 615,
+      "sha256": "577b973ec1b39a3a12cc196236c049376f215dcbd83d450b165efb93b1c9ded9"
+    },
+    {
+      "path": "src/components/shell/NotificationAppIcon.tsx",
+      "bytes": 4462,
+      "sha256": "b9ce44bd04c8117ff0ded7bb3ad3d57f5ea5688745b22d7bd2bd55a9a6b28ea7"
+    },
+    {
+      "path": "src/components/shell/TourCursor.css",
+      "bytes": 2252,
+      "sha256": "a45ba023097052a40e7aaf9aee216749704021d0e52374f7719f06a2349997c4"
+    },
+    {
+      "path": "src/components/shell/TourCursor.tsx",
+      "bytes": 5853,
+      "sha256": "e9fc44a085de80438ae42b3d6056523bf79f58d4eee4bf16d35f005b9857d1a4"
+    },
+    {
+      "path": "src/components/views/BeamBucket.css",
+      "bytes": 17023,
+      "sha256": "88610a9e042a2e44dd74d406c8acd3d63c5a7b603c802f3ea2ac4b583d428c4c"
+    },
+    {
+      "path": "src/components/views/BeamBucket.tsx",
+      "bytes": 32103,
+      "sha256": "b2b40f36ae25ad9a33079a519e5969a8ff9ad2ddb3d4815560a1e45dcb071c69"
+    },
+    {
+      "path": "src/components/views/DockView.css",
+      "bytes": 5164,
+      "sha256": "4f1acbbdfe75a69e30d8312c8240dc39eea819ea7ee8f046380dcebaf88cfc59"
+    },
+    {
+      "path": "src/components/views/DockView.tsx",
+      "bytes": 6761,
+      "sha256": "101186a3234c824f7de6a5b71ffb767b0e69f4e4a7c85079e666d7370eb2a2ba"
+    },
+    {
+      "path": "src/components/views/LiveBars.css",
+      "bytes": 439,
+      "sha256": "601e23d8afd8893c85c865f8bd744cba35e6f1cd9a9da74cc236589ae3218d91"
+    },
+    {
+      "path": "src/components/views/LiveBars.tsx",
+      "bytes": 6498,
+      "sha256": "82f16ef81030aa05e5122e7d539ef87c23838366f9836fc607aa85aebd131a61"
+    },
+    {
+      "path": "src/components/views/MediaView.css",
+      "bytes": 19286,
+      "sha256": "5be5e2214f1cff8317fd4093d9334c1e6f01e226a9e2934da625763f8de23153"
+    },
+    {
+      "path": "src/components/views/MediaView.tsx",
+      "bytes": 20897,
+      "sha256": "ba27546e4091fd5dd9fd2568d2bd265a51fa66db0b910e2b531884775c34cd8d"
+    },
+    {
+      "path": "src/components/views/NearbyPolish.css",
+      "bytes": 19188,
+      "sha256": "832beb5a0626ffb6e1490dc41fbe077d4b8977497656e3a4845086bf3785b771"
+    },
+    {
+      "path": "src/components/views/NearbyView.css",
+      "bytes": 240,
+      "sha256": "4c8239504debf12bc407106909e1fe57893f03cb95561fe1077221bb59b10905"
+    },
+    {
+      "path": "src/components/views/NearbyView.tsx",
+      "bytes": 466,
+      "sha256": "4439b88e0ed7f1c863d9b4eec6ba41e33f848d4b1c0cf24313bbe2d4ae960af2"
+    },
+    {
+      "path": "src/components/views/NotificationsView.css",
+      "bytes": 6772,
+      "sha256": "3a24b84857172bbe18f719b5761833520357d003bed57b2e62d8b5a0b3d83eee"
+    },
+    {
+      "path": "src/components/views/NotificationsView.tsx",
+      "bytes": 8369,
+      "sha256": "0f48bab84049b877b80b135536aeaf20b7e955bb1f221a9c1b164fd416cd01b7"
+    },
+    {
+      "path": "src/components/views/QuickSettingsView.css",
+      "bytes": 12755,
+      "sha256": "143ddf5cea2fc913a70c7a32f8e7037d524ef47c66a2e19cd01b333a4e893d3e"
+    },
+    {
+      "path": "src/components/views/QuickSettingsView.tsx",
+      "bytes": 36897,
+      "sha256": "979f741551063590097e44f4d3b1e9b31bb768fd83d028b2eeba7ee4a827d2c3"
+    },
+    {
+      "path": "src/components/views/SpotlightView.css",
+      "bytes": 7357,
+      "sha256": "2730ea88986c9f999aadd05bf600373eab9c82a343c3765fe4f891b091935e22"
+    },
+    {
+      "path": "src/components/views/SpotlightView.tsx",
+      "bytes": 15639,
+      "sha256": "51dd8d5103498e27f9f7b42ac39913d599c09f254d07f74cee24f038ac7d16ef"
+    },
+    {
+      "path": "src/components/views/UsageView.css",
+      "bytes": 8776,
+      "sha256": "0c4089397b5d8de29dadf535ab0b8a152f222d96ad3c1a0fdf48b2a3c5ca3c75"
+    },
+    {
+      "path": "src/components/views/UsageView.tsx",
+      "bytes": 13192,
+      "sha256": "6d6f74523338ab6417623ebedb5c9574b8c807091369fbf145c9375e91e12c9b"
+    },
+    {
+      "path": "src/components/views/Visualizer.css",
+      "bytes": 373,
+      "sha256": "2c82e0b91cc5a590a14516b4d5da97028a7889d9717119333597efdf1414ad8d"
+    },
+    {
+      "path": "src/components/views/Visualizer.tsx",
+      "bytes": 8656,
+      "sha256": "ee872521f59aa84b32ad719de54e872f64da5a393386017ad7d7cdd3600d42d9"
+    },
+    {
+      "path": "src/components/views/index.ts",
+      "bytes": 324,
+      "sha256": "479fbfe8caf6fd64ca2bf44b51d7ad356b220612971e16396b718eeb683df310"
+    },
+    {
+      "path": "src/components/widgets/AiView.css",
+      "bytes": 1415,
+      "sha256": "a9cf49a09cf3dd77b68eadf5cc79aa61f7a8b45cc154eb1fb48580afff5c1bf7"
+    },
+    {
+      "path": "src/components/widgets/AiView.tsx",
+      "bytes": 6300,
+      "sha256": "0040fd3fb29f23d29271437b02492f2adfb9ac60a0a13e2e7cc4033c927d2c64"
+    },
+    {
+      "path": "src/components/widgets/AirDropView.tsx",
+      "bytes": 1157,
+      "sha256": "4ce71e04f4a3a70bd78b263a84f06181e25d7e6f029f7cc886a4229991c09f5c"
+    },
+    {
+      "path": "src/components/widgets/AwakeView.css",
+      "bytes": 12305,
+      "sha256": "656588333b722adbceb9861ef097fbfc160491dab06aee62a8e370547ae3e949"
+    },
+    {
+      "path": "src/components/widgets/AwakeView.tsx",
+      "bytes": 9730,
+      "sha256": "51f34803d5d0c93ea8daccad3eeac7320a0ae913cd37099f0dbc81d4e5c2e9d7"
+    },
+    {
+      "path": "src/components/widgets/BluetoothView.css",
+      "bytes": 6761,
+      "sha256": "48a583db52ff405c15b12de2ce38483a374cca288f8d840de4133375241fe0bf"
+    },
+    {
+      "path": "src/components/widgets/BluetoothView.tsx",
+      "bytes": 14773,
+      "sha256": "d32bf7ecd5ed5f6c8aee9cd7a77551bb35ecff0ef3bd57152471139f11efc495"
+    },
+    {
+      "path": "src/components/widgets/CalendarView.css",
+      "bytes": 8597,
+      "sha256": "6f27927ac7a38b8031c2386de0dd5cfe0bc0b8da4c9f507d3802a3c91815d0d6"
+    },
+    {
+      "path": "src/components/widgets/CalendarView.tsx",
+      "bytes": 15595,
+      "sha256": "20e678545928fba08be3518db0e7c1deb1950ad6a80188f8ac2fc4c3d3e48bd9"
+    },
+    {
+      "path": "src/components/widgets/ClockView.css",
+      "bytes": 8537,
+      "sha256": "7f97bd1081e597467a111b0ec2a0b0fd3f0e2079d4c39a4081c07d03f9dd9050"
+    },
+    {
+      "path": "src/components/widgets/ClockView.tsx",
+      "bytes": 22577,
+      "sha256": "36170055f8139a2729520ed05e800382a4f0e1df32cc176c54a12a1b806d08ed"
+    },
+    {
+      "path": "src/components/widgets/Dropdown.css",
+      "bytes": 3304,
+      "sha256": "bbe2bd18524d186fafaa61549486c068e0a9092369f68a73b3f3ecbff3135a9d"
+    },
+    {
+      "path": "src/components/widgets/Dropdown.tsx",
+      "bytes": 10536,
+      "sha256": "657c8840e5b383d5ed6fd24ca75a9be4f07fa5fcd019d638a3b112f2349c2cb7"
+    },
+    {
+      "path": "src/components/widgets/ErpView.css",
+      "bytes": 3279,
+      "sha256": "8f9c0642483b5da9d70a256c3dacb060992b005f2b83bc8f28cae0d9f02ef741"
+    },
+    {
+      "path": "src/components/widgets/ErpView.tsx",
+      "bytes": 6076,
+      "sha256": "f68a05814776bb5f27c6e0df4b63fda76c868647a558fa83b219484956ec447c"
+    },
+    {
+      "path": "src/components/widgets/FocusView.css",
+      "bytes": 6700,
+      "sha256": "1ab35c7765371454f133b8d0d3cc62e5d1ca48a4a5485d7b5ba89ff88634fc54"
+    },
+    {
+      "path": "src/components/widgets/FocusView.tsx",
+      "bytes": 5494,
+      "sha256": "07774ed623da1adb421aa4c3083b8e18fa2bede7c9682ce14ef884397153e36f"
+    },
+    {
+      "path": "src/components/widgets/NetworkWidget.css",
+      "bytes": 7487,
+      "sha256": "396fe04db6662a540917ebb0e05b8ab92bceec5495a1426adeb9b08edec5e82e"
+    },
+    {
+      "path": "src/components/widgets/NetworkWidget.tsx",
+      "bytes": 11183,
+      "sha256": "a2a4717012780884f35caeaad0fa5fca75a4e9f020cc6bbad92592f5ef92ee7e"
+    },
+    {
+      "path": "src/components/widgets/NotesView.css",
+      "bytes": 6759,
+      "sha256": "cbdfb3a59322f12903684c3aef377c090a0b9ecca53b948fb59eb938099b1049"
+    },
+    {
+      "path": "src/components/widgets/NotesView.tsx",
+      "bytes": 14914,
+      "sha256": "3808cb226a3546368874721ddd210ced94d4e877ccf2fec1af6e4d9739d26cef"
+    },
+    {
+      "path": "src/components/widgets/RemindersView.css",
+      "bytes": 7112,
+      "sha256": "807317b19e3cb2580f8a0c3e68bed4fda1f5ed5197e25b0293870fbb1e2e21c1"
+    },
+    {
+      "path": "src/components/widgets/RemindersView.tsx",
+      "bytes": 8465,
+      "sha256": "382a3fb0ec2e58ce024166c4018be8af2df69fa462108a2bf5c6c1f9e7c48d13"
+    },
+    {
+      "path": "src/components/widgets/ResetWatchView.css",
+      "bytes": 3044,
+      "sha256": "0ffe1509ea9936f4aef7f8b45fd9abe9cf988c8f91bfb33828ed1bb5519393d4"
+    },
+    {
+      "path": "src/components/widgets/ResetWatchView.tsx",
+      "bytes": 5108,
+      "sha256": "27c41198cc5dbc1e859dc621e399fb3e80c730017a17c46736bcde1873cda893"
+    },
+    {
+      "path": "src/components/widgets/Ring.tsx",
+      "bytes": 1224,
+      "sha256": "25e9708b530ac17a93aa2bd05008247f260af1db11a8d13cad7c27fda2d2fa09"
+    },
+    {
+      "path": "src/components/widgets/SystemView.css",
+      "bytes": 744,
+      "sha256": "9f10eeb22f36542f6a1b592a7440cd4b345c6951df0bdc19c9e2dd5afdc3bf62"
+    },
+    {
+      "path": "src/components/widgets/SystemView.tsx",
+      "bytes": 3819,
+      "sha256": "d2120ef7feb4581d63f653558fc29175d6ba3d45dcdcbcf2be857a23ad38f39b"
+    },
+    {
+      "path": "src/components/widgets/WeatherGlyph.tsx",
+      "bytes": 4819,
+      "sha256": "edc1c235e897b5939394944303a3991257ee308fc0093a0596ab460b825c4078"
+    },
+    {
+      "path": "src/components/widgets/WeatherView.css",
+      "bytes": 14510,
+      "sha256": "f5d86d42d7665ddb88fc897d3ff2df58039669ab81c993190664b39b275f0039"
+    },
+    {
+      "path": "src/components/widgets/WeatherView.tsx",
+      "bytes": 27307,
+      "sha256": "b977e5185e7150b29ff4741ea486a074a0aa1351325a87738b02f9b541ce9bc7"
+    },
+    {
+      "path": "src/components/widgets/calendarDate.ts",
+      "bytes": 2119,
+      "sha256": "d6fa2f9d8bb777ff7cfa941e43011b46d5b923aabd832455289fbea6b4e05464"
+    },
+    {
+      "path": "src/components/widgets/notesPersistence.ts",
+      "bytes": 7590,
+      "sha256": "845a999bf312f2a126ba89c24bcc1bd482cb11f8a3ff5f5ed641a02e504012e3"
+    },
+    {
+      "path": "src/components/widgets/registry.tsx",
+      "bytes": 6522,
+      "sha256": "bca41bc4e80f10c8176e091a3ce9a124c8c8ad8a1c57eb9f423a215e1a6719bd"
+    },
+    {
+      "path": "src/components/widgets/widgetKit.css",
+      "bytes": 2797,
+      "sha256": "040319d85ea1a63e72cd535735c32e849dd6264d8c8c5abc0d4fabbf04edd2aa"
+    },
+    {
+      "path": "src/components/widgets/widgets.css",
+      "bytes": 10306,
+      "sha256": "f35b5af4bbf4ad6f597d507d39320ee861c6d3ebbac7984f14df604fe5d59e9c"
+    },
+    {
+      "path": "src/lib/albumPalette.ts",
+      "bytes": 7110,
+      "sha256": "3259b4d1430579e0bb00f13cbcef3ee5a3086fb8a7aebd1c9713c0b59fb97860"
+    },
+    {
+      "path": "src/lib/appIcons.ts",
+      "bytes": 4166,
+      "sha256": "19385a6659f3296980bc7033a0b65ac33b9d3beb2c7fdf9d9a18856dcaff7930"
+    },
+    {
+      "path": "src/lib/appearance.ts",
+      "bytes": 922,
+      "sha256": "a6b02d15836043011824fc86e06c733e50e566ddca739fbb0d156844bf8b1857"
+    },
+    {
+      "path": "src/lib/awakePreview.ts",
+      "bytes": 3897,
+      "sha256": "de9e9ccf37b924e94ee9f06fe5fa58b5b219af0d1a0192bb4276431dc5fe63c6"
+    },
+    {
+      "path": "src/lib/awakeSchedule.ts",
+      "bytes": 9685,
+      "sha256": "3b2752b604b54db4eb9e91016e9116b376b42dc36881cdfb04749af16b1cb534"
+    },
+    {
+      "path": "src/lib/awakeSounds.ts",
+      "bytes": 6199,
+      "sha256": "f13e0ce86181b2248abac1c535a47db90bc4d860454b5eb1e139bdb7e571d4c4"
+    },
+    {
+      "path": "src/lib/clockDisplay.ts",
+      "bytes": 516,
+      "sha256": "c791e7471e90780bd3fe4d357860d959772e121d48968900d318801111f2cc2b"
+    },
+    {
+      "path": "src/lib/compactConfig.ts",
+      "bytes": 1345,
+      "sha256": "7e93ee7fb4800efeb1050ae72588c7872053f0b0098c98adf49c99d575c0935d"
+    },
+    {
+      "path": "src/lib/connectionSources.ts",
+      "bytes": 1938,
+      "sha256": "a4e382c1b714e506ec2df870f3d44eb31073c44cdee9528de37444ec077edf97"
+    },
+    {
+      "path": "src/lib/droppedFiles.ts",
+      "bytes": 10196,
+      "sha256": "b3b6b52cb8daf8699ec2ac8b7b72934aadb5887af07b9cdda69786eadcfd8f43"
+    },
+    {
+      "path": "src/lib/erpAlerts.ts",
+      "bytes": 1490,
+      "sha256": "3ebac9ad02bf795930e6ce86174c4399b3d97c05b6eaf5b8de3ea28dd1b5104a"
+    },
+    {
+      "path": "src/lib/erpIpc.ts",
+      "bytes": 1536,
+      "sha256": "944195487861b77e375d7d293a3f509f91ac9191a730a635f6fd07740a719125"
+    },
+    {
+      "path": "src/lib/faceScan.ts",
+      "bytes": 1812,
+      "sha256": "b515e2e07358fe7ef75ab050c741f00267cb026fd48a64f435e5ab1d8c6d0727"
+    },
+    {
+      "path": "src/lib/faceTiming.ts",
+      "bytes": 1866,
+      "sha256": "f2b87dadfd60dedc71e5dabd85cf24d8728825a926381c4c6221568eb9209b46"
+    },
+    {
+      "path": "src/lib/feedbackToast.ts",
+      "bytes": 4654,
+      "sha256": "18dd8d03b5214ffe800db43e74df28ea27853d9e4111cc3ccfa83c300dd3bf92"
+    },
+    {
+      "path": "src/lib/fileDropTargets.ts",
+      "bytes": 2854,
+      "sha256": "aaa4645e6a868803d3842b46e8959feefbeb72ed73dfe096886ae1f41261d961"
+    },
+    {
+      "path": "src/lib/ipc.ts",
+      "bytes": 42823,
+      "sha256": "7353262018643c7577016c7e480b6f940df658e12ad5faa446ee9e5d25582ae5"
+    },
+    {
+      "path": "src/lib/lyricsSync.ts",
+      "bytes": 4667,
+      "sha256": "8f9bd0d7249f0c9ade810359acf7c7b18b8a1b29a1abd814680f9478738d6958"
+    },
+    {
+      "path": "src/lib/magneticShape.ts",
+      "bytes": 4322,
+      "sha256": "95ef6481d844709e6dd49927663575c37d26d36dd1c7f14308c31eacc37d8971"
+    },
+    {
+      "path": "src/lib/nativeApps.ts",
+      "bytes": 7277,
+      "sha256": "6796afdea0e0d7caca5f1617eaf725c0938d19fdf9bd270f5270f24749bce657"
+    },
+    {
+      "path": "src/lib/onboardingConfig.ts",
+      "bytes": 7676,
+      "sha256": "8858978b90848db5786e3bc1a2635bb79ed4a30672a44dd213fcfccfbc4fef57"
+    },
+    {
+      "path": "src/lib/panels.ts",
+      "bytes": 11438,
+      "sha256": "20ed09da7d06c2a2ccc0d2a37ee6c2de19bfc00cb3482deb35c0c2672a7dabb0"
+    },
+    {
+      "path": "src/lib/placementPointerDrag.ts",
+      "bytes": 834,
+      "sha256": "6906c5c3580fd20f2d32f9a241fa3b411b8f2bb5a9a7c77ad00e9f90ebfbea55"
+    },
+    {
+      "path": "src/lib/preview.ts",
+      "bytes": 29937,
+      "sha256": "11043b663a921053014301a5792532f9f7c626319edaaa45296d50d06361a85f"
+    },
+    {
+      "path": "src/lib/quickSettingsLayout.ts",
+      "bytes": 3452,
+      "sha256": "d4fd7ead4c161bad42ec237379c90b6fabb4b9912427978ce45dba780155538f"
+    },
+    {
+      "path": "src/lib/reminderParse.ts",
+      "bytes": 14502,
+      "sha256": "cef09e550dc6f228e4f391d9766459b7e7647e4c953eee5eb7ae5ede98988ed6"
+    },
+    {
+      "path": "src/lib/remindersPreview.ts",
+      "bytes": 4506,
+      "sha256": "59f6cfa325717744e81b724a55171b5177419a685003fe88f18f0783e4c26544"
+    },
+    {
+      "path": "src/lib/resetStatus.ts",
+      "bytes": 297,
+      "sha256": "1524c5d43dbef4aa514fd2993778520f688dd670c43dbf99afe511b15e47af1d"
+    },
+    {
+      "path": "src/lib/searchHistory.ts",
+      "bytes": 11209,
+      "sha256": "f87590694398f8da888cda3fce5ddaa16a909d3df2b2b79c903e6d43cad63281"
+    },
+    {
+      "path": "src/lib/shortcuts.ts",
+      "bytes": 10886,
+      "sha256": "eef79fd5ed717b389b353ea93fbecedc065b5e6408e024f8536ffdffda4ff521"
+    },
+    {
+      "path": "src/lib/sliderCommitter.ts",
+      "bytes": 1394,
+      "sha256": "da45724ffbf1cf6fab93724e99f337b71b33feeeb54429db5bd12a05b36fa073"
+    },
+    {
+      "path": "src/lib/subscribedCalendar.ts",
+      "bytes": 4191,
+      "sha256": "8ed6edcf1dd4dbf5350048a0880573fb4549d51026ba745326558797e4715b12"
+    },
+    {
+      "path": "src/lib/themes.ts",
+      "bytes": 4991,
+      "sha256": "320e6d2aebf7b46da2f1f4c51e0bb7da756eb64d57a32f7d3d206a582a6b7813"
+    },
+    {
+      "path": "src/lib/transferSpeed.ts",
+      "bytes": 2399,
+      "sha256": "fff5f50be32cb8056ba57f29019ecb51c9abb85afc61a526cabfe0ea8a5b2af4"
+    },
+    {
+      "path": "src/lib/usageDisplay.ts",
+      "bytes": 8156,
+      "sha256": "4db25ea713003054b8b27ee8ad4eaa5dcdee722809ee85ac0b9edc8d61255031"
+    },
+    {
+      "path": "src/lib/visualizerBackdrop.ts",
+      "bytes": 12282,
+      "sha256": "61849708406d2c8eee4fdd695a487716e5c6690b1db67238e32c3d2c5e2fda04"
+    },
+    {
+      "path": "src/lib/visualizerEngine.ts",
+      "bytes": 4276,
+      "sha256": "1ec6df1be12bae41a8a4c1daf02b550b13d68504a91210c8d0a6d87d6f4fe3f1"
+    },
+    {
+      "path": "src/lib/visualizerStyles.ts",
+      "bytes": 1873,
+      "sha256": "417bbaf363f4e598dd756061994051e0537dacec870fd6548b2b549977f78eff"
+    },
+    {
+      "path": "src/lib/weatherLayout.ts",
+      "bytes": 6638,
+      "sha256": "b35e471f3ec835231d674f85f17a6732d8d84df8c95a4d60746bc02be2d93839"
+    },
+    {
+      "path": "src/lib/widgetPages.ts",
+      "bytes": 4154,
+      "sha256": "ddcd3271c996405104a6e0612e7fb714fd592ed281c62f5155f83997021db9a8"
+    },
+    {
+      "path": "src/lib/widgetPlacement.ts",
+      "bytes": 9025,
+      "sha256": "e6f975d3842bc7013d40091570bced08ec9e2f9b46802ffdc8428cefb72f72be"
+    },
+    {
+      "path": "src/lib/widgetPointerDrag.ts",
+      "bytes": 1010,
+      "sha256": "e30c7cfe658855b5aac5315b58221e3bb2c67bfcd6f94abd2ed975f609049879"
+    },
+    {
+      "path": "src/lib/widgetShapes.ts",
+      "bytes": 3077,
+      "sha256": "f544b24153e9b8e94c2ec69acb25faa82d36ef93f6dc6120aebd554845d3af60"
+    },
+    {
+      "path": "src/main.tsx",
+      "bytes": 300,
+      "sha256": "c0538ec2d363e0c9e271dbf3086d5b8179132218615ff8262de0927243411325"
+    },
+    {
+      "path": "src/settings/AiPanel.tsx",
+      "bytes": 8064,
+      "sha256": "01316c03dc69e35b06d6a3683596842bf531fd11df9f471c11bb1162dbd00f41"
+    },
+    {
+      "path": "src/settings/AppLogo.tsx",
+      "bytes": 1936,
+      "sha256": "59809c19fc42edf65826d29d6db37d4e2582993cedae74e1c841d4f76ea03306"
+    },
+    {
+      "path": "src/settings/ConnectionsPanel.tsx",
+      "bytes": 8660,
+      "sha256": "65ae45b48e50942af15d52a645c22901256de2ca8cd92db8a4a2c5069bc56aa7"
+    },
+    {
+      "path": "src/settings/FaceUnlockRow.tsx",
+      "bytes": 2222,
+      "sha256": "bdb447cbb4bafd6efd46f9c1588609899b47a391f40e1580bda9ad3a40dee037"
+    },
+    {
+      "path": "src/settings/LocationPanel.css",
+      "bytes": 7391,
+      "sha256": "edd48b234bedc237cee5e1423f99b0d6ed4bdaab2589a98273de4a99e3344c2a"
+    },
+    {
+      "path": "src/settings/LocationPanel.tsx",
+      "bytes": 14180,
+      "sha256": "322a7a6c337afdb3f21c0c6fa47425cf6bb21f1867245fc67f6790843d38ad8c"
+    },
+    {
+      "path": "src/settings/NativeAppsPanel.css",
+      "bytes": 5977,
+      "sha256": "a08e450f6f86c835180ca986e18d289d8d889180e4638c90c23163bfff4ffa47"
+    },
+    {
+      "path": "src/settings/NativeAppsPanel.tsx",
+      "bytes": 9097,
+      "sha256": "06d633e0e7d92017027db3a035d526938798e60c99eb4460e125932c9e86d6e1"
+    },
+    {
+      "path": "src/settings/NotificationAccessPanel.tsx",
+      "bytes": 3720,
+      "sha256": "6c23bf53b44322d9ec78a80f5c1a9044fd1663ba23c9df41d184bdd355efcb92"
+    },
+    {
+      "path": "src/settings/NotificationsSettings.css",
+      "bytes": 2129,
+      "sha256": "ebe02612464ba9f34c7fa7d2260fdc2ba434da15619cff99ce2b6ec580947951"
+    },
+    {
+      "path": "src/settings/ProvidersPanel.css",
+      "bytes": 2988,
+      "sha256": "db13a8d89851f2756f32f3a2ba06a1fa23dc9e87115d780902ceeec3fc60be4a"
+    },
+    {
+      "path": "src/settings/ProvidersPanel.tsx",
+      "bytes": 8947,
+      "sha256": "7a48b22717883c87a783f32accfa7b736119ce3403efd04bb79fa2683159546f"
+    },
+    {
+      "path": "src/settings/SettingsApp.tsx",
+      "bytes": 37112,
+      "sha256": "bedd97371b051a0aa1f86b2993bccc6ca24e0344a29d47b27e41ce506ba857c3"
+    },
+    {
+      "path": "src/settings/SettingsPreview.tsx",
+      "bytes": 4367,
+      "sha256": "f992c14030661282d9b1058944211ceeb46be0c9e9f3a2864becb60c7c3635a1"
+    },
+    {
+      "path": "src/settings/ShortcutsPanel.css",
+      "bytes": 2665,
+      "sha256": "18d32c0301d0525b64af6a8746346c30e75d353ba5446461123ecdf72336963b"
+    },
+    {
+      "path": "src/settings/ShortcutsPanel.tsx",
+      "bytes": 9145,
+      "sha256": "a2335c49564acbbc308f89724f7059991d2575df6535d8652847681f572623ae"
+    },
+    {
+      "path": "src/settings/UpdatesPanel.tsx",
+      "bytes": 3765,
+      "sha256": "e3eeb5dfab95479fb8839aaf0a32af6987600572f074e0bd06b7a9f2a33e0f02"
+    },
+    {
+      "path": "src/settings/WidgetManager.css",
+      "bytes": 11925,
+      "sha256": "934a62f8465076a8802889594a7968f537fef65f1d10f27e41422f7e4952f72c"
+    },
+    {
+      "path": "src/settings/WidgetManager.tsx",
+      "bytes": 29601,
+      "sha256": "1c1e955b15d3140a4950e2e890f26f0cec5090d0a9863b6f90a8112363a6ce19"
+    },
+    {
+      "path": "src/settings/WindowsBannersPanel.tsx",
+      "bytes": 1518,
+      "sha256": "a34dbf191f7b89c5e9d4b07154ed175b5d0eae3c1177d220cdcbaf8ab10ab7ed"
+    },
+    {
+      "path": "src/settings/connections.css",
+      "bytes": 6504,
+      "sha256": "c3816d0a0e3f725ccd002bf7df5e7633b527bc5dc54c60a3335016447a1768cb"
+    },
+    {
+      "path": "src/settings/controls.tsx",
+      "bytes": 6297,
+      "sha256": "932e839d85dd40bb5305f75c8e42dce83b2fdb6b2d38e9db4e81dee3224f2ca3"
+    },
+    {
+      "path": "src/settings/main.tsx",
+      "bytes": 261,
+      "sha256": "3e36532cf9f6e144b3fe09f7d714497897ee651400175c417d9db6917dcc8c09"
+    },
+    {
+      "path": "src/settings/settings.css",
+      "bytes": 32648,
+      "sha256": "36766c1b8c7220b5e54c1517af9b0edb12db48dbcf7dc4b689d73c7e44c9131e"
+    },
+    {
+      "path": "src/settings/widgetOrder.ts",
+      "bytes": 2732,
+      "sha256": "e2717d25fa9a97ffb61b66155aad75fceddead1e237b3a2905fe85bb3d84884d"
+    },
+    {
+      "path": "src/state/aiActivity.ts",
+      "bytes": 5731,
+      "sha256": "08b1e10f793508651d2b451d6cb44a325af3893db56e41b2c0882faaf2d9368b"
+    },
+    {
+      "path": "src/state/audio.ts",
+      "bytes": 8916,
+      "sha256": "5461c14a96da8896664f2e1249d37744c61e5a3ea3e8ffb5ddd16affc535269c"
+    },
+    {
+      "path": "src/state/awake.ts",
+      "bytes": 11432,
+      "sha256": "22dcf6bbadac007151d91802736da87047a9753614d3200ab8f182b3a7c51e2a"
+    },
+    {
+      "path": "src/state/calendarSources.ts",
+      "bytes": 2496,
+      "sha256": "7e4c9e1e5c3689415d133a4c677b653ceee9add5ff4bfcb09407c015f6b6d453"
+    },
+    {
+      "path": "src/state/emailCodes.ts",
+      "bytes": 2568,
+      "sha256": "267b7ed76ee3b2d4add207d3af91c96410705ecc774ceda1a6e914d6011170e3"
+    },
+    {
+      "path": "src/state/erp.ts",
+      "bytes": 7443,
+      "sha256": "a492777e25f3d1510eb68432b0340f40478bb80b1d64110a5450e6072185e649"
+    },
+    {
+      "path": "src/state/feedback.ts",
+      "bytes": 1394,
+      "sha256": "3e9293634ed722ec2b5dc4ae5ab3b91bb290341458cef22435e8cbb06501459b"
+    },
+    {
+      "path": "src/state/focus.ts",
+      "bytes": 8636,
+      "sha256": "2e0e49e6f65834f0fd354c6f2ec014d1080b8bf9445f6569727ebb0d05e4f284"
+    },
+    {
+      "path": "src/state/focusAlerts.ts",
+      "bytes": 950,
+      "sha256": "487933712caaadbd5bff2535ba68dd4f9c8182ad9b037355c667f796ece4054c"
+    },
+    {
+      "path": "src/state/hover.ts",
+      "bytes": 317,
+      "sha256": "e1c70b3f4ce27c65f05b92cb293a612f5788ca7a25584fbce32c69d3d5dfeb1a"
+    },
+    {
+      "path": "src/state/media.ts",
+      "bytes": 6110,
+      "sha256": "dc1d5aff28087784d4233d737411893b2a8961cd416e3755ca544979cccc9c75"
+    },
+    {
+      "path": "src/state/motion.ts",
+      "bytes": 8601,
+      "sha256": "96349907c2019b00a9907303c694c3201e2d5bfb2b7ae7aaf09b4b5a510c9ae4"
+    },
+    {
+      "path": "src/state/nearby.ts",
+      "bytes": 2432,
+      "sha256": "210f20db8f11b9df1357ce798c281827d9bd6e770174e90164c05529e6e34d56"
+    },
+    {
+      "path": "src/state/network.ts",
+      "bytes": 7163,
+      "sha256": "f75bbe1fdacafca9ca3a9b71a246d884844fc1207503a7795e34699433040b2c"
+    },
+    {
+      "path": "src/state/notifications.ts",
+      "bytes": 3671,
+      "sha256": "928b537e4149a9cf1c6769f1d696c57f7a880401b8bd518d8e2ecaaec1b768a5"
+    },
+    {
+      "path": "src/state/onboarding.ts",
+      "bytes": 14428,
+      "sha256": "a3c9118fd6e6d4b06a5d1090d4485e9411cbcdfc947310eb78d274da4b257222"
+    },
+    {
+      "path": "src/state/panel.ts",
+      "bytes": 1852,
+      "sha256": "7a93b5c73f548366621bbd530b504fa47208832d5f4b318763b04d080f75ad66"
+    },
+    {
+      "path": "src/state/peek.ts",
+      "bytes": 17866,
+      "sha256": "e6f403221de699f9f355e2c2e0aec4338a40009c8bdeab41984e66e2d128909e"
+    },
+    {
+      "path": "src/state/placement.ts",
+      "bytes": 6804,
+      "sha256": "0d48da4cd61c7e28750011e90922561deef32b30c4d3e75736b5ed6de624f0ed"
+    },
+    {
+      "path": "src/state/reminders.ts",
+      "bytes": 13229,
+      "sha256": "286c3af38f05205589e95b961e01798c5ddd00fe9ed548db1a9b29333c4aa2c1"
+    },
+    {
+      "path": "src/state/resetWatch.ts",
+      "bytes": 2359,
+      "sha256": "4a025e778503c3b3e3815d0bab4ad4e826438e1abc985d7170e08cb5c7f28ccc"
+    },
+    {
+      "path": "src/state/settings.ts",
+      "bytes": 9481,
+      "sha256": "694466fcc4fdd9ea06d35807ba2e1b9b19960b3b6854624e85db463ffdc18ce2"
+    },
+    {
+      "path": "src/state/spotlight.ts",
+      "bytes": 12210,
+      "sha256": "8a4f92533a969e98603124048b97b47d9b8f69bb00f7d14488c7dc92c432a4c3"
+    },
+    {
+      "path": "src/state/transfer.ts",
+      "bytes": 9381,
+      "sha256": "f9d55f9072a5390e49ba554617704dbb0960932e2f9ee0a5ba266a6bc41bf27c"
+    },
+    {
+      "path": "src/state/ui.ts",
+      "bytes": 6059,
+      "sha256": "bd1298032d671ba34625fcdd5ceb5a32361e2351e082df9917a6b27eb15e9e4e"
+    },
+    {
+      "path": "src/state/usage.ts",
+      "bytes": 3288,
+      "sha256": "943e932e5450d4572859160b5c428e20235ccf90cc635496762577d6e2bf823e"
+    },
+    {
+      "path": "src/state/window.ts",
+      "bytes": 893,
+      "sha256": "b70f3e3fbf89b334ff9633e2dc0e338a283e8e9691fe92dd69e45a65b9d2dde1"
+    },
+    {
+      "path": "src/styles/base.css",
+      "bytes": 5746,
+      "sha256": "a84e1bd0b8bb8565a13cfdb11975cf47a43f09aa794a2371c09dcb47358b0d09"
+    },
+    {
+      "path": "src/styles/dashboard.css",
+      "bytes": 11159,
+      "sha256": "132fd542f4a428f8863e462d094d5059e11f68c4a0504a248374aac955421a89"
+    },
+    {
+      "path": "src/styles/polish.css",
+      "bytes": 14722,
+      "sha256": "0eba8c3bea3c92e78e7180ce5072620828928bd1ddf2554c9edb9d4c7f316132"
+    },
+    {
+      "path": "src/styles/shell.css",
+      "bytes": 13370,
+      "sha256": "8483ff61136e82d2801f71d7c639b08b8888acbd3770996040690cc35752f3f9"
+    },
+    {
+      "path": "src/styles/tokens.css",
+      "bytes": 4573,
+      "sha256": "5159271c2e36309929e6f8fee97a1bb655cea5d29c6718df6fd2c009841b300c"
+    },
+    {
+      "path": "tsconfig.json",
+      "bytes": 517,
+      "sha256": "6c90b6a684c09692f502222d696401adc0bcc49132614f7500d9d5e940442cc2"
+    },
+    {
+      "path": "vite.config.ts",
+      "bytes": 692,
+      "sha256": "d44be857b986c324e7f95fc4023e0a3778c56926ec219cb376c066b6cb1af825"
+    }
+  ]
+}
