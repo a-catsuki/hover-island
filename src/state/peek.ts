@@ -226,6 +226,11 @@ export function ingestNotifications(items: AppNotification[], trusted = false): 
   let latest: AppNotification | undefined
   for (const item of items) {
     if (!markSeen(item.id)) continue
+    // Desktop toasts do not identify the agent or turn. Verified agent events
+    // own task-status peeks; the original Windows notification stays in the inbox.
+    const aiStatus = /^(claude(?: code| desktop)?|codex)$/i.test(item.app.trim()) &&
+      /\b(?:(?:task|agent|turn) (?:complete[ds]?|finished)|(?:needs?|requires?) (?:your )?(?:input|attention|approval|permission)|waiting for (?:your|input|approval)|permission (?:needed|required))\b/i.test(`${item.title} ${item.body ?? ''}`)
+    if (untrack(() => settings.aiToastsEnabled) && aiStatus) continue
     const allowed = item.app === 'Bluetooth' || item.app === 'Battery' || item.app === 'Volume' || item.app === 'Brightness' || item.app === 'Phone bucket' ||
       (item.app === 'Codex Reset Watch'
         ? untrack(() => settings.widgets.some(widget => widget.kind === 'reset-watch' && widget.enabled))
@@ -253,6 +258,7 @@ export function ingestUrgentPeek(item: AppNotification): void {
 
 /** AI activity peeks share DND and notification preferences and get a dedicated notch variant. */
 export function ingestAiPeek(event: AiEvent): void {
+  if (event.kind !== 'complete' && event.kind !== 'needs-input') return
   if (!markSeen(event.id)) return
   if (untrack(() => settings.dnd) || !untrack(() => settings.notifications.enabled)) return
   show({
@@ -365,6 +371,16 @@ export function showAiToast(event: AiActivityEvent): void {
     return
   }
   presentAiToast(event)
+}
+
+/** A resumed task must not leave an old question waiting in the toast queue. */
+export function retireAiQuestion(event: AiActivityEvent): void {
+  if (event.kind !== 'started' && event.kind !== 'progress') return
+  for (let i = aiQueue.length - 1; i >= 0; i--) {
+    if (sameSession(aiQueue[i], event) && aiQueue[i].kind === 'question') aiQueue.splice(i, 1)
+  }
+  const current = peek()?.aiActivity
+  if (current?.kind === 'question' && sameSession(current, event)) dismissPeek()
 }
 
 export { peek, pendingAlert, aiToastLeaving, temporaryExpansion as transientPeek }

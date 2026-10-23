@@ -11,6 +11,17 @@ const executablePath = existsSync(chromium.executablePath()) ? undefined : readd
 const browser = await chromium.launch({ headless: true, executablePath })
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
 const errors = [], results = []
+const pending = new Set()
+await page.addInitScript(() => {
+  window.facePhaseTimes = {}
+  new MutationObserver(() => {
+    const phase = document.querySelector('.island')?.className.match(/island--(idle|scanning|success|failed|hello)/)?.[1]
+    if (phase && window.facePhaseTimes[phase] == null) window.facePhaseTimes[phase] = performance.now()
+  }).observe(document, { subtree: true, attributes: true, attributeFilter: ['class'] })
+})
+page.on('request', request => pending.add(new URL(request.url()).pathname))
+page.on('requestfinished', request => pending.delete(new URL(request.url()).pathname))
+page.on('requestfailed', request => pending.delete(new URL(request.url()).pathname))
 page.on('pageerror', error => { errors.push(error.message); console.error('Browser error:', error.message) })
 page.on('console', message => { if (message.type() === 'error') console.error('Browser console:', message.text()) })
 await page.route('**/src/ambient/face.ts*', route => route.fulfill({ contentType: 'application/javascript', body: `
@@ -40,6 +51,7 @@ await page.route('**/src/lib/preview.ts*', async route => {
 const show = async mode => {
   await page.evaluate(mode => {
     window.faceMode = mode; window.verifyCalls = []; window.frameReads = 0;
+    window.facePhaseTimes = {};
     window.dispatchEvent(new CustomEvent('ambient://hidden'));
     window.dispatchEvent(new CustomEvent('ambient://shown'));
   }, mode)
@@ -49,9 +61,14 @@ const show = async mode => {
   return start
 }
 try {
-  await page.goto(process.env.UI_URL ?? 'http://127.0.0.1:1420/ambient.html?face=match', { waitUntil: 'domcontentloaded', timeout: 60000 })
+  await page.goto(process.env.UI_URL ?? 'http://127.0.0.1:1420/ambient.html?face=match', { waitUntil: 'domcontentloaded', timeout: 120000 })
   await page.locator('.ambient--ready').waitFor()
   await page.waitForFunction(() => (window.cameraStarts || 0) > 0)
+  assert.ok(await page.getByText('Face ID', { exact: true }).first().isVisible())
+  assert.ok(await page.locator('.unlock-hint').isVisible())
+  assert.match(await page.locator('.unlock-hint').innerText(), /Any key.*to unlock with Face ID/s)
+  await page.screenshot({ path: 'docs/verification/face-id-idle.png' })
+  results.push({ flow: 'Face ID and a persistent key-to-unlock hint are visible before scanning' })
   results.push({ flow: 'Camera readiness starts as soon as enrolled ambient becomes visible, before unlock input' })
   const first = await show('match')
   await page.locator('.island--success').waitFor()
@@ -63,8 +80,11 @@ try {
   results.push({ flow: 'First good frame unlocks without waiting for a second frame', fixtureMs: matchMs })
   for (const mode of ['camera-hang', 'models-hang', 'frame-hang']) {
     const started = await show(mode)
+    await page.locator('.island--scanning').waitFor()
+    assert.equal(await page.locator('.face-glyph--scanning .face-glyph__face').evaluate(node => getComputedStyle(node).opacity), '1')
+    if (mode === 'frame-hang') await page.screenshot({ path: 'docs/verification/face-id-scanning.png' })
     await page.getByText(mode === 'camera-hang' ? 'Camera is getting ready' : 'Face scan took too long', { exact: true }).waitFor()
-    const ms = Date.now() - started
+    const ms = await page.evaluate(() => window.facePhaseTimes.failed - window.facePhaseTimes.scanning)
     assert.ok(ms < 3200 && ms >= 2400, `${mode}: ${ms} ms`)
     assert.ok(await page.getByRole('button', { name: 'Use PIN', exact: true }).isVisible())
     assert.equal(await page.evaluate(() => window.verifyCalls.length), 0)
@@ -148,4 +168,5 @@ try {
   assert.deepEqual(errors, [])
   await writeFile(process.env.FACE_SMOKE_RECORD ?? 'docs/verification/instant-unlock-smoke.json', JSON.stringify({ boundary: 'Actual Solid ambient UI, simulated camera/models/native responses. Does not measure physical webcam recognition.', results, errors }, null, 2) + '\n')
   console.log(JSON.stringify(results, null, 2))
-} finally { await browser.close() }
+} catch (error) { console.error('Pending UI requests:', [...pending]); throw error }
+finally { await browser.close() }

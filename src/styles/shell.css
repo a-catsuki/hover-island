@@ -122,8 +122,8 @@
   transform: none;
   pointer-events: auto;
   transition:
-    opacity 240ms var(--ease-out) 50ms,
-    transform 460ms var(--spring-island);
+    opacity 140ms var(--ease-out),
+    transform 240ms var(--ease-out);
 }
 /* Promote only while something moves, so a resting island holds no extra layers. */
 .island--moving .island__expanded { will-change: transform, opacity; }
@@ -231,12 +231,9 @@
 .island--open .widget-grid > .widget {
   /* `backwards`, not `both`: a forwards fill keeps every widget promoted to its own
      compositor layer (one GPU texture each) for as long as the island stays open. */
-  animation: platter-in 440ms var(--spring-island) backwards;
+  animation: platter-in 180ms var(--ease-out) backwards;
 }
-.island--open .widget-grid > .widget:nth-child(2) { animation-delay: 40ms; }
-.island--open .widget-grid > .widget:nth-child(3) { animation-delay: 80ms; }
-.island--open .widget-grid > .widget:nth-child(4) { animation-delay: 120ms; }
-.island--open .widget-grid > .widget:nth-child(n + 5) { animation-delay: 160ms; }
+.island--open .widget-grid > .widget:nth-child(n + 2) { animation-delay: 0ms; }
 @keyframes platter-in {
   from {
     opacity: 0;

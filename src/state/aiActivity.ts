@@ -2,7 +2,7 @@ import { createSignal } from 'solid-js'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { cmd, onAiActivity, type AiActivityEvent, type AiActivityKind } from '../lib/ipc'
 import { settings } from './settings'
-import { showAiToast } from './peek'
+import { showAiToast, retireAiQuestion } from './peek'
 
 /** A session the agent is working on right now, built from `ai://activity` events. */
 export interface LiveSession {
@@ -23,6 +23,7 @@ const MAX_FEED = 30
 const [live, setLive] = createSignal<LiveSession[]>([])
 const [feed, setFeed] = createSignal<AiActivityEvent[]>([])
 const lastToastPercent = new Map<string, number>()
+const latestEventAt = new Map<string, number>()
 
 /** Sessions that are working or waiting for you. Stale ones (no event for 20 minutes) are ignored. */
 export function liveSessions(now = Date.now()): LiveSession[] {
@@ -97,7 +98,12 @@ function worthAToast(event: AiActivityEvent): boolean {
 export function ingestAiActivity(raw: AiActivityEvent): void {
   const event = normalize(raw)
   if (!event || !toastAllowed(event.provider)) return
+  const key = keyOf(event)
+  if (event.ts < (latestEventAt.get(key) ?? 0)) return
+  latestEventAt.set(key, event.ts)
+  while (latestEventAt.size > 200) latestEventAt.delete(latestEventAt.keys().next().value!)
   track(event)
+  retireAiQuestion(event)
   if (event.kind === 'completed' || event.kind === 'failed') lastToastPercent.delete(keyOf(event))
   if (worthAToast(event)) showAiToast(event)
 }
@@ -120,7 +126,18 @@ export async function subscribeAiActivity(): Promise<() => void> {
   try {
     const recent = await cmd.agentEventsRecent()
     const cutoff = Date.now() - 60_000
-    for (const event of recent) if (event.ts >= cutoff && (event.kind === 'started' || event.kind === 'question')) track(normalize(event) ?? event)
+    const latest = new Map<string, AiActivityEvent>()
+    for (const raw of recent) {
+      const event = normalize(raw)
+      if (!event || event.ts < cutoff || !toastAllowed(event.provider)) continue
+      const key = keyOf(event)
+      if (event.ts >= (latest.get(key)?.ts ?? 0)) latest.set(key, event)
+    }
+    for (const [key, event] of latest) {
+      if (event.ts < (latestEventAt.get(key) ?? 0)) continue
+      latestEventAt.set(key, event.ts)
+      track(event)
+    }
   } catch { /* Older builds have no recent-events command. */ }
   return () => {
     unlisten?.()

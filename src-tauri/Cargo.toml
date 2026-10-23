@@ -1,6 +1,6 @@
 [package]
 name = "hover-island"
-version = "0.1.12"
+version = "0.1.14"
 description = "A macOS-notch-style Dynamic Island for Windows"
 authors = ["Hover Island"]
 edition = "2021"
@@ -38,6 +38,8 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 
 [target.'cfg(windows)'.dependencies]
+aes-gcm = "0.10"
+zeroize = "1"
 # Match Tauri/Wry's locked WebView2 interfaces for the native memory target hint.
 webview2-com = "=0.39.1"
 windows-core = "=0.62.2"

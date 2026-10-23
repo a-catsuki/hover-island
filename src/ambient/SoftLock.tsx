@@ -293,20 +293,26 @@ export default function SoftLock(props: { active: boolean; onAwake: (awake: bool
 
   const glyph = (): GlyphState => phase() === 'scanning' ? 'scanning' : phase() === 'success' ? 'success' : phase() === 'failed' ? 'fail' : 'face'
   const expanded = () => phase() === 'scanning' || phase() === 'success' || phase() === 'failed'
-  const label = () => phase() === 'hello' ? 'Windows Hello' : useFace() ? 'Look at your PC to unlock' : 'Press any key to unlock'
+  const label = () => phase() === 'hello' ? 'Windows Hello' : useFace() ? 'Face ID' : 'Locked'
+  const scanLabel = () => phase() === 'success' ? 'Recognized' : phase() === 'failed' ? 'Try again' : 'Looking for you'
 
   return (
     <>
       <div class="island-scrim" classList={{ 'island-scrim--show': expanded() }} aria-hidden="true" />
       <div class={`island island--${phase()}`} classList={{ 'island--awake': (awake() && !expanded()) || phase() === 'hello', 'island--open': expanded() }} role="status" aria-live="polite">
         <div class="island__bar">
-          <span class="island__lock"><Padlock open={phase() === 'success'} size={16} /></span>
+          <span class="island__lock"><Show when={useFace()} fallback={<Padlock open={false} size={16} />}><FaceGlyph state="face" size={22} /></Show></span>
           <span class="island__label">{label()}</span>
         </div>
         <div class="island__scan">
-          <FaceGlyph state={glyph()} size={78} />
+          <span class="island__scan-title">Face ID</span>
+          <FaceGlyph state={glyph()} size={68} />
+          <span class="island__scan-status">{scanLabel()}</span>
         </div>
       </div>
+      <Show when={phase() === 'idle'}>
+        <div class="unlock-hint"><span>Press</span><kbd>Any key</kbd><span>to unlock{useFace() ? ' with Face ID' : ''}</span></div>
+      </Show>
       <div class="island-note" classList={{ 'island-note--show': phase() === 'failed' || phase() === 'scanning' }}>
         <p class="island-note__text">{message()}</p>
         <Show when={phase() === 'failed' && detail()}>

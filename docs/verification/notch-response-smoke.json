@@ -1,0 +1,16 @@
+{
+  "boundary": "Browser fixture with the real Solid UI and animation code. Native WebView/GPU latency is not measured.",
+  "result": {
+    "startHeight": 32,
+    "target": 510,
+    "firstFrameMs": 24.600000023841858,
+    "ninetyPercentMs": 210,
+    "overshootPx": 0,
+    "beforeReverse": 246.32,
+    "afterReverse": 239.15,
+    "finalHeight": 510,
+    "maxFrameGapMs": 90.19999998807907
+  },
+  "reducedMotionPassed": true,
+  "errors": []
+}

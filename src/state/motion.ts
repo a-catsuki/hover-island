@@ -136,14 +136,14 @@ export function springStiffness(responseSeconds: number): number {
   return Math.pow((2 * Math.PI) / responseSeconds, 2)
 }
 
-/** Opening is quick with a hint of life (under 1% overshoot); closing is firm and never rebounds. */
+/** A quick, nearly critically damped response; height keeps pace with the pointer's intent. */
 export const ISLAND_SPRING = {
-  open: { stiffness: springStiffness(0.42), damping: 0.72, heightStiffness: 0.7, heightDamping: 0.6 },
-  close: { stiffness: springStiffness(0.32), damping: 0.82, heightStiffness: 0.8, heightDamping: 0.7 },
+  open: { stiffness: springStiffness(0.28), damping: 0.94, heightStiffness: 1, heightDamping: 0.94 },
+  close: { stiffness: springStiffness(0.25), damping: 1, heightStiffness: 1, heightDamping: 1 },
 } as const
 
 /** The close spring is visually done by about 340ms; the native window may shrink after this. */
-export const ISLAND_CLOSE_SETTLE_MS = 420
+export const ISLAND_CLOSE_SETTLE_MS = 360
 
 export function createIslandSpring(
   initial: SpringFrame,
@@ -189,7 +189,7 @@ export function createIslandSpring(
     const delta = lastTime === undefined ? 1 / 60 : (time - lastTime) / 1000
     lastTime = time
     const width = stepSpring({ value: current.width, velocity: velocity.width }, target.width, delta, feel.stiffness, feel.damping)
-    // Height follows a softer spring than width, so the island stretches and settles like jelly.
+    // Independent axes keep their velocity when a hover reverses mid-flight.
     const height = stepSpring({ value: current.height, velocity: velocity.height }, target.height, delta, feel.stiffness * (feel.heightStiffness ?? 1), feel.heightDamping ?? feel.damping)
     const radius = stepSpring({ value: current.radius, velocity: velocity.radius }, target.radius, delta, feel.stiffness, feel.damping)
     current = { width: width.value, height: height.value, radius: radius.value }

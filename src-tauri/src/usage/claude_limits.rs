@@ -12,6 +12,8 @@
 //!    written anywhere and is never refreshed here (Claude Code does that itself), so
 //!    it stops working once the token expires until Claude Code is used again.
 //!
+//! On Windows, Claude Desktop's account-bound encrypted Code credential is also
+//! supported when the CLI credential is unavailable. Neither sign-in is modified.
 //! Turn it off under Settings, AI.
 
 use std::sync::Mutex;
@@ -38,6 +40,8 @@ const REPORTED_FRESH_MS: u64 = 15 * 60 * 1000;
 static CACHE: Mutex<Vec<RateLimit>> = Mutex::new(Vec::new());
 static REPORTED_AT: Mutex<u64> = Mutex::new(0);
 static PROBLEM: Mutex<Option<&'static str>> = Mutex::new(None);
+static NEXT_FETCH: Mutex<u64> = Mutex::new(0);
+static FETCH_LOCK: std::sync::OnceLock<tokio::sync::Mutex<()>> = std::sync::OnceLock::new();
 
 /// The latest limits the poller fetched, empty when there are none.
 pub(crate) fn cached() -> Vec<RateLimit> {
@@ -66,7 +70,12 @@ fn set_problem(problem: Option<&'static str>) {
 fn store(limits: Vec<RateLimit>) {
     if !limits.is_empty() {
         set_problem(None);
-        *CACHE.lock().unwrap_or_else(|p| p.into_inner()) = limits;
+        let mut cache = CACHE.lock().unwrap_or_else(|p| p.into_inner());
+        for limit in limits {
+            if let Some(previous) = cache.iter_mut().find(|previous| previous.window == limit.window) {
+                *previous = limit;
+            } else { cache.push(limit); }
+        }
     }
 }
 
@@ -98,7 +107,7 @@ enum Token {
     Expired,
 }
 
-fn token() -> Token {
+fn cli_token() -> Token {
     let Some(path) = config_dir().map(|dir| dir.join(".credentials.json")) else { return Token::Missing };
     let Some(root) = std::fs::read_to_string(path).ok().and_then(|text| serde_json::from_str::<Value>(&text).ok()) else {
         return Token::Missing;
@@ -112,6 +121,13 @@ fn token() -> Token {
     match oauth.get("accessToken").and_then(Value::as_str) {
         Some(token) if !token.is_empty() => Token::Ok(token.to_string()),
         _ => Token::Missing,
+    }
+}
+
+fn token() -> Token {
+    match cli_token() {
+        valid @ Token::Ok(_) => valid,
+        cli => super::claude_desktop::token(now_millis()).map(Token::Ok).unwrap_or(cli),
     }
 }
 
@@ -178,10 +194,17 @@ enum Outcome {
 }
 
 async fn fetch(client: &reqwest::Client) -> Outcome {
+    let _guard = FETCH_LOCK.get_or_init(|| tokio::sync::Mutex::new(())).lock().await;
+    let now = now_millis();
+    {
+        let mut next = NEXT_FETCH.lock().unwrap_or_else(|p| p.into_inner());
+        if now < *next { return Outcome::Skip; }
+        *next = now + 60_000;
+    }
     let token = match token() {
         Token::Ok(token) => token,
         Token::Missing => {
-            set_problem(Some("Sign in to Claude Code with a Claude plan to see limits."));
+            set_problem(Some("Open Claude Desktop or sign in to Claude Code to see your plan limits."));
             return Outcome::NoToken;
         }
         Token::Expired => {
@@ -199,6 +222,7 @@ async fn fetch(client: &reqwest::Client) -> Outcome {
     let Ok(response) = response else { return Outcome::Skip };
     let status = response.status().as_u16();
     if status == 429 {
+        *NEXT_FETCH.lock().unwrap_or_else(|p| p.into_inner()) = now_millis() + BACKOFF.as_millis() as u64;
         set_problem(Some("Claude is rate limiting usage checks. Trying again soon."));
         return Outcome::Backoff;
     }
@@ -213,6 +237,14 @@ async fn fetch(client: &reqwest::Client) -> Outcome {
     match response.json::<Value>().await {
         Ok(root) => Outcome::Ok(parse(&root, now_millis())),
         Err(_) => Outcome::Skip,
+    }
+}
+
+/// Explicit refresh shares the poller's request gate and rate-limit backoff.
+pub(super) async fn refresh_requested(settings: &crate::settings::UsageCfg) {
+    if !settings.claude_code || !settings.claude_live_limits || settings.hidden.iter().any(|id| id == "claude-code") || reported_recently() { return; }
+    if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(15)).build() {
+        if let Outcome::Ok(limits) = fetch(&client).await { store(limits); }
     }
 }
 
@@ -250,6 +282,15 @@ pub fn spawn_poller(app: AppHandle) {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[tokio::test]
+    #[ignore = "Explicit live check: reads existing Claude sign-in and calls Anthropic usage once"]
+    async fn live_desktop_usage_is_provider_reported() {
+        let client = reqwest::Client::builder().timeout(Duration::from_secs(15)).build().unwrap();
+        let Outcome::Ok(limits) = fetch(&client).await else { panic!("Claude usage did not return limits") };
+        assert!(!limits.is_empty());
+        for limit in limits { println!("{}: {:.1}% used, reset available: {}", limit.label, limit.percent * 100.0, limit.reset_at.is_some()); }
+    }
 
     #[test]
     fn reads_session_and_weekly_windows() {

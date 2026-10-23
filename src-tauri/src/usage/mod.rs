@@ -19,6 +19,7 @@ use tauri::{AppHandle, Manager, State};
 
 mod detect;
 pub(crate) mod claude_limits;
+mod claude_desktop;
 pub(crate) mod providers;
 use detect::DetectedProvider;
 
@@ -949,6 +950,7 @@ pub fn usage_detect() -> Vec<DetectedProvider> {
 #[tauri::command]
 pub async fn usage_refresh(app: AppHandle) -> Result<Vec<UsageSnapshot>, String> {
     let settings = app.state::<AppState>().settings.lock().unwrap().clone();
+    claude_limits::refresh_requested(&settings.usage).await;
     let snaps = tauri::async_runtime::spawn_blocking(move || refresh(&settings))
         .await
         .map_err(|error| format!("Usage refresh failed: {error}"))?;

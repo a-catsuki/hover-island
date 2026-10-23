@@ -1,6 +1,7 @@
 import { createSignal } from 'solid-js'
 import { cmd } from '../lib/ipc'
 import { reportError } from './feedback'
+import { ISLAND_CLOSE_SETTLE_MS } from './motion'
 
 const [expanded, setExpandedRaw] = createSignal(false)
 let collapsedAt = 0
@@ -148,7 +149,7 @@ export function collapseIsland(): void {
   setOpen(false)
   clearTimeout(collapseTimer)
   // Long enough for the close spring (see ISLAND_CLOSE_SETTLE_MS in motion.ts) to finish before the native window shrinks.
-  collapseTimer = setTimeout(finalizeCollapse, 420)
+  collapseTimer = setTimeout(finalizeCollapse, ISLAND_CLOSE_SETTLE_MS)
 }
 
 export function finalizeCollapse(): void {

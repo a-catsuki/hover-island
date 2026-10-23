@@ -12,6 +12,7 @@ function signal(initial) {
 }
 
 async function importTs(relativePath, mocks, globals = {}) {
+  if (relativePath === 'src/state/ui.ts') mocks = { './motion': await importTs('src/state/motion.ts', {}), ...mocks }
   if (relativePath === 'src/state/settings.ts' && !Object.hasOwn(mocks, '../lib/panels')) {
     const widgetPages = await importTs('src/lib/widgetPages.ts', {})
     mocks = { ...mocks, '../lib/panels': await importTs('src/lib/panels.ts', { './widgetPages': widgetPages }) }
@@ -322,6 +323,45 @@ test('size spring preserves height and does not overshoot during a width customi
   spring.dispose()
 })
 
+test('expansion responds within one frame, reaches its size promptly and avoids a long bounce', async () => {
+  let scheduled
+  const frames = []
+  const motion = await importTs('src/state/motion.ts', {}, {
+    requestAnimationFrame: fn => { scheduled = fn; return 1 }, cancelAnimationFrame: () => { scheduled = undefined },
+  })
+  const spring = motion.createIslandSpring({ width: 256, height: 38, radius: 14 }, frame => frames.push(frame), () => false)
+  spring.retarget({ width: 720, height: 460, radius: 32 })
+  let time = 0
+  for (let count = 0; scheduled && count < 90; count++) {
+    const frame = scheduled; scheduled = undefined; frame(time += 1000 / 60)
+  }
+  assert.ok(frames[0].height > 38, 'opening starts on the first animation frame')
+  assert.ok(frames[11].height >= 38 + .9 * (460 - 38), '90% of the height is available in 200 ms')
+  assert.ok(Math.max(...frames.map(frame => frame.height)) <= 462, 'no distracting overshoot')
+  assert.ok(frames.length < 35, 'the spring stops scheduling frames after settling')
+  spring.dispose()
+})
+
+test('startup history keeps the latest session state instead of reviving an answered question', async () => {
+  const now = Date.now()
+  const event = (kind, offset) => ({ provider: 'claude-code', sessionId: 'task', title: 'Fix', detail: '', kind, ts: now + offset, source: 'hook' })
+  let listener
+  const toasts = []
+  const activity = await importTs('src/state/aiActivity.ts', {
+    'solid-js': { createSignal: signal },
+    './settings': { settings: { aiToastsEnabled: true, aiToastProviders: [] } },
+    './peek': { showAiToast: e => toasts.push(e), retireAiQuestion() {} },
+    '../lib/ipc': { onAiActivity: async fn => { listener = fn; return () => {} }, cmd: { agentEventsRecent: async () => [event('started', -3000), event('question', -2000), event('completed', -1000)] } },
+  })
+  await activity.subscribeAiActivity()
+  assert.equal(activity.waitingCount(), 0)
+  assert.equal(activity.liveActiveCount(), 0)
+  assert.equal(toasts.length, 0, 'history never replays a toast')
+  listener(event('started', 0))
+  listener(event('question', -1500))
+  assert.equal(activity.waitingCount(), 0, 'a late old question cannot overwrite the resumed task')
+})
+
 test('pending island expansion is compensated when collapse arrives before IPC resolves', async () => {
   const requests = []
   const fakeSolid = { createSignal: signal }
@@ -446,6 +486,40 @@ test('volume and brightness acknowledgements never show over the open island; th
   assert.equal(h.module.peek().title, 'Brightness 70%')
   assert.equal(h.module.peek().feedbackIcon, 'brightness')
   h.module.dismissPeek()
+})
+
+test('resuming a task retires its visible and queued input prompts', async () => {
+  const h = await peekHarness()
+  const event = { provider: 'claude-code', sessionId: 'parent', title: 'Build', detail: 'Which folder?', kind: 'question', ts: Date.now() }
+  h.module.showAiToast(event)
+  assert.equal(h.module.peek().aiActivity.kind, 'question')
+  h.module.retireAiQuestion({ ...event, kind: 'progress' })
+  assert.equal(h.module.peek(), null)
+  h.module.ingestNotifications([{ id: 'mail', app: 'Mail', title: 'Hello', body: '', timestamp: Date.now() }])
+  h.module.showAiToast({ ...event, ts: Date.now() + 1 })
+  h.module.retireAiQuestion({ ...event, kind: 'progress' })
+  h.module.dismissPeek()
+  for (let i = 0; i < 10 && h.timers.size; i++) h.fireLatest()
+  assert.equal(h.module.peek(), null, 'an answered queued question never appears later')
+})
+
+test('verified AI status replaces generic desktop task alerts without hiding ordinary notifications', async () => {
+  const h = await peekHarness()
+  h.settings.aiToastsEnabled = true
+  h.module.ingestNotifications([{ id: 'child', app: 'Claude', title: 'Task completed', body: 'Finished a subtask', timestamp: Date.now() }])
+  assert.equal(h.module.peek(), null)
+  h.module.ingestNotifications([{ id: 'billing', app: 'Claude', title: 'Billing updated', body: 'Receipt available', timestamp: Date.now() }])
+  assert.equal(h.module.peek().id, 'billing')
+})
+
+test('an explicit legacy input alert keeps its kind instead of becoming task complete', async () => {
+  const h = await peekHarness()
+  const event = { id: 'real-question', provider: 'claude-code', kind: 'needs-input', title: 'Choose a file', timestamp: Date.now() }
+  h.module.ingestAiPeek(event)
+  assert.equal(h.module.peek().aiKind, 'needs-input')
+  h.module.dismissPeek()
+  h.module.ingestAiPeek({ ...event, id: 'invalid', kind: 'tool-use' })
+  assert.equal(h.module.peek(), null)
 })
 
 test('a deferred alert is discarded when DND starts or its auth code expires', async () => {

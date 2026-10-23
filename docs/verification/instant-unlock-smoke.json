@@ -2,20 +2,26 @@
   "boundary": "Actual Solid ambient UI, simulated camera/models/native responses. Does not measure physical webcam recognition.",
   "results": [
     {
+      "flow": "Face ID and a persistent key-to-unlock hint are visible before scanning"
+    },
+    {
+      "flow": "Camera readiness starts as soon as enrolled ambient becomes visible, before unlock input"
+    },
+    {
       "flow": "First good frame unlocks without waiting for a second frame",
-      "fixtureMs": 55
+      "fixtureMs": 32
     },
     {
       "flow": "camera-hang reaches PIN fallback",
-      "fixtureMs": 2909
+      "fixtureMs": 2504.2999999821186
     },
     {
       "flow": "models-hang reaches PIN fallback",
-      "fixtureMs": 2916
+      "fixtureMs": 2509.4000000059605
     },
     {
       "flow": "frame-hang reaches PIN fallback",
-      "fixtureMs": 2912
+      "fixtureMs": 2503
     },
     {
       "flow": "A clear mismatch finishes promptly with one counted final check"
