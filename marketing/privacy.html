@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy · Hover Island</title>
+<meta name="description" content="How Hover Island handles your data. Short version: it runs on your PC, has no accounts, no analytics and no servers of ours that see your data.">
+<meta name="theme-color" content="#0B1026">
+<link rel="canonical" href="https://hover-island.vercel.app/privacy">
+<link rel="icon" type="image/png" href="assets/logo-mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="legal.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="legal-top">
+  <a class="brand" href="/"><img src="assets/logo-mark.png" alt="" width="28" height="28">Hover Island</a>
+  <nav aria-label="Legal">
+    <a href="/privacy" aria-current="page">Privacy</a>
+    <a href="/terms">Terms</a>
+  </nav>
+</header>
+
+<main class="legal" id="main">
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: November 13, 2026</p>
+  <p class="lede">Hover Island is a free, open source notch for Windows. It runs on your PC. There are no Hover Island accounts, no analytics, no ads, and no servers of ours that receive your personal data.</p>
+  <p>This policy explains what the Hover Island desktop app ("the app") and this website ("the site") do with data. "We" means the developer of Hover Island. The app's source code is public at <a href="https://github.com/a-catsuki/hover-island">github.com/a-catsuki/hover-island</a>, so you can check everything described here.</p>
+
+  <div class="tldr">
+    <h2>The short version</h2>
+    <ul>
+      <li>Everything the app works with (settings, notes, reminders, email codes, paired phones, face unlock data) stays on your PC.</li>
+      <li>If you connect Gmail or Outlook, the app reads short previews of recent messages, directly from Google or Microsoft to your PC, to find sign-in codes and show mail alerts. We never see your email.</li>
+      <li>Some optional features call third-party services (weather, lyrics, speed test). Those requests go straight from your PC to that service.</li>
+      <li>We don't sell, share or use your data for ads, and we don't collect it in the first place.</li>
+    </ul>
+  </div>
+
+  <h2 id="local">1. Data that stays on your PC</h2>
+  <p>The app stores the following only in your Windows user profile (the app's data folder). None of it is uploaded to us.</p>
+  <ul>
+    <li><strong>Settings</strong>, layout and theme choices (<code>settings.json</code>).</li>
+    <li><strong>Notes, reminders and calendar events</strong> you create, plus calendar feed addresses you add.</li>
+    <li><strong>Email connection credentials</strong> (OAuth refresh tokens for Gmail or Outlook) and website alert connector secrets. These are encrypted with Windows DPAPI, so only your Windows account can read them.</li>
+    <li><strong>Face unlock data.</strong> If you enroll a face for the ambient soft lock, the camera image is processed inside the app and never stored or sent anywhere. Only face descriptors (lists of numbers, not pictures) are saved, encrypted with Windows DPAPI. Removing face unlock deletes them.</li>
+    <li><strong>Paired phones</strong>: a device name you approved and a hash of its pairing cookie, so a phone you allowed can reconnect.</li>
+    <li><strong>Weather location</strong>: coarse coordinates and a place name for the location you chose.</li>
+  </ul>
+  <p>The app also reads some data on your PC to show it in the island. This is read on your machine and not sent anywhere unless a section below says so:</p>
+  <ul>
+    <li><strong>Windows notifications</strong> (title, text, app icon), only if you grant Windows notification access, to show them in the notch.</li>
+    <li><strong>Now playing</strong> media info from Windows media controls, and system audio output levels for the visualizer. The app never uses your microphone.</li>
+    <li><strong>System status</strong> such as battery, CPU, memory, volume, brightness, Bluetooth devices and network connection.</li>
+    <li><strong>AI coding tool activity.</strong> If you turn on AI alerts or usage limits, the app reads local session logs and usage files of tools like Claude Code, Codex, Copilot CLI, Gemini CLI and OpenCode on your PC.</li>
+    <li><strong>Files you drop</strong> onto the island, only for the action you pick (beam, recycle, and so on).</li>
+  </ul>
+
+  <h2 id="email">2. Gmail and Outlook sign-in (optional)</h2>
+  <p>You can connect a Gmail or Outlook account so Hover Island can spot one-time sign-in codes in new emails and show new-mail alerts in the notch. This is off until you click Sign in.</p>
+
+  <h3>What the app requests</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Provider</th><th>Permissions (scopes)</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Google (Gmail)</td><td><code>openid</code>, <code>email</code>, <code>https://www.googleapis.com/auth/gmail.readonly</code></td><td><code>openid</code> and <code>email</code> show which account is connected. <code>gmail.readonly</code> lets the app list recent inbox messages and read their sender, subject and short preview snippet.</td></tr>
+      <tr><td>Microsoft (Outlook)</td><td><code>openid</code>, <code>profile</code>, <code>offline_access</code>, <code>User.Read</code>, <code>Mail.Read</code></td><td>Shows which account is connected, keeps you signed in, and reads the sender, subject and short preview of recent inbox messages.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>How it is used</h3>
+  <ul>
+    <li>The app checks for new messages from the last couple of days while it is running. For each new message it reads only the sender, subject and the short preview text the provider returns. It does not download full message bodies or attachments, and it never sends, deletes, labels or changes any email.</li>
+    <li>It looks for verification codes in that preview and shows the code (and, if you turn it on, a new-mail alert) in the notch so you can copy it.</li>
+    <li>Codes and previews are kept in memory only and are gone when the app closes. The app saves just your account address, the encrypted refresh token, and a short list of message IDs it has already shown, so it doesn't alert twice.</li>
+    <li>All requests go directly from your PC to Google or Microsoft. Your email data is never sent to us or to any other third party, and we have no server that could receive it.</li>
+    <li>Email data is not used for advertising, is not sold, and is not used to train AI or machine learning models.</li>
+  </ul>
+
+  <h3>Google API Services User Data Policy</h3>
+  <p>Hover Island's use and transfer of information received from Google APIs to any other app will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+  <p>Specifically, Google user data is used only to provide the user-facing features described above (finding sign-in codes and showing mail alerts), is not transferred to anyone, is not used for serving ads, and is not read by any human. The only exceptions would be if you give explicit consent to view specific messages (for example, sharing a screenshot in a bug report), if it is needed for security purposes such as investigating abuse, or if required by law.</p>
+
+  <h3>Disconnecting</h3>
+  <p>Click Disconnect in the app's settings to remove the account and delete its saved token from your PC. You can also revoke access at any time from your <a href="https://myaccount.google.com/permissions">Google Account permissions</a> page or your <a href="https://account.live.com/consent/Manage">Microsoft account app permissions</a>.</p>
+
+  <h2 id="beam">3. Beaming files to your phone</h2>
+  <p>Hover Island can send files between your PC and your phone (including iPhone) over your local network. When you start a beam session, the app runs a small temporary web server on your PC and shows a QR code. Your phone opens that page in its browser and can only access files after you approve it on your PC.</p>
+  <ul>
+    <li>Files go directly between your PC and phone on your local network. They never pass through our servers or the internet.</li>
+    <li>If you choose to remember a phone, the app stores its name and a hash of its access cookie on your PC. You can forget it at any time.</li>
+    <li>The server only runs while a session is open. Traffic is plain HTTP on your local network, so use it on networks you trust and stop the session when you are done.</li>
+    <li>The nearby transfer feature uses the open LocalSend protocol to find compatible devices on your local network, which broadcasts your PC's device name to devices on that network while it is on.</li>
+  </ul>
+
+  <h2 id="network">4. Network requests the app makes</h2>
+  <p>These requests go directly from your PC to the listed service. Like any internet request, the service sees your IP address and a basic user agent (for example <code>Hover-Island/0.1.x</code>). Their own privacy policies apply.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Feature</th><th>Service</th><th>What is sent</th></tr></thead>
+    <tbody>
+      <tr><td>Update checks</td><td>hover-island.vercel.app (Vercel)</td><td>A request for <code>/updates/latest.json</code>, about once a day, and the update package if you install it. No identifiers or usage data are included.</td></tr>
+      <tr><td>Weather and air quality</td><td>Open-Meteo</td><td>Coarse coordinates of your chosen location, or a city name you search for.</td></tr>
+      <tr><td>Detect my location (only when you click it)</td><td>Windows Location, then ipwho.is, geojs.io or ipapi.co, and BigDataCloud for the place name</td><td>Your IP address (for the approximate lookup) or coarse coordinates.</td></tr>
+      <tr><td>Synced lyrics</td><td>LRCLIB</td><td>Title, artist, album and length of the song that is playing.</td></tr>
+      <tr><td>Speed test and latency</td><td>Cloudflare (speed.cloudflare.com)</td><td>Test traffic only, when you run it.</td></tr>
+      <tr><td>Claude usage limits (optional)</td><td>Anthropic (api.anthropic.com)</td><td>Your existing Claude credential already on your PC, used read-only to fetch your own plan usage.</td></tr>
+      <tr><td>Codex reset notices (optional)</td><td>codex-resets.com</td><td>A plain request for public announcements. No account data.</td></tr>
+      <tr><td>Calendar feeds and website alerts (optional)</td><td>Addresses you add yourself</td><td>Requests to those addresses, with any key you entered for them.</td></tr>
+      <tr><td>Email (optional)</td><td>Google or Microsoft</td><td>See section 2.</td></tr>
+    </tbody>
+  </table></div>
+  <p>The app has no analytics, crash reporting or tracking of any kind.</p>
+
+  <h2 id="site">5. This website</h2>
+  <p>The site is hosted on Vercel, which keeps standard server logs (such as IP address, browser and pages requested) for security and operations. The site loads fonts from Google Fonts and may ask GitHub for the project's star count, so those services see your IP address. The site sets no cookies of ours and runs no analytics or ad trackers.</p>
+
+  <h2 id="sharing">6. Sharing, sale and retention</h2>
+  <p>We don't collect your personal data, so we have nothing to sell or share. Data on your PC stays until you delete it in the app, sign out, or uninstall Hover Island and remove its data folder. If you contact us (for example through a GitHub issue), what you post is public on GitHub and handled under GitHub's terms, so please don't include private information.</p>
+
+  <h2 id="rights">7. Your choices and rights</h2>
+  <p>Every feature that touches personal data is optional and can be turned off in settings. Because your data lives on your device, you can view, export or delete it yourself at any time. Depending on where you live (for example under the GDPR or CCPA) you may have rights to access or delete personal data; since we don't hold any, there is usually nothing for us to return, but you are welcome to ask.</p>
+
+  <h2 id="children">8. Children</h2>
+  <p>Hover Island is not directed at children under 13, and we do not knowingly collect data from them.</p>
+
+  <h2 id="changes">9. Changes</h2>
+  <p>If this policy changes, we'll update this page and the date at the top. Significant changes will also be noted in the release notes.</p>
+
+  <h2 id="contact">10. Contact</h2>
+  <p>Questions or requests about privacy: open an issue at <a href="https://github.com/a-catsuki/hover-island/issues">github.com/a-catsuki/hover-island/issues</a>.</p>
+</main>
+
+<footer class="legal-foot">
+  <span>© 2026 Hover Island</span>
+  <a href="/">Home</a>
+  <a href="/privacy">Privacy</a>
+  <a href="/terms">Terms</a>
+  <a href="https://github.com/a-catsuki/hover-island" target="_blank" rel="noopener">GitHub</a>
+</footer>
+</body>
+</html>
