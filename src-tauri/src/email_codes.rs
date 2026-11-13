@@ -439,7 +439,12 @@ font:15px/1.5 'Segoe UI Variable','Segoe UI',system-ui,sans-serif}}main{{text-al
 .mark{{width:56px;height:56px;margin:0 auto 18px;border-radius:50%;display:grid;place-items:center;\
 font-size:26px;font-weight:600;color:#0b0b0d;background:{color}}}h1{{margin:0 0 6px;font-size:22px;font-weight:600}}\
 p{{margin:0;color:rgba(245,245,247,.6)}}</style></head><body><main><div class=\"mark\">{mark}</div>\
-<h1>{title}</h1><p>{message}</p></main></body></html>"
+<h1>{title}</h1><p>{message}</p></main>{close}</body></html>",
+        close = if ok {
+            "<script>setTimeout(function(){window.close()},1200)</script>"
+        } else {
+            ""
+        }
     ))
 }
 
@@ -481,10 +486,7 @@ async fn callback(
     if ok {
         (
             StatusCode::OK,
-            callback_page(
-                true,
-                "You can close this tab. Hover Island is watching for codes now.",
-            ),
+            callback_page(true, "Back to Hover Island. You can close this tab."),
         )
     } else {
         (
@@ -516,10 +518,9 @@ pub async fn email_codes_authorize(
         .filter(|value| !value.is_empty());
     let (client_id, client_secret) = match custom_id {
         Some(id) => (id, client_secret.filter(|value| !value.is_empty())),
-        None => provider.builtin_client().ok_or_else(|| {
-            "One-click sign-in isn't set up in this build. Use your own OAuth app under Advanced."
-                .to_string()
-        })?,
+        None => provider
+            .builtin_client()
+            .ok_or_else(|| "Sign in with Google isn't enabled in this build yet.".to_string())?,
     };
     if !valid_client_id(&client_id) {
         return Err("Enter a valid OAuth client ID from your provider's developer console.".into());
@@ -637,6 +638,11 @@ pub async fn email_codes_authorize(
     };
     let _ = shutdown_tx.send(());
     server.abort();
+    // Bring Settings back in front of the browser so the user sees the result.
+    if let Some(window) = app.get_webview_window("settings") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
     if generation != AUTH_GENERATION.load(Ordering::Acquire) {
         return Err("Email connection changed during sign-in. Start again.".into());
     }

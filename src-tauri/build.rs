@@ -22,10 +22,21 @@ fn embed_oauth_clients() {
             let (name, value) = line.trim().split_once('=')?;
             (name.trim() == key).then(|| value.trim().trim_matches('"').to_string())
         });
-        if let Some(value) = value.filter(|value| !value.is_empty()) {
+        // Ignore the placeholder values from oauth.env.example.
+        if let Some(value) = value.filter(|value| !value.is_empty() && !is_placeholder(value)) {
             println!("cargo:rustc-env={key}={value}");
+        } else if key == "HOVER_GOOGLE_CLIENT_ID" {
+            println!(
+                "cargo:warning=No Google OAuth client in src-tauri/.env.oauth: \"Sign in with Google\" is disabled in this build. See docs/email-codes.md."
+            );
         }
     }
+}
+
+fn is_placeholder(value: &str) -> bool {
+    value.contains("replace-me")
+        || value.starts_with("1234567890-abc")
+        || value == "00000000-0000-0000-0000-000000000000"
 }
 
 fn main() {

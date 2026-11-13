@@ -43,17 +43,6 @@
 .sform__details > summary { padding: 8px 12px; font-size: 12px; color: var(--st-t2, rgba(255, 255, 255, 0.6)); cursor: pointer; }
 .sform__details[open] > summary { color: var(--st-t1, #fff); }
 .sform__details > div, .sform__details > form { display: grid; gap: 12px; padding: 2px 12px 12px; }
-.email-signin-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
-.email-signin { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 14px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.12); color: var(--st-t1, #fff); font: inherit; text-align: left; cursor: pointer; transition: background 0.15s ease, transform 0.15s ease; }
-.email-signin:hover:not(:disabled) { background: rgba(255, 255, 255, 0.13); }
-.email-signin:active:not(:disabled) { transform: scale(0.985); }
-.email-signin:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.55); }
-.email-signin:disabled:not(.email-signin--busy) { opacity: 0.45; cursor: default; }
-.email-signin--busy { cursor: progress; }
-.email-signin__logo { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 8px; background: #fff; }
-.email-signin__text { display: flex; flex: 1; flex-direction: column; gap: 1px; min-width: 0; }
-.email-signin__text strong { font-size: 13px; font-weight: 600; }
-.email-signin__text small { font-size: 11px; color: var(--st-t3, rgba(255, 255, 255, 0.38)); }
 .sform__note .text-button { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; font-size: 11px; }
 .sform__actions { display: flex; align-items: center; justify-content: flex-start; gap: 12px; }
 .sform__spinner { width: 12px; height: 12px; border: 2px solid rgba(255, 255, 255, 0.4); border-right-color: transparent; border-radius: 50%; animation: sform-spin 0.7s linear infinite; }
@@ -65,3 +54,24 @@
 
 @media (max-width: 560px) { .sform__grid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .sform__spinner, .slist-spin { animation-duration: 1.6s; } }
+.email-signin-hero { display: grid; justify-items: center; gap: 4px; padding: 22px 16px 18px; border-radius: 12px; background: radial-gradient(120% 140% at 50% 0%, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03)); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.1); text-align: center; }
+.email-signin-hero > strong { margin-top: 8px; font-size: 14px; font-weight: 600; color: var(--st-t1, #fff); }
+.email-signin-hero > small { margin-bottom: 12px; font-size: 12px; color: var(--st-t2, rgba(255, 255, 255, 0.6)); }
+.email-signin-hero--compact { padding: 0; background: none; box-shadow: none; justify-items: stretch; }
+.email-signin-hero__icons { display: flex; gap: 10px; }
+.email-signin-hero__icons img { padding: 9px; border-radius: 12px; background: #fff; box-sizing: content-box; }
+.email-signin-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; }
+.email-signin { display: inline-flex; flex: 1 1 200px; max-width: 280px; align-items: center; justify-content: center; gap: 10px; height: 40px; padding: 0 18px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14); color: var(--st-t1, #fff); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease; }
+.email-signin--google { background: #fff; color: #1f1f1f; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }
+.email-signin:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+.email-signin--google:hover:not(:disabled) { background: #f1f3f4; }
+.email-signin:active:not(:disabled) { transform: scale(0.98); }
+.email-signin:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.55); }
+.email-signin:disabled { opacity: 0.45; cursor: default; }
+.email-signin-hero--compact .email-signin-row { justify-content: flex-start; }
+.email-waiting { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(10, 132, 255, 0.12); box-shadow: inset 0 0 0 0.5px rgba(10, 132, 255, 0.35); }
+.email-waiting__text { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.email-waiting__text strong { font-size: 13px; font-weight: 600; color: var(--st-t1, #fff); }
+.email-waiting__text small { font-size: 11px; color: var(--st-t2, rgba(255, 255, 255, 0.6)); }
+.email-connected { display: flex; align-items: center; gap: 6px; margin: 0; padding: 8px 12px; border-radius: 10px; background: rgba(48, 209, 88, 0.12); color: #30d158; font-size: 12px; font-weight: 600; animation: email-connected-in 0.25s ease; }
+@keyframes email-connected-in { from { opacity: 0; transform: translateY(-3px); } }

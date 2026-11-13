@@ -1,5 +1,5 @@
 import { createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { Bell, BellOff, Check, ExternalLink, KeyRound, Mail, Pause, Play, RefreshCw, ShieldCheck, Trash2, X } from 'lucide-solid'
+import { Bell, BellOff, Check, CheckCircle2, ExternalLink, KeyRound, Mail, Pause, Play, RefreshCw, ShieldCheck, Trash2 } from 'lucide-solid'
 import { cancelEmailSignIn, connectEmailCodes, emailCodes, emailCodesError, pauseEmailCodes, refreshEmailCodes, removeEmailCodes, setEmailMailAlerts, subscribeEmailCodes } from '../../state/emailCodes'
 import { reportError } from '../../state/feedback'
 import { cmd, type EmailProviders } from '../../lib/ipc'
@@ -19,13 +19,14 @@ export default function EmailCodesPanel() {
   const [workingId, setWorkingId] = createSignal<string | null>(null)
   const [localError, setLocalError] = createSignal<string | null>(null)
   const [advancedOpen, setAdvancedOpen] = createSignal(false)
+  const [justConnected, setJustConnected] = createSignal<string | null>(null)
+  let connectedTimer: number | undefined
+  onCleanup(() => window.clearTimeout(connectedTimer))
+  const anyOneClick = () => oneClick().google || oneClick().microsoft
 
   onMount(() => {
     const unsubscribe = subscribeEmailCodes(); onCleanup(unsubscribe)
-    void cmd.emailCodesProviders().then(value => {
-      setOneClick(value)
-      if (!value.google && !value.microsoft) setAdvancedOpen(true)
-    }).catch(() => setAdvancedOpen(true))
+    void cmd.emailCodesProviders().then(setOneClick).catch(() => {})
   })
   onCleanup(() => { if (signingIn()) void cancelEmailSignIn().catch(() => {}) })
 
@@ -33,8 +34,11 @@ export default function EmailCodesPanel() {
     if (signingIn()) return
     setSigningIn(which); setLocalError(null)
     try {
-      await connectEmailCodes(which, ownClientId, ownSecret)
-      setClientId(''); setClientSecret('')
+      const account = await connectEmailCodes(which, ownClientId, ownSecret)
+      setClientId(''); setClientSecret(''); setAdvancedOpen(false)
+      setJustConnected(account.address)
+      window.clearTimeout(connectedTimer)
+      connectedTimer = window.setTimeout(() => setJustConnected(null), 5000)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error || '')
       if (message !== 'Sign-in cancelled.') setLocalError(message || 'Could not connect this account.')
@@ -54,21 +58,17 @@ export default function EmailCodesPanel() {
   const SignInButton = (props: { which: Provider }) => <button
     type="button"
     class="email-signin"
-    classList={{ 'email-signin--busy': signingIn() === props.which }}
+    classList={{ 'email-signin--google': props.which === 'google' }}
     disabled={!!signingIn()}
     onClick={() => void signIn(props.which)}
   >
-    <span class="email-signin__logo" aria-hidden="true"><BrandIcon name={props.which === 'google' ? 'gmail' : 'outlook'} size={18} /></span>
-    <span class="email-signin__text">
-      <strong>{signingIn() === props.which ? 'Finish in your browser…' : `Sign in with ${PROVIDER_NAME[props.which]}`}</strong>
-      <small>{props.which === 'google' ? 'Gmail' : 'Outlook, Hotmail, Live'}</small>
-    </span>
-    <Show when={signingIn() === props.which}><span class="sform__spinner" /></Show>
+    <BrandIcon name={props.which === 'google' ? 'gmail' : 'outlook'} size={18} />
+    <span>Continue with {PROVIDER_NAME[props.which]}</span>
   </button>
 
   return <Group
-    title="Email codes and alerts"
-    description="Sign in once and Hover Island shows verification codes and new mail in the island. It only reads new inbox mail, keeps codes for ten minutes, and stores the sign-in encrypted on this PC."
+    title="Email"
+    description="Sign in once. Verification codes and new mail show up in the island."
   >
     <Show when={emailCodes().accounts.length}>
       <For each={emailCodes().accounts}>{account => <div class="slist-row">
@@ -86,19 +86,34 @@ export default function EmailCodesPanel() {
     </Show>
 
     <div class="sform">
-      <Show when={oneClick().google || oneClick().microsoft}>
-        <div class="email-signin-row">
-          <Show when={oneClick().google}><SignInButton which="google" /></Show>
-          <Show when={oneClick().microsoft}><SignInButton which="microsoft" /></Show>
-        </div>
+      <Show when={justConnected()}>
+        <p class="email-connected" role="status"><CheckCircle2 size={14} />Connected {justConnected()}</p>
       </Show>
-      <Show when={signingIn()}>
-        <p class="sform__note">A sign-in page opened in your browser. Pick your account and allow access, then come back here. <button type="button" class="text-button" onClick={() => void cancelEmailSignIn()}><X size={11} /> Cancel</button></p>
+      <Show when={signingIn()} fallback={
+        <Show when={anyOneClick()} fallback={<p class="sform__note">Sign in with Google isn't enabled in this build. Add the app's OAuth client to <code>src-tauri/.env.oauth</code> and rebuild.</p>}>
+          <div class="email-signin-hero" classList={{ 'email-signin-hero--compact': emailCodes().accounts.length > 0 }}>
+            <Show when={!emailCodes().accounts.length}>
+              <div class="email-signin-hero__icons" aria-hidden="true"><BrandIcon name="gmail" size={26} /><Show when={oneClick().microsoft}><BrandIcon name="outlook" size={26} /></Show></div>
+              <strong>Connect your inbox</strong>
+              <small>Pick your account in the browser and you're done.</small>
+            </Show>
+            <div class="email-signin-row">
+              <Show when={oneClick().google}><SignInButton which="google" /></Show>
+              <Show when={oneClick().microsoft}><SignInButton which="microsoft" /></Show>
+            </div>
+          </div>
+        </Show>
+      }>
+        <div class="email-waiting" role="status">
+          <span class="sform__spinner" />
+          <span class="email-waiting__text"><strong>Finish in your browser</strong><small>Choose your {PROVIDER_NAME[signingIn()!]} account and allow access.</small></span>
+          <button type="button" class="text-button" onClick={() => void cancelEmailSignIn()}>Cancel</button>
+        </div>
       </Show>
       <Show when={localError() || emailCodesError()}><p class="sform__error" role="alert">{localError() || emailCodesError()}</p></Show>
 
       <details class="sform__details" open={advancedOpen()} onToggle={event => setAdvancedOpen(event.currentTarget.open)}>
-        <summary>{oneClick().google || oneClick().microsoft ? 'Advanced: use your own OAuth app' : 'Connect with your own OAuth app'}</summary>
+        <summary>Use your own OAuth app</summary>
         <form onSubmit={connectOwn}>
           <h3 class="sform__title"><KeyRound size={14} strokeWidth={1.9} />Your own OAuth client</h3>
           <div class="sform__grid">
@@ -117,7 +132,7 @@ export default function EmailCodesPanel() {
           </div>
         </form>
       </details>
-      <p class="sform__note"><ShieldCheck size={11} style={{ 'vertical-align': '-1px', 'margin-right': '4px' }} />Read-only access. Pause or remove a connection any time, or revoke it from your Google or Microsoft account page.</p>
+      <p class="sform__note"><ShieldCheck size={11} style={{ 'vertical-align': '-1px', 'margin-right': '4px' }} />Read-only. Stored encrypted on this PC. Remove it any time.</p>
     </div>
   </Group>
 }

@@ -35,6 +35,10 @@ if ($Fast) {
 }
 $targetRoot = if ($Fast) { Join-Path $PSScriptRoot 'src-tauri\target-fast' } else { Join-Path $PSScriptRoot 'src-tauri\target' }
 if ($Check) { Step 'cargo check' { Push-Location src-tauri; cargo check 2>&1; $code = $LASTEXITCODE; Pop-Location; $global:LASTEXITCODE = $code } }
+$oauth = Join-Path $PSScriptRoot 'src-tauri\.env.oauth'
+if (-not (Test-Path $oauth) -or -not (Select-String -Path $oauth -Pattern '^HOVER_GOOGLE_CLIENT_ID=\d+-(?!abc\.)' -Quiet)) {
+    "WARNING: no Google OAuth client in src-tauri\.env.oauth. 'Sign in with Google' will be disabled in this build. See docs\email-codes.md." | Tee-Object -FilePath $log -Append | Write-Host -ForegroundColor Yellow
+}
 Step 'Tauri release build (compiles Rust)' { npx tauri build --no-bundle }
 
 $exe = Join-Path $targetRoot 'release\hover-island.exe'
