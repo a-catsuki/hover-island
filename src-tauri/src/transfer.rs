@@ -867,6 +867,7 @@ fn router(session: Arc<Session>) -> Router {
         .route("/s/:token/api/pair/request", post(pair_request))
         .route("/s/:token/api/pair/status/:id", get(pair_request_status))
         .route("/s/:token/api/pair/claim/:id", post(pair_claim))
+        .route("/s/:token/api/pair/resume", post(pair_resume))
         .route(
             "/s/:token/api/files",
             get(list_files).put(upload_file).options(preflight),
@@ -885,13 +886,11 @@ async fn phone_page(
     if let Err((status, message)) = authorize_base(&session, &token, remote, &headers, false) {
         return (status, message).into_response();
     }
-    let paired = match authenticated_device_id(&session, &headers) {
-        Some(id) => {
-            touch_device(&session, &id);
-            true
-        }
-        None => loopback_bypass_allowed(&session, remote),
-    };
+    let remembered_cookie = authenticated_device_id(&session, &headers).and_then(|id| {
+        touch_device(&session, &id);
+        device_cookie_value(&headers)
+    });
+    let paired = remembered_cookie.is_some() || loopback_bypass_allowed(&session, remote);
     if !paired {
         return secure_html_response(PAIRING_PAGE.to_string());
     }
@@ -903,7 +902,59 @@ async fn phone_page(
     let html = MOBILE_PAGE
         .replace("__DEVICE_BOOKMARK__", &session.bookmark_url())
         .replace("__BOOKMARK_NOTE__", bookmark_note);
-    secure_html_response(html)
+    let mut response = secure_html_response(html);
+    // Re-issue the device cookie on every visit: slides its expiry and upgrades
+    // phones paired with the older SameSite=Strict cookie.
+    if let Some(cookie) = remembered_cookie {
+        set_device_cookie(&mut response, &cookie);
+    }
+    response
+}
+
+/// iOS opens QR-code links from the Camera as a cross-site navigation, so a
+/// SameSite=Strict cookie is withheld and a remembered phone looked unpaired.
+/// The pairing page calls this same-site endpoint first; when the phone already
+/// holds a valid cookie it is re-issued as Lax and the bucket opens directly.
+async fn pair_resume(
+    Path(token): Path<String>,
+    AxumState(session): AxumState<Arc<Session>>,
+    ConnectInfo(remote): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err((status, message)) = authorize_base(&session, &token, remote, &headers, true) {
+        return (status, message).into_response();
+    }
+    let Some(id) = authenticated_device_id(&session, &headers) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            "This phone is not remembered yet.",
+        )
+            .into_response();
+    };
+    touch_device(&session, &id);
+    let Some(cookie) = device_cookie_value(&headers) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            "This phone is not remembered yet.",
+        )
+            .into_response();
+    };
+    let mut response = StatusCode::NO_CONTENT.into_response();
+    set_device_cookie(&mut response, &cookie);
+    response
+}
+
+fn device_cookie_header(cookie: &str) -> String {
+    format!("{DEVICE_COOKIE}={cookie}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax")
+}
+
+fn set_device_cookie(response: &mut Response, cookie: &str) {
+    if let Ok(value) = HeaderValue::from_str(&device_cookie_header(cookie)) {
+        response.headers_mut().insert(header::SET_COOKIE, value);
+    }
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
 }
 
 async fn device_bookmark(
@@ -1040,8 +1091,7 @@ async fn pair_claim(
         )
             .into_response();
     }
-    let cookie =
-        format!("{DEVICE_COOKIE}={cookie}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Strict");
+    let cookie = device_cookie_header(&cookie);
     let mut response = StatusCode::NO_CONTENT.into_response();
     if let Ok(value) = HeaderValue::from_str(&cookie) {
         response.headers_mut().insert(header::SET_COOKIE, value);
@@ -1936,14 +1986,21 @@ fn authorize_base(
     Ok(())
 }
 
-fn authenticated_device_id(session: &Session, headers: &HeaderMap) -> Option<String> {
-    let cookie = headers.get(header::COOKIE)?.to_str().ok()?;
+fn device_cookie_value(headers: &HeaderMap) -> Option<String> {
     let prefix = format!("{DEVICE_COOKIE}=");
-    let value = cookie
-        .split(';')
+    headers
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(';'))
         .map(str::trim)
-        .find_map(|part| part.strip_prefix(prefix.as_str()))?;
-    session.paired_devices.lock().ok()?.authenticated_id(value)
+        .find_map(|part| part.strip_prefix(prefix.as_str()))
+        .map(str::to_string)
+}
+
+fn authenticated_device_id(session: &Session, headers: &HeaderMap) -> Option<String> {
+    let value = device_cookie_value(headers)?;
+    session.paired_devices.lock().ok()?.authenticated_id(&value)
 }
 
 fn touch_device(session: &Session, id: &str) {
@@ -2156,7 +2213,9 @@ fn host_label() -> Option<String> {
     let name = std::env::var("COMPUTERNAME").ok()?.to_ascii_lowercase();
     let valid = !name.is_empty()
         && name.len() <= 63
-        && name.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-');
+        && name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-');
     valid.then_some(name)
 }
 
@@ -2601,7 +2660,7 @@ mod tests {
             .unwrap()
             .to_string();
         assert!(set_cookie.contains("HttpOnly"));
-        assert!(set_cookie.contains("SameSite=Strict"));
+        assert!(set_cookie.contains("SameSite=Lax"));
         let cookie = set_cookie.split(';').next().unwrap().to_string();
         let raw = cookie.split_once('=').unwrap().1;
         assert_eq!(

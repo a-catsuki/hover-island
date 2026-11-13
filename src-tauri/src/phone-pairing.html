@@ -64,6 +64,12 @@
           message('Compare this code with the request on your PC.');void poll(result.id);
         }catch(error){message(error.message||'Could not request pairing.',true);button.disabled=false;name.disabled=false}
       });
+      // Remembered phone opened from the Camera (cross-site): the cookie is only sent on same-site requests.
+      (async()=>{
+        button.disabled=true;message('Checking if this phone is remembered…');
+        try{const r=await fetch(base+'/api/pair/resume',{method:'POST',credentials:'same-origin',cache:'no-store'});if(r.status===204&&!sessionStorage.getItem('hi-resumed')){sessionStorage.setItem('hi-resumed','1');message('Welcome back. Opening your files…');location.replace(base);return}}catch(_){}
+        button.disabled=false;message('Only a pairing request is allowed from this link.');
+      })();
       addEventListener('pagehide',()=>{stopped=true});
     })();
   </script>
